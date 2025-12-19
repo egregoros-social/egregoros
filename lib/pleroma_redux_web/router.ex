@@ -60,6 +60,7 @@ defmodule PleromaReduxWeb.Router do
     get "/timelines/home", TimelinesController, :home
     get "/notifications", NotificationsController, :index
     get "/preferences", PreferencesController, :show
+    post "/follows", FollowsController, :create
     post "/accounts/:id/follow", AccountsController, :follow
     post "/accounts/:id/unfollow", AccountsController, :unfollow
     post "/statuses", StatusesController, :create
