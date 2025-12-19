@@ -62,6 +62,14 @@ defmodule PleromaRedux.Objects do
     |> Repo.one()
   end
 
+  def count_emoji_reacts(object, emoji) when is_binary(object) and is_binary(emoji) do
+    from(o in Object,
+      where:
+        o.type == "EmojiReact" and o.object == ^object and fragment("?->>'content' = ?", o.data, ^emoji)
+    )
+    |> Repo.aggregate(:count, :id)
+  end
+
   def list_follows_to(object_ap_id) when is_binary(object_ap_id) do
     from(o in Object, where: o.type == "Follow" and o.object == ^object_ap_id)
     |> Repo.all()

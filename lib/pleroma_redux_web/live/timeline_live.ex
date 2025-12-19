@@ -2,6 +2,7 @@ defmodule PleromaReduxWeb.TimelineLive do
   use PleromaReduxWeb, :live_view
 
   alias PleromaRedux.Activities.Announce
+  alias PleromaRedux.Activities.EmojiReact
   alias PleromaRedux.Activities.Like
   alias PleromaRedux.Activities.Undo
   alias PleromaRedux.Federation
@@ -122,6 +123,30 @@ defmodule PleromaReduxWeb.TimelineLive do
     else
       nil ->
         {:noreply, assign(socket, error: "Register to repost.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_reaction", %{"id" => id, "emoji" => emoji}, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         {post_id, ""} <- Integer.parse(to_string(id)),
+         %{object: post} <- Enum.find(socket.assigns.posts, &(&1.object.id == post_id)) do
+      emoji = to_string(emoji)
+
+      case Objects.get_emoji_react(user.ap_id, post.ap_id, emoji) do
+        %{} = reaction_object ->
+          Pipeline.ingest(Undo.build(user, reaction_object), local: true)
+
+        nil ->
+          Pipeline.ingest(EmojiReact.build(user, post, emoji), local: true)
+      end
+
+      {:noreply, refresh_post(socket, post_id)}
+    else
+      nil ->
+        {:noreply, assign(socket, error: "Register to react.")}
 
       _ ->
         {:noreply, socket}
@@ -257,6 +282,31 @@ defmodule PleromaReduxWeb.TimelineLive do
                     <%= entry.reposts_count %>
                   </span>
                 </button>
+
+                <div :if={@current_user} class="flex flex-wrap items-center gap-2">
+                  <%= for emoji <- reaction_emojis() do %>
+                    <% reaction = Map.get(entry.reactions, emoji, %{count: 0, reacted?: false}) %>
+
+                    <button
+                      type="button"
+                      data-role="reaction"
+                      data-emoji={emoji}
+                      phx-click="toggle_reaction"
+                      phx-value-id={entry.object.id}
+                      phx-value-emoji={emoji}
+                      class={[
+                        "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition hover:-translate-y-0.5",
+                        reaction.reacted? &&
+                          "border-emerald-200/70 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:bg-emerald-500/10",
+                        !reaction.reacted? &&
+                          "border-slate-200/80 bg-white/70 text-slate-700 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                      ]}
+                    >
+                      <span class="text-base leading-none"><%= emoji %></span>
+                      <span class="text-xs font-normal"><%= reaction.count %></span>
+                    </button>
+                  <% end %>
+                </div>
               </div>
             </article>
           <% end %>
@@ -276,7 +326,8 @@ defmodule PleromaReduxWeb.TimelineLive do
       likes_count: Objects.count_by_type_object("Like", post.ap_id),
       liked?: liked_by_current_user?(post, current_user),
       reposts_count: Objects.count_by_type_object("Announce", post.ap_id),
-      reposted?: reposted_by_current_user?(post, current_user)
+      reposted?: reposted_by_current_user?(post, current_user),
+      reactions: reactions_for_post(post, current_user)
     }
   end
 
@@ -290,6 +341,26 @@ defmodule PleromaReduxWeb.TimelineLive do
 
   defp reposted_by_current_user?(post, %User{} = current_user) do
     Objects.get_by_type_actor_object("Announce", current_user.ap_id, post.ap_id) != nil
+  end
+
+  defp reactions_for_post(post, current_user) do
+    for emoji <- reaction_emojis(), into: %{} do
+      {emoji,
+       %{
+         count: Objects.count_emoji_reacts(post.ap_id, emoji),
+         reacted?: reacted_by_current_user?(post, current_user, emoji)
+       }}
+    end
+  end
+
+  defp reacted_by_current_user?(_post, nil, _emoji), do: false
+
+  defp reacted_by_current_user?(post, %User{} = current_user, emoji) when is_binary(emoji) do
+    Objects.get_emoji_react(current_user.ap_id, post.ap_id, emoji) != nil
+  end
+
+  defp reaction_emojis do
+    ["🔥", "👍", "❤️"]
   end
 
   defp refresh_post(socket, post_id) when is_integer(post_id) do
