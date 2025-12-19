@@ -3,7 +3,8 @@ defmodule PleromaRedux.User do
 
   import Ecto.Changeset
 
-  @required_fields ~w(nickname ap_id inbox outbox public_key private_key local)a
+  @fields ~w(nickname ap_id inbox outbox public_key private_key local)a
+  @required_fields ~w(nickname ap_id inbox outbox public_key local)a
 
   schema "users" do
     field :nickname, :string
@@ -19,9 +20,18 @@ defmodule PleromaRedux.User do
 
   def changeset(user, attrs) do
     user
-    |> cast(attrs, @required_fields)
+    |> cast(attrs, @fields)
     |> validate_required(@required_fields)
+    |> maybe_require_private_key()
     |> unique_constraint(:ap_id)
     |> unique_constraint(:nickname)
+  end
+
+  defp maybe_require_private_key(changeset) do
+    if Ecto.Changeset.get_field(changeset, :local) do
+      validate_required(changeset, [:private_key])
+    else
+      changeset
+    end
   end
 end

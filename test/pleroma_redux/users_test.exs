@@ -20,6 +20,22 @@ defmodule PleromaRedux.UsersTest do
     assert user.ap_id == attrs.ap_id
   end
 
+  test "create_user allows remote user without private key" do
+    attrs = %{
+      nickname: "remote",
+      ap_id: "https://remote.example/users/remote",
+      inbox: "https://remote.example/users/remote/inbox",
+      outbox: "https://remote.example/users/remote/outbox",
+      public_key: "PUB",
+      private_key: nil,
+      local: false
+    }
+
+    assert {:ok, %User{} = user} = Users.create_user(attrs)
+    assert user.local == false
+    assert is_nil(user.private_key)
+  end
+
   test "create_local_user generates keys and urls" do
     {:ok, user} = Users.create_local_user("bob")
 
