@@ -20,6 +20,12 @@ defmodule PleromaReduxWeb.Router do
     live "/", TimelineLive
   end
 
+  scope "/", PleromaReduxWeb do
+    pipe_through :api
+
+    get "/users/:nickname", ActorController, :show
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", PleromaReduxWeb do
   #   pipe_through :api
