@@ -34,6 +34,7 @@ defmodule PleromaReduxWeb.ConnCase do
 
   setup tags do
     Mox.set_mox_from_context(tags)
+    Mox.stub_with(PleromaRedux.HTTP.Mock, PleromaRedux.HTTP.Stub)
     Mox.verify_on_exit!(tags)
     PleromaRedux.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
