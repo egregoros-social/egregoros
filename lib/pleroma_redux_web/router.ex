@@ -26,6 +26,8 @@ defmodule PleromaReduxWeb.Router do
     post "/register", RegistrationController, :create
     get "/login", SessionController, :new
     post "/login", SessionController, :create
+    get "/oauth/authorize", OAuthController, :authorize
+    post "/oauth/authorize", OAuthController, :approve
     get "/settings", SettingsController, :edit
     post "/settings/profile", SettingsController, :update_profile
     post "/settings/account", SettingsController, :update_account
@@ -38,6 +40,7 @@ defmodule PleromaReduxWeb.Router do
   scope "/", PleromaReduxWeb do
     pipe_through :api
 
+    post "/oauth/token", OAuthController, :token
     get "/users/:nickname", ActorController, :show
     post "/users/:nickname/inbox", InboxController, :inbox
     get "/users/:nickname/outbox", OutboxController, :outbox

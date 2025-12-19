@@ -4,10 +4,12 @@ defmodule PleromaReduxWeb.RegistrationController do
   alias PleromaRedux.User
   alias PleromaRedux.Users
 
-  def new(conn, _params) do
+  def new(conn, params) do
+    return_to = params |> Map.get("return_to", "") |> to_string()
+
     form =
       Phoenix.Component.to_form(
-        %{"nickname" => "", "email" => "", "password" => ""},
+        %{"nickname" => "", "email" => "", "password" => "", "return_to" => return_to},
         as: :registration
       )
 
@@ -18,9 +20,16 @@ defmodule PleromaReduxWeb.RegistrationController do
     nickname = params |> Map.get("nickname", "") |> to_string() |> String.trim()
     email = params |> Map.get("email", "") |> to_string() |> String.trim()
     password = params |> Map.get("password", "") |> to_string()
+    return_to = params |> Map.get("return_to", "") |> to_string()
 
     form =
-      Phoenix.Component.to_form(%{"nickname" => nickname, "email" => email, "password" => ""},
+      Phoenix.Component.to_form(
+        %{
+          "nickname" => nickname,
+          "email" => email,
+          "password" => "",
+          "return_to" => return_to
+        },
         as: :registration
       )
 
@@ -43,9 +52,11 @@ defmodule PleromaReduxWeb.RegistrationController do
       true ->
         case Users.register_local_user(%{nickname: nickname, email: email, password: password}) do
           {:ok, %User{} = user} ->
+            redirect_to = safe_return_to(return_to) || ~p"/"
+
             conn
             |> put_session(:user_id, user.id)
-            |> redirect(to: ~p"/")
+            |> redirect(to: redirect_to)
 
           {:error, :invalid_email} ->
             render(conn, :new, form: form, error: "Email is invalid.")
@@ -69,5 +80,20 @@ defmodule PleromaReduxWeb.RegistrationController do
     conn
     |> clear_session()
     |> redirect(to: ~p"/")
+  end
+
+  defp safe_return_to(return_to) when is_binary(return_to) do
+    return_to = String.trim(return_to)
+
+    cond do
+      return_to == "" ->
+        nil
+
+      String.starts_with?(return_to, "/") and not String.starts_with?(return_to, "//") ->
+        return_to
+
+      true ->
+        nil
+    end
   end
 end

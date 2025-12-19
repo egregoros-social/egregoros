@@ -8,6 +8,8 @@
     <p :if={@error} class="mt-4 text-sm text-rose-500">{@error}</p>
 
     <.form for={@form} id="login-form" action={~p"/login"} class="mt-6 space-y-4">
+      <.input type="hidden" field={@form[:return_to]} />
+
       <.input
         type="email"
         field={@form[:email]}

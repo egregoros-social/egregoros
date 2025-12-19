@@ -1,0 +1,42 @@
+<Layouts.app flash={@flash} current_user={@current_user}>
+  <section class="mx-auto max-w-xl rounded-3xl border border-white/80 bg-white/80 p-8 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40">
+    <p class="text-xs uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">
+      OAuth
+    </p>
+    <h2 class="mt-2 font-display text-2xl text-slate-900 dark:text-slate-100">
+      Authorize {@app.name}
+    </h2>
+
+    <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">
+      This app is requesting:
+      <span class="font-semibold text-slate-900 dark:text-slate-100">{@scope}</span>
+    </p>
+
+    <.form
+      for={@form}
+      id="oauth-authorize-form"
+      action={~p"/oauth/authorize"}
+      class="mt-8 space-y-4"
+    >
+      <.input type="hidden" field={@form[:client_id]} />
+      <.input type="hidden" field={@form[:redirect_uri]} />
+      <.input type="hidden" field={@form[:response_type]} />
+      <.input type="hidden" field={@form[:scope]} />
+      <.input type="hidden" field={@form[:state]} />
+
+      <button
+        type="submit"
+        class="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+      >
+        Authorize
+      </button>
+
+      <.link
+        navigate={~p"/"}
+        class="block w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+      >
+        Cancel
+      </.link>
+    </.form>
+  </section>
+</Layouts.app>

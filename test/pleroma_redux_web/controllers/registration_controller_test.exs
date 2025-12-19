@@ -25,4 +25,19 @@ defmodule PleromaReduxWeb.RegistrationControllerTest do
     assert user.email == "alice@example.com"
     assert is_binary(user.password_hash)
   end
+
+  test "POST /register respects return_to", %{conn: conn} do
+    conn =
+      post(conn, "/register", %{
+        "registration" => %{
+          "nickname" => "alice",
+          "email" => "alice@example.com",
+          "password" => "very secure password",
+          "return_to" => "/settings"
+        }
+      })
+
+    assert redirected_to(conn) == "/settings"
+    assert is_integer(get_session(conn, :user_id))
+  end
 end

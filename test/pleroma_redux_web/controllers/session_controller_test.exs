@@ -27,6 +27,29 @@ defmodule PleromaReduxWeb.SessionControllerTest do
     assert get_session(conn, :user_id) == user.id
   end
 
+  test "POST /login respects return_to for valid credentials", %{conn: conn} do
+    {:ok, user} =
+      apply(Users, :register_local_user, [
+        %{
+          nickname: "alice",
+          email: "alice@example.com",
+          password: "very secure password"
+        }
+      ])
+
+    conn =
+      post(conn, "/login", %{
+        "session" => %{
+          "email" => "alice@example.com",
+          "password" => "very secure password",
+          "return_to" => "/settings"
+        }
+      })
+
+    assert redirected_to(conn) == "/settings"
+    assert get_session(conn, :user_id) == user.id
+  end
+
   test "POST /login rejects invalid credentials", %{conn: conn} do
     {:ok, _user} =
       apply(Users, :register_local_user, [
