@@ -66,6 +66,15 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+config :mime, :types, %{
+  "application/activity+json" => ["json"],
+  "application/ld+json" => ["json"]
+}
+
+config :mime, :extensions, %{
+  "json" => "application/json"
+}
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

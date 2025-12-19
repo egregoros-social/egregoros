@@ -35,6 +35,7 @@ defmodule PleromaReduxWeb.Router do
     get "/users/:nickname", ActorController, :show
     post "/users/:nickname/inbox", InboxController, :inbox
     get "/users/:nickname/outbox", OutboxController, :outbox
+    get "/objects/:uuid", ObjectController, :show
     get "/.well-known/webfinger", WebFingerController, :webfinger
     get "/.well-known/nodeinfo", NodeinfoController, :nodeinfo_index
     get "/nodeinfo/2.0.json", NodeinfoController, :nodeinfo
