@@ -2,9 +2,26 @@ defmodule PleromaRedux.Activities.Follow do
   alias PleromaRedux.Activities.Accept
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
+  alias PleromaRedux.User
   alias PleromaRedux.Users
+  alias PleromaReduxWeb.Endpoint
 
   def type, do: "Follow"
+
+  def build(%User{ap_id: actor}, %User{ap_id: object}) do
+    build(actor, object)
+  end
+
+  def build(actor, object) when is_binary(actor) and is_binary(object) do
+    %{
+      "id" => Endpoint.url() <> "/activities/follow/" <> Ecto.UUID.generate(),
+      "type" => type(),
+      "actor" => actor,
+      "object" => object,
+      "to" => [object],
+      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+  end
 
   def normalize(%{"type" => "Follow"} = activity), do: activity
   def normalize(_), do: nil
