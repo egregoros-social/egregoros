@@ -11,12 +11,11 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
     render_status(object, nil)
   end
 
-  def render_status(%Object{} = object, nil) do
-    account = account_from_actor(object.actor)
-    render_status_with_account(object, account, nil)
+  def render_status(%Object{type: "Announce"} = object, current_user) do
+    render_reblog(object, current_user)
   end
 
-  def render_status(%Object{} = object, %User{} = current_user) do
+  def render_status(%Object{} = object, current_user) do
     account = account_from_actor(object.actor)
     render_status_with_account(object, account, current_user)
   end
@@ -74,6 +73,57 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
       "language" => language(object),
       "pleroma" => %{
         "emoji_reactions" => emoji_reactions(object, current_user)
+      }
+    }
+  end
+
+  defp render_reblog(%Object{} = announce, current_user) do
+    account = account_from_actor(announce.actor)
+
+    reblog =
+      case announce.object do
+        ap_id when is_binary(ap_id) ->
+          case Objects.get_by_ap_id(ap_id) do
+            %Object{} = object -> render_status(object, current_user)
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+
+    %{
+      "id" => Integer.to_string(announce.id),
+      "uri" => announce.ap_id,
+      "url" => announce.ap_id,
+      "visibility" =>
+        if(is_map(reblog), do: Map.get(reblog, "visibility", "public"), else: "public"),
+      "sensitive" => if(is_map(reblog), do: Map.get(reblog, "sensitive", false), else: false),
+      "spoiler_text" => "",
+      "content" => "",
+      "account" => account,
+      "created_at" => format_datetime(announce),
+      "media_attachments" => [],
+      "mentions" => [],
+      "tags" => [],
+      "emojis" => [],
+      "reblogs_count" => if(is_map(reblog), do: Map.get(reblog, "reblogs_count", 0), else: 0),
+      "favourites_count" =>
+        if(is_map(reblog), do: Map.get(reblog, "favourites_count", 0), else: 0),
+      "replies_count" => if(is_map(reblog), do: Map.get(reblog, "replies_count", 0), else: 0),
+      "favourited" => if(is_map(reblog), do: Map.get(reblog, "favourited", false), else: false),
+      "reblogged" => if(is_map(reblog), do: Map.get(reblog, "reblogged", false), else: false),
+      "muted" => false,
+      "bookmarked" => false,
+      "pinned" => false,
+      "in_reply_to_id" => nil,
+      "in_reply_to_account_id" => nil,
+      "reblog" => reblog,
+      "poll" => nil,
+      "card" => nil,
+      "language" => if(is_map(reblog), do: Map.get(reblog, "language"), else: nil),
+      "pleroma" => %{
+        "emoji_reactions" => []
       }
     }
   end

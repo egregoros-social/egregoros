@@ -163,12 +163,17 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
     with %{} = object <- Objects.get(id),
          %{} = user <- conn.assigns.current_user do
       case Relationships.get_by_type_actor_object("Announce", user.ap_id, object.ap_id) do
-        %{} ->
-          json(conn, StatusRenderer.render_status(object, user))
+        %{} = relationship ->
+          relationship.activity_ap_id
+          |> Objects.get_by_ap_id()
+          |> case do
+            %{} = announce -> json(conn, StatusRenderer.render_status(announce, user))
+            _ -> json(conn, StatusRenderer.render_status(object, user))
+          end
 
         nil ->
-          with {:ok, _announce} <- Pipeline.ingest(Announce.build(user, object), local: true) do
-            json(conn, StatusRenderer.render_status(object, user))
+          with {:ok, announce} <- Pipeline.ingest(Announce.build(user, object), local: true) do
+            json(conn, StatusRenderer.render_status(announce, user))
           else
             {:error, _} -> send_resp(conn, 422, "Unprocessable Entity")
           end

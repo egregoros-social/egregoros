@@ -201,6 +201,37 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
     assert Objects.get_by_type_actor_object("Announce", user.ap_id, note.ap_id)
   end
 
+  test "POST /api/v1/statuses/:id/reblog returns a reblog status", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+
+    PleromaRedux.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    {:ok, note} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/objects/reblog-return",
+          "type" => "Note",
+          "actor" => "https://example.com/users/alice",
+          "content" => "Hello reblog"
+        },
+        local: false
+      )
+
+    conn = post(conn, "/api/v1/statuses/#{note.id}/reblog")
+    response = json_response(conn, 200)
+
+    assert response["account"]["username"] == "local"
+    assert response["content"] == ""
+
+    assert is_map(response["reblog"])
+    assert response["reblog"]["id"] == Integer.to_string(note.id)
+    assert response["reblog"]["account"]["username"] == "alice"
+    assert response["reblog"]["content"] == "Hello reblog"
+
+    assert response["id"] != response["reblog"]["id"]
+  end
+
   test "POST /api/v1/statuses/:id/unreblog creates an undo", %{conn: conn} do
     {:ok, user} = Users.create_local_user("local")
 
