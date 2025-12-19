@@ -86,6 +86,7 @@ defmodule PleromaReduxWeb.Router do
     pipe_through :api
 
     get "/instance", InstanceController, :show_v2
+    get "/search", SearchController, :index
   end
 
   scope "/api/v1/pleroma", PleromaReduxWeb.PleromaAPI do

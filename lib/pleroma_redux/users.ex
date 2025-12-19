@@ -1,4 +1,6 @@
 defmodule PleromaRedux.Users do
+  import Ecto.Query, only: [from: 2]
+
   alias PleromaRedux.Keys
   alias PleromaRedux.Password
   alias PleromaRedux.Repo
@@ -141,4 +143,30 @@ defmodule PleromaRedux.Users do
         |> Repo.update()
     end
   end
+
+  def search(query, opts \\ []) when is_binary(query) and is_list(opts) do
+    query = String.trim(query)
+    limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+
+    if query == "" do
+      []
+    else
+      pattern = "%" <> query <> "%"
+
+      from(u in User,
+        where: ilike(u.nickname, ^pattern) or ilike(u.name, ^pattern),
+        order_by: [asc: u.nickname],
+        limit: ^limit
+      )
+      |> Repo.all()
+    end
+  end
+
+  defp normalize_limit(limit) when is_integer(limit) do
+    limit
+    |> max(1)
+    |> min(40)
+  end
+
+  defp normalize_limit(_), do: 20
 end
