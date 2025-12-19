@@ -143,11 +143,20 @@ defmodule PleromaRedux.Signature.HTTP do
         {:ok, :public_key.pem_entry_decode(entry)}
 
       _ ->
-        {:error, :unknown_key}
+        fetch_public_key_for_actor(ap_id)
     end
   end
 
   defp public_key_for_key_id(_), do: {:error, :invalid_signature}
+
+  defp fetch_public_key_for_actor(ap_id) when is_binary(ap_id) do
+    with {:ok, user} <- PleromaRedux.Federation.Actor.fetch_and_store(ap_id),
+         [entry] <- :public_key.pem_decode(user.public_key) do
+      {:ok, :public_key.pem_entry_decode(entry)}
+    else
+      _ -> {:error, :unknown_key}
+    end
+  end
 
   defp signature_string(request_target, headers, headers_param) do
     headers_param
