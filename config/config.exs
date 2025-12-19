@@ -15,6 +15,7 @@ config :pleroma_redux, PleromaRedux.Signature, PleromaRedux.Signature.HTTP
 config :pleroma_redux, PleromaRedux.Auth, PleromaRedux.Auth.Default
 config :pleroma_redux, PleromaRedux.Discovery, PleromaRedux.Discovery.DNS
 config :pleroma_redux, PleromaRedux.HTTP, PleromaRedux.HTTP.Req
+config :pleroma_redux, PleromaRedux.AvatarStorage, PleromaRedux.AvatarStorage.Local
 
 config :pleroma_redux, :password_iterations, 200_000
 

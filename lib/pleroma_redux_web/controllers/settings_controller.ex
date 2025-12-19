@@ -1,6 +1,7 @@
 defmodule PleromaReduxWeb.SettingsController do
   use PleromaReduxWeb, :controller
 
+  alias PleromaRedux.AvatarStorage
   alias PleromaRedux.User
   alias PleromaRedux.Users
 
@@ -12,7 +13,7 @@ defmodule PleromaReduxWeb.SettingsController do
             %{
               "name" => user.name || "",
               "bio" => user.bio || "",
-              "avatar_url" => user.avatar_url || ""
+              "avatar" => nil
             },
             as: :profile
           )
@@ -39,13 +40,10 @@ defmodule PleromaReduxWeb.SettingsController do
 
   def update_profile(conn, %{"profile" => %{} = params}) do
     with %User{} = user <- conn.assigns.current_user,
-         {:ok, _user} <-
-           Users.update_profile(user, %{
-             "name" => Map.get(params, "name"),
-             "bio" => Map.get(params, "bio"),
-             "avatar_url" => Map.get(params, "avatar_url")
-           }) do
+         {:ok, avatar_url} <- maybe_store_avatar(user, params),
+         {:ok, _user} <- Users.update_profile(user, profile_attrs(params, avatar_url)) do
       conn
+      |> put_flash(:info, "Profile updated.")
       |> redirect(to: ~p"/settings")
     else
       nil ->
@@ -55,6 +53,7 @@ defmodule PleromaReduxWeb.SettingsController do
 
       {:error, _} ->
         conn
+        |> put_flash(:error, "Could not update profile.")
         |> put_status(:unprocessable_entity)
         |> edit(%{})
     end
@@ -70,6 +69,7 @@ defmodule PleromaReduxWeb.SettingsController do
     with %User{} = user <- conn.assigns.current_user,
          {:ok, _user} <- Users.update_profile(user, %{"email" => Map.get(params, "email")}) do
       conn
+      |> put_flash(:info, "Email updated.")
       |> redirect(to: ~p"/settings")
     else
       nil ->
@@ -79,6 +79,7 @@ defmodule PleromaReduxWeb.SettingsController do
 
       {:error, _} ->
         conn
+        |> put_flash(:error, "Could not update email.")
         |> put_status(:unprocessable_entity)
         |> edit(%{})
     end
@@ -99,6 +100,7 @@ defmodule PleromaReduxWeb.SettingsController do
          true <- password != "" and password == password_confirmation,
          {:ok, _} <- Users.update_password(user, current_password, password) do
       conn
+      |> put_flash(:info, "Password updated.")
       |> redirect(to: ~p"/settings")
     else
       nil ->
@@ -108,11 +110,13 @@ defmodule PleromaReduxWeb.SettingsController do
 
       false ->
         conn
+        |> put_flash(:error, "Password confirmation does not match.")
         |> put_status(:unprocessable_entity)
         |> edit(%{})
 
       {:error, _} ->
         conn
+        |> put_flash(:error, "Could not update password.")
         |> put_status(:unprocessable_entity)
         |> edit(%{})
     end
@@ -123,4 +127,23 @@ defmodule PleromaReduxWeb.SettingsController do
     |> put_status(:unprocessable_entity)
     |> text("Unprocessable Entity")
   end
+
+  defp profile_attrs(params, avatar_url) when is_map(params) do
+    %{}
+    |> maybe_put("name", Map.get(params, "name"))
+    |> maybe_put("bio", Map.get(params, "bio"))
+    |> maybe_put("avatar_url", avatar_url)
+  end
+
+  defp maybe_put(attrs, _key, nil), do: attrs
+
+  defp maybe_put(attrs, key, value) when is_binary(key) do
+    Map.put(attrs, key, value)
+  end
+
+  defp maybe_store_avatar(user, %{"avatar" => %Plug.Upload{} = upload}) do
+    AvatarStorage.store_avatar(user, upload)
+  end
+
+  defp maybe_store_avatar(_user, _params), do: {:ok, nil}
 end

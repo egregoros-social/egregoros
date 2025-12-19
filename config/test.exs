@@ -43,5 +43,6 @@ config :phoenix,
 config :pleroma_redux, PleromaRedux.Auth, PleromaRedux.Auth.Mock
 config :pleroma_redux, PleromaRedux.Discovery, PleromaRedux.Discovery.Mock
 config :pleroma_redux, PleromaRedux.HTTP, PleromaRedux.HTTP.Mock
+config :pleroma_redux, PleromaRedux.AvatarStorage, PleromaRedux.AvatarStorage.Mock
 
 config :pleroma_redux, :password_iterations, 1_000

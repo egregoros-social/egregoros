@@ -27,7 +27,7 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
     assert html_response(conn, 200) =~ "alice@example.com"
   end
 
-  test "POST /settings/profile updates name, bio, and avatar url", %{conn: conn} do
+  test "POST /settings/profile updates name, bio, and avatar upload", %{conn: conn} do
     {:ok, user} =
       apply(Users, :register_local_user, [
         %{
@@ -37,6 +37,22 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
         }
       ])
 
+    fixture_path = Path.expand("pleroma-old/test/fixtures/DSCN0010.png", File.cwd!())
+
+    upload = %Plug.Upload{
+      path: fixture_path,
+      filename: "avatar.png",
+      content_type: "image/png"
+    }
+
+    expect(PleromaRedux.AvatarStorage.Mock, :store_avatar, fn passed_user, passed_upload ->
+      assert passed_user.id == user.id
+      assert passed_upload.filename == "avatar.png"
+      assert passed_upload.content_type == "image/png"
+
+      {:ok, "/uploads/avatars/#{passed_user.id}/avatar.png"}
+    end)
+
     conn =
       conn
       |> Plug.Test.init_test_session(%{user_id: user.id})
@@ -44,16 +60,17 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
         "profile" => %{
           "name" => "Alice Example",
           "bio" => "Hello from Redux",
-          "avatar_url" => "https://cdn.example/alice.png"
+          "avatar" => upload
         }
       })
 
     assert redirected_to(conn) == "/settings"
+    assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Profile updated."
 
     updated = Users.get(user.id)
     assert updated.name == "Alice Example"
     assert updated.bio == "Hello from Redux"
-    assert updated.avatar_url == "https://cdn.example/alice.png"
+    assert updated.avatar_url == "/uploads/avatars/#{user.id}/avatar.png"
   end
 
   test "POST /settings/account updates email and allows logging in with the new email", %{
@@ -74,6 +91,7 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
       |> post("/settings/account", %{"account" => %{"email" => "alice2@example.com"}})
 
     assert redirected_to(conn) == "/settings"
+    assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Email updated."
 
     updated = Users.get(user.id)
     assert updated.email == "alice2@example.com"
@@ -110,6 +128,7 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
       })
 
     assert redirected_to(conn) == "/settings"
+    assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Password updated."
 
     conn =
       Phoenix.ConnTest.build_conn()
