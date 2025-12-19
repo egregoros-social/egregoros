@@ -37,6 +37,20 @@ defmodule PleromaRedux.Objects do
     |> Repo.all()
   end
 
+  def list_notes_by_actor(actor, limit \\ 20) when is_binary(actor) do
+    from(o in Object,
+      where: o.type == "Note" and o.actor == ^actor,
+      order_by: [desc: o.inserted_at],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  def count_notes_by_actor(actor) when is_binary(actor) do
+    from(o in Object, where: o.type == "Note" and o.actor == ^actor)
+    |> Repo.aggregate(:count, :id)
+  end
+
   def delete_all_notes do
     from(o in Object, where: o.type == "Note")
     |> Repo.delete_all()
