@@ -79,7 +79,7 @@ defmodule PleromaReduxWeb.MastodonAPI.AccountsController do
         pagination = Pagination.parse(params)
 
         objects =
-          Objects.list_notes_by_actor(user.ap_id,
+          Objects.list_statuses_by_actor(user.ap_id,
             limit: pagination.limit + 1,
             max_id: pagination.max_id,
             since_id: pagination.since_id

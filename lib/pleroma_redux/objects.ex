@@ -210,6 +210,24 @@ defmodule PleromaRedux.Objects do
     |> Repo.all()
   end
 
+  def list_statuses_by_actor(actor) when is_binary(actor),
+    do: list_statuses_by_actor(actor, limit: 20)
+
+  def list_statuses_by_actor(actor, opts) when is_binary(actor) and is_list(opts) do
+    limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+    max_id = Keyword.get(opts, :max_id)
+    since_id = Keyword.get(opts, :since_id)
+
+    from(o in Object,
+      where: o.type in ^@status_types and o.actor == ^actor,
+      order_by: [desc: o.id],
+      limit: ^limit
+    )
+    |> maybe_where_max_id(max_id)
+    |> maybe_where_since_id(since_id)
+    |> Repo.all()
+  end
+
   def count_notes_by_actor(actor) when is_binary(actor) do
     from(o in Object, where: o.type == "Note" and o.actor == ^actor)
     |> Repo.aggregate(:count, :id)

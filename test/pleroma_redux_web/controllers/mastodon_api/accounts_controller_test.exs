@@ -45,6 +45,32 @@ defmodule PleromaReduxWeb.MastodonAPI.AccountsControllerTest do
     assert Enum.at(response, 1)["content"] == "First post"
   end
 
+  test "GET /api/v1/accounts/:id/statuses includes reblogs", %{conn: conn} do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    {:ok, create} = Publish.post_note(alice, "Hello")
+
+    {:ok, _announce} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/activities/announce/1",
+          "type" => "Announce",
+          "actor" => bob.ap_id,
+          "object" => create.object
+        },
+        local: true
+      )
+
+    conn = get(conn, "/api/v1/accounts/#{bob.id}/statuses")
+    response = json_response(conn, 200)
+
+    assert length(response) == 1
+    assert Enum.at(response, 0)["account"]["username"] == "bob"
+    assert Enum.at(response, 0)["content"] == ""
+    assert Enum.at(response, 0)["reblog"]["content"] == "Hello"
+  end
+
   test "GET /api/v1/accounts/:id/statuses paginates with max_id and Link header", %{conn: conn} do
     {:ok, user} = Users.create_local_user("alice")
 
