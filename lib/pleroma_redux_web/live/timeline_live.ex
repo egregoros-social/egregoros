@@ -9,6 +9,7 @@ defmodule PleromaReduxWeb.TimelineLive do
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Publish
+  alias PleromaRedux.Relationships
   alias PleromaRedux.Timeline
   alias PleromaRedux.User
   alias PleromaRedux.Users
@@ -91,10 +92,11 @@ defmodule PleromaReduxWeb.TimelineLive do
 
   def handle_event("unfollow", %{"id" => id}, socket) do
     with %User{} = user <- socket.assigns.current_user,
-         {follow_id, ""} <- Integer.parse(to_string(id)),
-         %{type: "Follow", actor: actor} = follow_object <- Objects.get(follow_id),
+         {relationship_id, ""} <- Integer.parse(to_string(id)),
+         %{type: "Follow", actor: actor} = relationship <- Relationships.get(relationship_id),
          true <- actor == user.ap_id,
-         {:ok, _undo} <- Pipeline.ingest(Undo.build(user, follow_object), local: true) do
+         {:ok, _undo} <-
+           Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true) do
       {:noreply, assign(socket, following: list_following(user))}
     else
       nil ->
@@ -245,15 +247,15 @@ defmodule PleromaReduxWeb.TimelineLive do
             <div class="mt-4 space-y-2">
               <%= for entry <- @following do %>
                 <div
-                  id={"following-#{entry.follow.id}"}
+                  id={"following-#{entry.relationship.id}"}
                   class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm shadow-sm shadow-slate-200/20 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40"
                 >
                   <div class="min-w-0">
                     <p class="truncate font-semibold text-slate-900 dark:text-slate-100">
-                      {if entry.target, do: entry.target.nickname, else: entry.follow.object}
+                      {if entry.target, do: entry.target.nickname, else: entry.relationship.object}
                     </p>
                     <p class="truncate text-xs text-slate-500 dark:text-slate-400">
-                      {entry.follow.object}
+                      {entry.relationship.object}
                     </p>
                   </div>
 
@@ -261,7 +263,7 @@ defmodule PleromaReduxWeb.TimelineLive do
                     type="button"
                     data-role="unfollow"
                     phx-click="unfollow"
-                    phx-value-id={entry.follow.id}
+                    phx-value-id={entry.relationship.id}
                     class="shrink-0 rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
                   >
                     Unfollow
@@ -393,10 +395,10 @@ defmodule PleromaReduxWeb.TimelineLive do
 
   defp list_following(%User{} = user) do
     user.ap_id
-    |> Objects.list_follows_by_actor()
-    |> Enum.sort_by(& &1.inserted_at, :desc)
+    |> Relationships.list_follows_by_actor()
+    |> Enum.sort_by(& &1.updated_at, :desc)
     |> Enum.map(fn follow ->
-      %{follow: follow, target: Users.get_by_ap_id(follow.object)}
+      %{relationship: follow, target: Users.get_by_ap_id(follow.object)}
     end)
   end
 

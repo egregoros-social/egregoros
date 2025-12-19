@@ -6,6 +6,7 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
   alias PleromaRedux.Activities.Follow
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
+  alias PleromaRedux.Relationships
   alias PleromaRedux.Timeline
   alias PleromaRedux.Users
 
@@ -106,18 +107,20 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
         local: false
       })
 
-    {:ok, follow_object} = Pipeline.ingest(Follow.build(user, remote), local: true)
+    assert {:ok, _follow_object} = Pipeline.ingest(Follow.build(user, remote), local: true)
+
+    assert %{} = relationship = Relationships.get_by_type_actor_object("Follow", user.ap_id, remote.ap_id)
 
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")
 
-    assert has_element?(view, "#following-#{follow_object.id}")
+    assert has_element?(view, "#following-#{relationship.id}")
 
     view
-    |> element("#following-#{follow_object.id} button[data-role='unfollow']")
+    |> element("#following-#{relationship.id} button[data-role='unfollow']")
     |> render_click()
 
-    assert Objects.get(follow_object.id) == nil
-    refute has_element?(view, "#following-#{follow_object.id}")
+    assert Relationships.get(relationship.id) == nil
+    refute has_element?(view, "#following-#{relationship.id}")
   end
 end
