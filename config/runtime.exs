@@ -23,6 +23,26 @@ end
 config :pleroma_redux, PleromaReduxWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+if config_env() != :test do
+  external_host = System.get_env("PHX_HOST") || System.get_env("PLEROMA_REDUX_EXTERNAL_HOST")
+
+  if is_binary(external_host) and external_host != "" do
+    external_scheme =
+      System.get_env("PHX_SCHEME") || System.get_env("PLEROMA_REDUX_EXTERNAL_SCHEME") || "https"
+
+    external_port =
+      System.get_env("PHX_PORT") || System.get_env("PLEROMA_REDUX_EXTERNAL_PORT") ||
+        if(external_scheme == "https", do: "443", else: "80")
+
+    config :pleroma_redux, PleromaReduxWeb.Endpoint,
+      url: [
+        host: external_host,
+        scheme: external_scheme,
+        port: String.to_integer(external_port)
+      ]
+  end
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
