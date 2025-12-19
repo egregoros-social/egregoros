@@ -31,6 +31,28 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     assert has_element?(view, "article", "Hello world")
   end
 
+  test "timeline renders sidebar and feed panels", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "#timeline-shell")
+    assert has_element?(view, "#timeline-sidebar")
+    assert has_element?(view, "#timeline-feed")
+  end
+
+  test "post cards show actor handle", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    view
+    |> form("#timeline-form", post: %{content: "Hello world"})
+    |> render_submit()
+
+    [note] = Objects.list_notes()
+
+    assert has_element?(view, "#post-#{note.id} [data-role='post-actor-handle']", "@alice")
+  end
+
   test "liking a post creates a Like activity", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")
