@@ -14,7 +14,11 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
     else
       user = conn.assigns.current_user
 
-      with {:ok, object} <- Pipeline.ingest(build_note(user.ap_id, status), local: true) do
+      note = build_note(user.ap_id, status)
+      create = build_create(user.ap_id, note)
+
+      with {:ok, _create} <- Pipeline.ingest(create, local: true),
+           %{} = object <- Objects.get_by_ap_id(note["id"]) do
         json(conn, StatusRenderer.render_status(object, user))
       end
     end
@@ -84,6 +88,16 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
       "actor" => actor,
       "content" => content,
       "published" => DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+  end
+
+  defp build_create(actor, note) do
+    %{
+      "id" => Endpoint.url() <> "/activities/create/" <> Ecto.UUID.generate(),
+      "type" => "Create",
+      "actor" => actor,
+      "object" => note,
+      "published" => note["published"]
     }
   end
 

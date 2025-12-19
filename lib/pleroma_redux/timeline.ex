@@ -3,9 +3,10 @@ defmodule PleromaRedux.Timeline do
   Timeline feed backed by objects and PubSub broadcasts.
   """
 
+  alias PleromaRedux.Activities.Create
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
-  alias PleromaRedux.Users
+  alias PleromaRedux.User
   alias PleromaReduxWeb.Endpoint
 
   @topic "timeline"
@@ -18,14 +19,13 @@ defmodule PleromaRedux.Timeline do
     Objects.list_notes()
   end
 
-  def create_post(content) when is_binary(content) do
+  def create_post(%User{} = user, content) when is_binary(content) do
     content = String.trim(content)
 
     if content == "" do
       {:error, :empty}
     else
-      with {:ok, user} <- Users.get_or_create_local_user("local"),
-           {:ok, object} <- Pipeline.ingest(build_note(user, content), local: true) do
+      with {:ok, object} <- Pipeline.ingest(build_create(user, content), local: true) do
         {:ok, object}
       end
     end
@@ -37,6 +37,18 @@ defmodule PleromaRedux.Timeline do
 
   def reset do
     Objects.delete_all_notes()
+  end
+
+  defp build_create(user, content) do
+    note = build_note(user, content)
+
+    %{
+      "id" => Endpoint.url() <> "/activities/create/" <> Ecto.UUID.generate(),
+      "type" => Create.type(),
+      "actor" => user.ap_id,
+      "object" => note,
+      "published" => note["published"]
+    }
   end
 
   defp build_note(user, content) do
