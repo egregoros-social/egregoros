@@ -24,6 +24,9 @@ defmodule PleromaReduxWeb.Router do
     pipe_through :api
 
     get "/users/:nickname", ActorController, :show
+    get "/.well-known/webfinger", WebFingerController, :webfinger
+    get "/.well-known/nodeinfo", NodeinfoController, :nodeinfo_index
+    get "/nodeinfo/2.0.json", NodeinfoController, :nodeinfo
   end
 
   # Other scopes may use custom stacks.
