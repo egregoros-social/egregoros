@@ -46,16 +46,22 @@ defmodule PleromaRedux.Timeline do
       "id" => Endpoint.url() <> "/activities/create/" <> Ecto.UUID.generate(),
       "type" => Create.type(),
       "actor" => user.ap_id,
+      "to" => note["to"],
+      "cc" => note["cc"],
       "object" => note,
       "published" => note["published"]
     }
   end
 
   defp build_note(user, content) do
+    followers = user.ap_id <> "/followers"
+
     %{
       "id" => Endpoint.url() <> "/objects/" <> Ecto.UUID.generate(),
       "type" => "Note",
       "attributedTo" => user.ap_id,
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => [followers],
       "content" => content,
       "published" => DateTime.utc_now() |> DateTime.to_iso8601()
     }
