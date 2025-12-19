@@ -46,6 +46,18 @@ defmodule PleromaRedux.Objects do
     Repo.get_by(Object, type: type, actor: actor, object: object)
   end
 
+  def get_emoji_react(actor, object, emoji)
+      when is_binary(actor) and is_binary(object) and is_binary(emoji) do
+    from(o in Object,
+      where:
+        o.type == "EmojiReact" and o.actor == ^actor and o.object == ^object and
+          fragment("?->>'content' = ?", o.data, ^emoji),
+      order_by: [desc: o.inserted_at],
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
   def list_notes(limit \\ 20) do
     from(o in Object, where: o.type == "Note", order_by: [desc: o.inserted_at], limit: ^limit)
     |> Repo.all()

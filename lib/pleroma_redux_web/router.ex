@@ -54,6 +54,13 @@ defmodule PleromaReduxWeb.Router do
     get "/accounts/:id", AccountsController, :show
   end
 
+  scope "/api/v1/pleroma", PleromaReduxWeb.PleromaAPI do
+    pipe_through [:api, :api_auth]
+
+    put "/statuses/:id/reactions/:emoji", EmojiReactionController, :create
+    delete "/statuses/:id/reactions/:emoji", EmojiReactionController, :delete
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", PleromaReduxWeb do
   #   pipe_through :api
