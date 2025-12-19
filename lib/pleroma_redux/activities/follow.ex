@@ -1,5 +1,7 @@
 defmodule PleromaRedux.Activities.Follow do
+  alias PleromaRedux.Activities.Accept
   alias PleromaRedux.Objects
+  alias PleromaRedux.Pipeline
   alias PleromaRedux.Users
 
   def type, do: "Follow"
@@ -23,6 +25,8 @@ defmodule PleromaRedux.Activities.Follow do
   def side_effects(object, opts) do
     if Keyword.get(opts, :local, true) do
       deliver_follow(object)
+    else
+      accept_follow(object)
     end
 
     :ok
@@ -33,6 +37,17 @@ defmodule PleromaRedux.Activities.Follow do
          %{} = target <- Users.get_by_ap_id(object.object),
          false <- target.local do
       PleromaRedux.Federation.Delivery.deliver(actor, target.inbox, object.data)
+    end
+  end
+
+  defp accept_follow(object) do
+    with %{} = target <- Users.get_by_ap_id(object.object),
+         true <- target.local do
+      accept = Accept.build(target, object)
+      _ = Pipeline.ingest(accept, local: true)
+      :ok
+    else
+      _ -> :ok
     end
   end
 

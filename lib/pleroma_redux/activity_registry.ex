@@ -1,4 +1,5 @@
 defmodule PleromaRedux.ActivityRegistry do
+  alias PleromaRedux.Activities.Accept
   alias PleromaRedux.Activities.Announce
   alias PleromaRedux.Activities.Create
   alias PleromaRedux.Activities.EmojiReact
@@ -13,6 +14,7 @@ defmodule PleromaRedux.ActivityRegistry do
     "Like" => Like,
     "Announce" => Announce,
     "Follow" => Follow,
+    "Accept" => Accept,
     "EmojiReact" => EmojiReact,
     "Undo" => Undo
   }
