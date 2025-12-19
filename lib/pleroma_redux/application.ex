@@ -12,7 +12,6 @@ defmodule PleromaRedux.Application do
       PleromaRedux.Repo,
       {DNSCluster, query: Application.get_env(:pleroma_redux, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: PleromaRedux.PubSub},
-      PleromaRedux.Timeline,
       # Start a worker by calling: PleromaRedux.Worker.start_link(arg)
       # {PleromaRedux.Worker, arg},
       # Start to serve requests, typically the last entry

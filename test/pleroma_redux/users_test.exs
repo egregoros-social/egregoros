@@ -32,6 +32,12 @@ defmodule PleromaRedux.UsersTest do
     assert String.starts_with?(user.private_key, "-----BEGIN PRIVATE KEY-----")
   end
 
+  test "get_or_create_local_user returns existing" do
+    {:ok, user} = Users.create_local_user("dora")
+    {:ok, fetched} = Users.get_or_create_local_user("dora")
+    assert fetched.id == user.id
+  end
+
   test "ap_id is unique" do
     {:ok, _} = Users.create_user(%{
       nickname: "carol",

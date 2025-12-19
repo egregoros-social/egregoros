@@ -63,7 +63,7 @@ defmodule PleromaReduxWeb.TimelineLive do
       <section class="space-y-4">
         <%= for post <- @posts do %>
           <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <p class="text-sm text-zinc-900"><%= post.content %></p>
+            <p class="text-sm text-zinc-900"><%= post.data["content"] %></p>
             <p class="mt-2 text-xs text-zinc-500"><%= format_time(post.inserted_at) %></p>
           </article>
         <% end %>
@@ -75,6 +75,12 @@ defmodule PleromaReduxWeb.TimelineLive do
   defp format_time(%DateTime{} = dt) do
     dt
     |> DateTime.to_naive()
+    |> NaiveDateTime.truncate(:second)
+    |> NaiveDateTime.to_string()
+  end
+
+  defp format_time(%NaiveDateTime{} = dt) do
+    dt
     |> NaiveDateTime.truncate(:second)
     |> NaiveDateTime.to_string()
   end

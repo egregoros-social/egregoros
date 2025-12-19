@@ -25,6 +25,13 @@ defmodule PleromaRedux.Users do
     })
   end
 
+  def get_or_create_local_user(nickname) when is_binary(nickname) do
+    case get_by_nickname(nickname) do
+      %User{} = user -> {:ok, user}
+      nil -> create_local_user(nickname)
+    end
+  end
+
   def get_by_ap_id(nil), do: nil
   def get_by_ap_id(ap_id), do: Repo.get_by(User, ap_id: ap_id)
 

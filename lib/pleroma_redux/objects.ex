@@ -1,4 +1,6 @@
 defmodule PleromaRedux.Objects do
+  import Ecto.Query, only: [from: 2]
+
   alias PleromaRedux.Object
   alias PleromaRedux.Repo
 
@@ -29,6 +31,16 @@ defmodule PleromaRedux.Objects do
 
   def get_by_ap_id(nil), do: nil
   def get_by_ap_id(ap_id) when is_binary(ap_id), do: Repo.get_by(Object, ap_id: ap_id)
+
+  def list_notes(limit \\ 20) do
+    from(o in Object, where: o.type == "Note", order_by: [desc: o.inserted_at], limit: ^limit)
+    |> Repo.all()
+  end
+
+  def delete_all_notes do
+    from(o in Object, where: o.type == "Note")
+    |> Repo.delete_all()
+  end
 
   defp unique_ap_id_error?(%Ecto.Changeset{errors: errors}) do
     Enum.any?(errors, fn
