@@ -10,6 +10,18 @@ defmodule PleromaRedux.Users do
     |> Repo.insert()
   end
 
+  def upsert_user(%{ap_id: ap_id} = attrs) when is_binary(ap_id) do
+    case get_by_ap_id(ap_id) do
+      nil ->
+        create_user(attrs)
+
+      %User{} = user ->
+        user
+        |> User.changeset(attrs)
+        |> Repo.update()
+    end
+  end
+
   def create_local_user(nickname) when is_binary(nickname) do
     base = Endpoint.url() <> "/users/" <> nickname
     {public_key, private_key} = Keys.generate_rsa_keypair()
