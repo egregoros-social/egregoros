@@ -14,6 +14,10 @@ defmodule PleromaReduxWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :api_auth do
+    plug PleromaReduxWeb.Plugs.RequireAuth
+  end
+
   scope "/", PleromaReduxWeb do
     pipe_through :browser
 
@@ -29,6 +33,18 @@ defmodule PleromaReduxWeb.Router do
     get "/.well-known/webfinger", WebFingerController, :webfinger
     get "/.well-known/nodeinfo", NodeinfoController, :nodeinfo_index
     get "/nodeinfo/2.0.json", NodeinfoController, :nodeinfo
+  end
+
+  scope "/api/v1", PleromaReduxWeb.MastodonAPI do
+    pipe_through :api
+
+    get "/timelines/public", TimelinesController, :public
+  end
+
+  scope "/api/v1", PleromaReduxWeb.MastodonAPI do
+    pipe_through [:api, :api_auth]
+
+    post "/statuses", StatusesController, :create
   end
 
   # Other scopes may use custom stacks.
