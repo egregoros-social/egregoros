@@ -6,6 +6,7 @@ defmodule PleromaReduxWeb.TimelineLive do
   alias PleromaRedux.Activities.Like
   alias PleromaRedux.Activities.Undo
   alias PleromaRedux.Federation
+  alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Publish
   alias PleromaRedux.Relationships
@@ -15,7 +16,7 @@ defmodule PleromaReduxWeb.TimelineLive do
   alias PleromaReduxWeb.URL
 
   @impl true
-  def mount(_params, session, socket) do
+  def mount(params, session, socket) do
     if connected?(socket) do
       Timeline.subscribe()
     end
@@ -26,12 +27,16 @@ defmodule PleromaReduxWeb.TimelineLive do
         id -> Users.get(id)
       end
 
+    timeline = timeline_from_params(params, current_user)
+
     form = Phoenix.Component.to_form(%{"content" => ""}, as: :post)
     follow_form = Phoenix.Component.to_form(%{"handle" => ""}, as: :follow)
 
     {:ok,
      assign(socket,
-       posts: decorate_posts(Timeline.list_posts(), current_user),
+       timeline: timeline,
+       home_actor_ids: home_actor_ids(current_user),
+       posts: decorate_posts(list_timeline_posts(timeline, current_user), current_user),
        error: nil,
        follow_error: nil,
        follow_success: nil,
@@ -40,6 +45,27 @@ defmodule PleromaReduxWeb.TimelineLive do
        follow_form: follow_form,
        current_user: current_user
      )}
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    timeline = timeline_from_params(params, socket.assigns.current_user)
+
+    socket =
+      if timeline == socket.assigns.timeline do
+        socket
+      else
+        assign(socket,
+          timeline: timeline,
+          posts:
+            decorate_posts(
+              list_timeline_posts(timeline, socket.assigns.current_user),
+              socket.assigns.current_user
+            )
+        )
+      end
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -76,12 +102,17 @@ defmodule PleromaReduxWeb.TimelineLive do
       user ->
         case Federation.follow_remote(user, handle) do
           {:ok, remote} ->
+            home_actor_ids = home_actor_ids(user)
+            posts = maybe_refresh_home_posts(socket, user)
+
             {:noreply,
              assign(socket,
                follow_form: Phoenix.Component.to_form(%{"handle" => ""}, as: :follow),
                follow_error: nil,
                follow_success: "Following #{remote.ap_id}.",
-               following: list_following(user)
+               following: list_following(user),
+               home_actor_ids: home_actor_ids,
+               posts: posts
              )}
 
           {:error, _reason} ->
@@ -97,7 +128,15 @@ defmodule PleromaReduxWeb.TimelineLive do
          true <- actor == user.ap_id,
          {:ok, _undo} <-
            Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true) do
-      {:noreply, assign(socket, following: list_following(user))}
+      home_actor_ids = home_actor_ids(user)
+      posts = maybe_refresh_home_posts(socket, user)
+
+      {:noreply,
+       assign(socket,
+         following: list_following(user),
+         home_actor_ids: home_actor_ids,
+         posts: posts
+       )}
     else
       nil ->
         {:noreply, assign(socket, follow_error: "Register to unfollow.", follow_success: nil)}
@@ -188,10 +227,14 @@ defmodule PleromaReduxWeb.TimelineLive do
 
   @impl true
   def handle_info({:post_created, post}, socket) do
-    {:noreply,
-     update(socket, :posts, fn posts ->
-       [decorate_post(post, socket.assigns.current_user) | posts]
-     end)}
+    if include_post?(post, socket.assigns.timeline, socket.assigns.home_actor_ids) do
+      {:noreply,
+       update(socket, :posts, fn posts ->
+         [decorate_post(post, socket.assigns.current_user) | posts]
+       end)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -344,6 +387,50 @@ defmodule PleromaReduxWeb.TimelineLive do
         </aside>
 
         <section id="timeline-feed" class="space-y-4 lg:col-span-8">
+          <div class="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/80 p-5 shadow-lg shadow-slate-200/20 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="font-display text-xl text-slate-900 dark:text-slate-100">Timeline</h2>
+              <p class="mt-1 text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                {if @timeline == :home, do: "Home", else: "Public"}
+              </p>
+              <span data-role="timeline-current" class="sr-only">{@timeline}</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <%= if @current_user do %>
+                <.link
+                  patch={~p"/?timeline=home"}
+                  class={[
+                    "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition",
+                    @timeline == :home &&
+                      "bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white",
+                    @timeline != :home &&
+                      "border border-slate-200/80 bg-white/70 text-slate-700 hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                  ]}
+                >
+                  Home
+                </.link>
+              <% else %>
+                <span class="rounded-full border border-slate-200/60 bg-white/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:border-slate-700/60 dark:bg-slate-950/40 dark:text-slate-500">
+                  Home
+                </span>
+              <% end %>
+
+              <.link
+                patch={~p"/?timeline=public"}
+                class={[
+                  "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition",
+                  @timeline == :public &&
+                    "bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white",
+                  @timeline != :public &&
+                    "border border-slate-200/80 bg-white/70 text-slate-700 hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                ]}
+              >
+                Public
+              </.link>
+            </div>
+          </div>
+
           <%= for {entry, idx} <- Enum.with_index(@posts) do %>
             <article
               id={"post-#{entry.object.id}"}
@@ -476,6 +563,45 @@ defmodule PleromaReduxWeb.TimelineLive do
       %{relationship: follow, target: Users.get_by_ap_id(follow.object)}
     end)
   end
+
+  defp timeline_from_params(%{"timeline" => "public"}, _user), do: :public
+  defp timeline_from_params(%{"timeline" => "home"}, %User{}), do: :home
+  defp timeline_from_params(_params, %User{}), do: :home
+  defp timeline_from_params(_params, _user), do: :public
+
+  defp list_timeline_posts(:home, %User{} = user) do
+    Objects.list_home_notes(user.ap_id)
+  end
+
+  defp list_timeline_posts(_timeline, _user) do
+    Objects.list_notes()
+  end
+
+  defp include_post?(%{type: "Note"} = post, :home, home_actor_ids)
+       when is_list(home_actor_ids) do
+    is_binary(post.actor) and post.actor in home_actor_ids
+  end
+
+  defp include_post?(%{type: "Note"}, _timeline, _home_actor_ids), do: true
+  defp include_post?(_post, _timeline, _home_actor_ids), do: false
+
+  defp home_actor_ids(nil), do: []
+
+  defp home_actor_ids(%User{} = user) do
+    followed_actor_ids =
+      user.ap_id
+      |> Relationships.list_follows_by_actor()
+      |> Enum.map(& &1.object)
+      |> Enum.filter(&is_binary/1)
+
+    Enum.uniq([user.ap_id | followed_actor_ids])
+  end
+
+  defp maybe_refresh_home_posts(%{assigns: %{timeline: :home}}, %User{} = user) do
+    decorate_posts(list_timeline_posts(:home, user), user)
+  end
+
+  defp maybe_refresh_home_posts(socket, _user), do: socket.assigns.posts
 
   defp decorate_post(post, current_user) do
     %{

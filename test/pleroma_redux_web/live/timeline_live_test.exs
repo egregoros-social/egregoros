@@ -53,6 +53,20 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     assert has_element?(view, "#post-#{note.id} [data-role='post-actor-handle']", "@alice")
   end
 
+  test "logged-in users default to home timeline", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "[data-role='timeline-current']", "home")
+  end
+
+  test "timeline can be selected via params", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/?timeline=public")
+
+    assert has_element?(view, "[data-role='timeline-current']", "public")
+  end
+
   test "liking a post creates a Like activity", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")
