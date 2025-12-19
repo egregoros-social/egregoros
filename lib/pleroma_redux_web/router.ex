@@ -103,6 +103,12 @@ defmodule PleromaReduxWeb.Router do
     get "/search", SearchController, :index
   end
 
+  scope "/api/v2", PleromaReduxWeb.MastodonAPI do
+    pipe_through [:api, :api_auth]
+
+    post "/media", MediaController, :create
+  end
+
   scope "/api/v1/pleroma", PleromaReduxWeb.PleromaAPI do
     pipe_through [:api, :api_auth]
 
