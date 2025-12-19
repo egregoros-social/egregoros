@@ -350,4 +350,66 @@ defmodule PleromaRedux.Federation.OutgoingDeliveryTest do
 
     assert {:ok, _} = Pipeline.ingest(undo, local: true)
   end
+
+  test "local Undo of Announce delivers to remote followers" do
+    {:ok, local} = Users.create_local_user("alice")
+
+    {:ok, remote_follower} =
+      Users.create_user(%{
+        nickname: "carol",
+        ap_id: "https://remote.example/users/carol",
+        inbox: "https://remote.example/users/carol/inbox",
+        outbox: "https://remote.example/users/carol/outbox",
+        public_key: "PUB",
+        private_key: nil,
+        local: false
+      })
+
+    follow = %{
+      "id" => "https://remote.example/activities/follow/undo-announce",
+      "type" => "Follow",
+      "actor" => remote_follower.ap_id,
+      "object" => local.ap_id
+    }
+
+    assert {:ok, _} = Pipeline.ingest(follow, local: false)
+
+    announce = %{
+      "id" => "https://local.example/activities/announce/undo-announce",
+      "type" => "Announce",
+      "actor" => local.ap_id,
+      "object" => "https://remote.example/objects/1"
+    }
+
+    assert {:ok, _} =
+             PleromaRedux.Objects.create_object(%{
+               ap_id: announce["id"],
+               type: announce["type"],
+               actor: announce["actor"],
+               object: announce["object"],
+               data: announce,
+               local: true
+             })
+
+    undo = %{
+      "id" => "https://local.example/activities/undo/undo-announce",
+      "type" => "Undo",
+      "actor" => local.ap_id,
+      "object" => announce["id"]
+    }
+
+    PleromaRedux.HTTP.Mock
+    |> expect(:post, fn url, body, _headers ->
+      assert url == remote_follower.inbox
+
+      decoded = Jason.decode!(body)
+      assert decoded["type"] == "Undo"
+      assert decoded["actor"] == local.ap_id
+      assert decoded["object"] == announce["id"]
+
+      {:ok, %{status: 202, body: "", headers: []}}
+    end)
+
+    assert {:ok, _} = Pipeline.ingest(undo, local: true)
+  end
 end

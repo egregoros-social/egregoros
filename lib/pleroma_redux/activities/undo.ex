@@ -87,6 +87,17 @@ defmodule PleromaRedux.Activities.Undo do
     end
   end
 
+  defp do_deliver(actor, %Object{type: "Announce"}, undo_object) do
+    actor.ap_id
+    |> Objects.list_follows_to()
+    |> Enum.filter(&(&1.local == false))
+    |> Enum.each(fn follow ->
+      with %{} = follower <- Users.get_by_ap_id(follow.actor) do
+        Delivery.deliver(actor, follower.inbox, undo_object.data)
+      end
+    end)
+  end
+
   defp do_deliver(_actor, _activity, _undo_object), do: :ok
 
   defp maybe_copy_addressing(activity, %{"to" => to} = target_data) when is_list(to) do
