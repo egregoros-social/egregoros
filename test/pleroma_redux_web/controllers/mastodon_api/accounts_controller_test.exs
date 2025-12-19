@@ -45,6 +45,37 @@ defmodule PleromaReduxWeb.MastodonAPI.AccountsControllerTest do
     assert Enum.at(response, 1)["content"] == "First post"
   end
 
+  test "GET /api/v1/accounts/:id/statuses paginates with max_id and Link header", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+
+    {:ok, _} = Publish.post_note(user, "First post")
+    {:ok, _} = Publish.post_note(user, "Second post")
+    {:ok, _} = Publish.post_note(user, "Third post")
+
+    conn = get(conn, "/api/v1/accounts/#{user.id}/statuses", %{"limit" => "2"})
+    response = json_response(conn, 200)
+
+    assert length(response) == 2
+    assert Enum.at(response, 0)["content"] == "Third post"
+    assert Enum.at(response, 1)["content"] == "Second post"
+
+    [link] = get_resp_header(conn, "link")
+    assert String.contains?(link, "rel=\"next\"")
+    assert String.contains?(link, "max_id=#{Enum.at(response, 1)["id"]}")
+    assert String.contains?(link, "rel=\"prev\"")
+    assert String.contains?(link, "since_id=#{Enum.at(response, 0)["id"]}")
+
+    conn =
+      get(conn, "/api/v1/accounts/#{user.id}/statuses", %{
+        "limit" => "2",
+        "max_id" => Enum.at(response, 1)["id"]
+      })
+
+    response = json_response(conn, 200)
+    assert length(response) == 1
+    assert Enum.at(response, 0)["content"] == "First post"
+  end
+
   test "GET /api/v1/accounts/lookup finds a local account by acct", %{conn: conn} do
     {:ok, user} = Users.create_local_user("alice")
 

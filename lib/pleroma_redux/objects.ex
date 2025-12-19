@@ -87,12 +87,40 @@ defmodule PleromaRedux.Objects do
     |> Repo.all()
   end
 
-  def list_notes(limit \\ 20) do
-    from(o in Object, where: o.type == "Note", order_by: [desc: o.inserted_at], limit: ^limit)
+  def list_notes, do: list_notes(limit: 20)
+
+  def list_notes(limit) when is_integer(limit) do
+    list_notes(limit: limit)
+  end
+
+  def list_notes(opts) when is_list(opts) do
+    limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+    max_id = Keyword.get(opts, :max_id)
+    since_id = Keyword.get(opts, :since_id)
+
+    from(o in Object,
+      where: o.type == "Note",
+      order_by: [desc: o.id],
+      limit: ^limit
+    )
+    |> maybe_where_max_id(max_id)
+    |> maybe_where_since_id(since_id)
     |> Repo.all()
   end
 
-  def list_home_notes(actor_ap_id, limit \\ 20) when is_binary(actor_ap_id) do
+  def list_home_notes(actor_ap_id) when is_binary(actor_ap_id) do
+    list_home_notes(actor_ap_id, limit: 20)
+  end
+
+  def list_home_notes(actor_ap_id, limit) when is_binary(actor_ap_id) and is_integer(limit) do
+    list_home_notes(actor_ap_id, limit: limit)
+  end
+
+  def list_home_notes(actor_ap_id, opts) when is_binary(actor_ap_id) and is_list(opts) do
+    limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+    max_id = Keyword.get(opts, :max_id)
+    since_id = Keyword.get(opts, :since_id)
+
     followed_actor_ids =
       actor_ap_id
       |> Relationships.list_follows_by_actor()
@@ -103,18 +131,32 @@ defmodule PleromaRedux.Objects do
 
     from(o in Object,
       where: o.type == "Note" and o.actor in ^actor_ids,
-      order_by: [desc: o.inserted_at],
+      order_by: [desc: o.id],
       limit: ^limit
     )
+    |> maybe_where_max_id(max_id)
+    |> maybe_where_since_id(since_id)
     |> Repo.all()
   end
 
-  def list_notes_by_actor(actor, limit \\ 20) when is_binary(actor) do
+  def list_notes_by_actor(actor) when is_binary(actor), do: list_notes_by_actor(actor, limit: 20)
+
+  def list_notes_by_actor(actor, limit) when is_binary(actor) and is_integer(limit) do
+    list_notes_by_actor(actor, limit: limit)
+  end
+
+  def list_notes_by_actor(actor, opts) when is_binary(actor) and is_list(opts) do
+    limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+    max_id = Keyword.get(opts, :max_id)
+    since_id = Keyword.get(opts, :since_id)
+
     from(o in Object,
       where: o.type == "Note" and o.actor == ^actor,
-      order_by: [desc: o.inserted_at],
+      order_by: [desc: o.id],
       limit: ^limit
     )
+    |> maybe_where_max_id(max_id)
+    |> maybe_where_since_id(since_id)
     |> Repo.all()
   end
 
@@ -146,6 +188,26 @@ defmodule PleromaRedux.Objects do
     from(o in Object, where: o.type == "Note")
     |> Repo.delete_all()
   end
+
+  defp maybe_where_max_id(query, max_id) when is_integer(max_id) and max_id > 0 do
+    from(o in query, where: o.id < ^max_id)
+  end
+
+  defp maybe_where_max_id(query, _max_id), do: query
+
+  defp maybe_where_since_id(query, since_id) when is_integer(since_id) and since_id > 0 do
+    from(o in query, where: o.id > ^since_id)
+  end
+
+  defp maybe_where_since_id(query, _since_id), do: query
+
+  defp normalize_limit(limit) when is_integer(limit) do
+    limit
+    |> max(1)
+    |> min(40)
+  end
+
+  defp normalize_limit(_), do: 20
 
   defp unique_ap_id_error?(%Ecto.Changeset{errors: errors}) do
     Enum.any?(errors, fn

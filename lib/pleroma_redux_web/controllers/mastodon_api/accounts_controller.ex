@@ -11,6 +11,7 @@ defmodule PleromaReduxWeb.MastodonAPI.AccountsController do
   alias PleromaRedux.Users
   alias PleromaReduxWeb.Endpoint
   alias PleromaReduxWeb.MastodonAPI.AccountRenderer
+  alias PleromaReduxWeb.MastodonAPI.Pagination
   alias PleromaReduxWeb.MastodonAPI.RelationshipRenderer
   alias PleromaReduxWeb.MastodonAPI.StatusRenderer
 
@@ -49,14 +50,27 @@ defmodule PleromaReduxWeb.MastodonAPI.AccountsController do
     send_resp(conn, 422, "Unprocessable Entity")
   end
 
-  def statuses(conn, %{"id" => id}) do
+  def statuses(conn, %{"id" => id} = params) do
     case Users.get(id) do
       nil ->
         send_resp(conn, 404, "Not Found")
 
       user ->
-        objects = Objects.list_notes_by_actor(user.ap_id)
-        json(conn, StatusRenderer.render_statuses(objects))
+        pagination = Pagination.parse(params)
+
+        objects =
+          Objects.list_notes_by_actor(user.ap_id,
+            limit: pagination.limit + 1,
+            max_id: pagination.max_id,
+            since_id: pagination.since_id
+          )
+
+        has_more? = length(objects) > pagination.limit
+        objects = Enum.take(objects, pagination.limit)
+
+        conn
+        |> Pagination.maybe_put_links(objects, has_more?, pagination)
+        |> json(StatusRenderer.render_statuses(objects))
     end
   end
 
