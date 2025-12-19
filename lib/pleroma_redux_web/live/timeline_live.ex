@@ -1,6 +1,7 @@
 defmodule PleromaReduxWeb.TimelineLive do
   use PleromaReduxWeb, :live_view
 
+  alias PleromaRedux.Activities.Announce
   alias PleromaRedux.Activities.Like
   alias PleromaRedux.Activities.Undo
   alias PleromaRedux.Federation
@@ -98,6 +99,29 @@ defmodule PleromaReduxWeb.TimelineLive do
     else
       nil ->
         {:noreply, assign(socket, error: "Register to like posts.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_repost", %{"id" => id}, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         {post_id, ""} <- Integer.parse(to_string(id)),
+         %{object: post, reposted?: reposted?} <- Enum.find(socket.assigns.posts, &(&1.object.id == post_id)) do
+      if reposted? do
+        case Objects.get_by_type_actor_object("Announce", user.ap_id, post.ap_id) do
+          %{} = announce_object -> Pipeline.ingest(Undo.build(user, announce_object), local: true)
+          _ -> {:error, :not_found}
+        end
+      else
+        Pipeline.ingest(Announce.build(user, post), local: true)
+      end
+
+      {:noreply, refresh_post(socket, post_id)}
+    else
+      nil ->
+        {:noreply, assign(socket, error: "Register to repost.")}
 
       _ ->
         {:noreply, socket}
@@ -219,6 +243,20 @@ defmodule PleromaReduxWeb.TimelineLive do
                     <%= entry.likes_count %>
                   </span>
                 </button>
+
+                <button
+                  :if={@current_user}
+                  type="button"
+                  data-role="repost"
+                  phx-click="toggle_repost"
+                  phx-value-id={entry.object.id}
+                  class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                >
+                  <%= if entry.reposted?, do: "Unrepost", else: "Repost" %>
+                  <span class="text-xs font-normal text-slate-500 dark:text-slate-400">
+                    <%= entry.reposts_count %>
+                  </span>
+                </button>
               </div>
             </article>
           <% end %>
@@ -236,7 +274,9 @@ defmodule PleromaReduxWeb.TimelineLive do
     %{
       object: post,
       likes_count: Objects.count_by_type_object("Like", post.ap_id),
-      liked?: liked_by_current_user?(post, current_user)
+      liked?: liked_by_current_user?(post, current_user),
+      reposts_count: Objects.count_by_type_object("Announce", post.ap_id),
+      reposted?: reposted_by_current_user?(post, current_user)
     }
   end
 
@@ -244,6 +284,12 @@ defmodule PleromaReduxWeb.TimelineLive do
 
   defp liked_by_current_user?(post, %User{} = current_user) do
     Objects.get_by_type_actor_object("Like", current_user.ap_id, post.ap_id) != nil
+  end
+
+  defp reposted_by_current_user?(_post, nil), do: false
+
+  defp reposted_by_current_user?(post, %User{} = current_user) do
+    Objects.get_by_type_actor_object("Announce", current_user.ap_id, post.ap_id) != nil
   end
 
   defp refresh_post(socket, post_id) when is_integer(post_id) do
