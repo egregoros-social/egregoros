@@ -242,148 +242,268 @@ defmodule PleromaReduxWeb.TimelineLive do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
       <section id="timeline-shell" class="grid gap-6 lg:grid-cols-12 lg:items-start">
-        <aside id="timeline-sidebar" class="space-y-6 lg:col-span-4">
-          <div class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40 animate-rise">
+        <aside id="timeline-sidebar" class="space-y-6 lg:col-span-4 lg:sticky lg:top-10">
+          <section class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40 animate-rise">
+            <%= if @current_user do %>
+              <div class="flex items-center gap-4">
+                <div class="shrink-0">
+                  <%= if is_binary(@current_user.avatar_url) and @current_user.avatar_url != "" do %>
+                    <img
+                      src={URL.absolute(@current_user.avatar_url)}
+                      alt={@current_user.name || @current_user.nickname}
+                      class="h-14 w-14 rounded-2xl border border-slate-200/80 bg-white object-cover shadow-sm shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-950/60 dark:shadow-slate-900/40"
+                      loading="lazy"
+                    />
+                  <% else %>
+                    <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/70 text-base font-semibold text-slate-700 shadow-sm shadow-slate-200/30 dark:border-slate-700/60 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40">
+                      {avatar_initial(@current_user.name || @current_user.nickname)}
+                    </div>
+                  <% end %>
+                </div>
+
+                <div class="min-w-0">
+                  <p class="truncate font-display text-xl text-slate-900 dark:text-slate-100">
+                    {@current_user.name || @current_user.nickname}
+                  </p>
+                  <p class="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">
+                    {user_handle(@current_user, @current_user.ap_id)}
+                  </p>
+                </div>
+              </div>
+
+              <div class="mt-6 flex flex-wrap items-center gap-2">
+                <.link
+                  navigate={~p"/settings"}
+                  class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                >
+                  Settings
+                </.link>
+                <.link
+                  href={~p"/logout"}
+                  class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                >
+                  Logout
+                </.link>
+              </div>
+            <% else %>
+              <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                Welcome
+              </p>
+              <h2 class="mt-2 font-display text-2xl text-slate-900 dark:text-slate-100">
+                A small federating core
+              </h2>
+              <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                Sign in to post, follow, and build a home feed. Public is available without an
+                account.
+              </p>
+
+              <div class="mt-6 flex flex-wrap items-center gap-2">
+                <.link
+                  navigate={~p"/login"}
+                  class="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                >
+                  Login
+                </.link>
+                <.link
+                  navigate={~p"/register"}
+                  class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                >
+                  Register
+                </.link>
+              </div>
+            <% end %>
+          </section>
+
+          <section
+            id="compose-panel"
+            class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40"
+          >
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
                   Compose
                 </p>
                 <h2 class="mt-2 font-display text-xl text-slate-900 dark:text-slate-100">
-                  Broadcast a short note
+                  New post
                 </h2>
               </div>
               <div class="hidden text-right text-xs text-slate-500 dark:text-slate-400 sm:block">
-                Live timeline updates
+                Live updates
               </div>
             </div>
 
-            <.form
-              for={@follow_form}
-              id="follow-form"
-              phx-submit="follow_remote"
-              class="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end"
-            >
-              <div class="flex-1">
+            <%= if @current_user do %>
+              <.form for={@form} id="timeline-form" phx-submit="create_post" class="mt-6 space-y-4">
                 <.input
-                  type="text"
-                  field={@follow_form[:handle]}
-                  label="Follow"
-                  placeholder="bob@remote.example"
-                  class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+                  type="textarea"
+                  field={@form[:content]}
+                  placeholder="What's happening?"
+                  rows="3"
+                  phx-debounce="blur"
+                  class="w-full resize-none rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
                 />
-              </div>
 
-              <button
-                type="submit"
-                class="rounded-full border border-slate-200/80 bg-white/70 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-              >
-                Follow
-              </button>
-            </.form>
-
-            <p :if={@follow_error} class="mt-3 text-sm text-rose-500">{@follow_error}</p>
-            <p :if={@follow_success} class="mt-3 text-sm text-emerald-600 dark:text-emerald-400">
-              {@follow_success}
-            </p>
-
-            <div
-              :if={@current_user}
-              class="mt-8 border-t border-slate-200/70 pt-6 dark:border-slate-700/60"
-            >
-              <div class="flex items-center justify-between">
-                <h3 class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
-                  Following
-                </h3>
-                <span class="text-xs text-slate-400 dark:text-slate-500">
-                  {length(@following)}
-                </span>
-              </div>
-
-              <div class="mt-4 space-y-2">
-                <%= for entry <- @following do %>
-                  <div
-                    id={"following-#{entry.relationship.id}"}
-                    class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm shadow-sm shadow-slate-200/20 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40"
-                  >
-                    <div class="flex min-w-0 items-center gap-3">
-                      <div class="shrink-0">
-                        <%= if entry.target &&
-                               is_binary(entry.target.avatar_url) and
-                               entry.target.avatar_url != "" do %>
-                          <img
-                            src={URL.absolute(entry.target.avatar_url)}
-                            alt={entry.target.nickname}
-                            class="h-9 w-9 rounded-xl border border-slate-200/80 bg-white object-cover shadow-sm shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-950/60 dark:shadow-slate-900/40"
-                            loading="lazy"
-                          />
-                        <% else %>
-                          <div class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white/70 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/30 dark:border-slate-700/60 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40">
-                            {if entry.target,
-                              do: avatar_initial(entry.target.name || entry.target.nickname),
-                              else: "?"}
-                          </div>
-                        <% end %>
-                      </div>
-
-                      <div class="min-w-0">
-                        <p class="truncate font-semibold text-slate-900 dark:text-slate-100">
-                          {if entry.target,
-                            do: entry.target.name || entry.target.nickname,
-                            else: entry.relationship.object}
-                        </p>
-                        <p class="truncate text-xs text-slate-500 dark:text-slate-400">
-                          {if entry.target,
-                            do: user_handle(entry.target, entry.target.ap_id),
-                            else: entry.relationship.object}
-                        </p>
-                      </div>
-                    </div>
-
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <p :if={@error} class="text-sm text-rose-500">{@error}</p>
+                  <div class="ml-auto flex items-center gap-3">
+                    <span class="text-xs uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
+                      {@current_user.nickname}
+                    </span>
                     <button
-                      type="button"
-                      data-role="unfollow"
-                      phx-click="unfollow"
-                      phx-value-id={entry.relationship.id}
-                      class="shrink-0 rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                      type="submit"
+                      class="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
                     >
-                      Unfollow
+                      Post
                     </button>
                   </div>
-                <% end %>
-
-                <p :if={@following == []} class="text-sm text-slate-500 dark:text-slate-400">
-                  Follow someone to start building your home graph.
-                </p>
-              </div>
-            </div>
-
-            <.form for={@form} id="timeline-form" phx-submit="create_post" class="mt-6 space-y-4">
-              <.input
-                type="textarea"
-                field={@form[:content]}
-                placeholder="What's happening?"
-                rows="3"
-                phx-debounce="blur"
-                class="w-full resize-none rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
-              />
-
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <p :if={@error} class="text-sm text-rose-500">{@error}</p>
-                <div class="ml-auto flex items-center gap-3">
-                  <span class="text-xs uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
-                    {if @current_user, do: @current_user.nickname, else: "guest"}
-                  </span>
-                  <button
-                    type="submit"
-                    class="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                </div>
+              </.form>
+            <% else %>
+              <div class="mt-6 rounded-2xl border border-slate-200/80 bg-white/70 p-4 text-sm text-slate-600 dark:border-slate-700/70 dark:bg-slate-950/50 dark:text-slate-300">
+                <p>Posting requires a local account.</p>
+                <div class="mt-4 flex flex-wrap items-center gap-2">
+                  <.link
+                    navigate={~p"/login"}
+                    class="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
                   >
-                    Post
-                  </button>
+                    Login
+                  </.link>
+                  <.link
+                    navigate={~p"/register"}
+                    class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                  >
+                    Register
+                  </.link>
                 </div>
               </div>
-            </.form>
-          </div>
+            <% end %>
+          </section>
+
+          <section
+            id="follow-panel"
+            class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50"
+          >
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                  Follow
+                </p>
+                <h2 class="mt-2 font-display text-xl text-slate-900 dark:text-slate-100">
+                  Find someone
+                </h2>
+              </div>
+              <p class="hidden text-right text-xs text-slate-500 dark:text-slate-400 sm:block">
+                alice@remote.example
+              </p>
+            </div>
+
+            <%= if @current_user do %>
+              <.form
+                for={@follow_form}
+                id="follow-form"
+                phx-submit="follow_remote"
+                class="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end"
+              >
+                <div class="flex-1">
+                  <.input
+                    type="text"
+                    field={@follow_form[:handle]}
+                    label="Handle"
+                    placeholder="bob@remote.example"
+                    class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  class="rounded-full border border-slate-200/80 bg-white/70 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                >
+                  Follow
+                </button>
+              </.form>
+
+              <p :if={@follow_error} class="mt-3 text-sm text-rose-500">{@follow_error}</p>
+              <p :if={@follow_success} class="mt-3 text-sm text-emerald-600 dark:text-emerald-400">
+                {@follow_success}
+              </p>
+            <% else %>
+              <div class="mt-6 rounded-2xl border border-slate-200/80 bg-white/70 p-4 text-sm text-slate-600 dark:border-slate-700/70 dark:bg-slate-950/50 dark:text-slate-300">
+                Following requires a local account.
+              </div>
+            <% end %>
+          </section>
+
+          <section
+            :if={@current_user}
+            id="following-panel"
+            class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50"
+          >
+            <div class="flex items-center justify-between">
+              <h3 class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                Following
+              </h3>
+              <span class="text-xs text-slate-400 dark:text-slate-500">
+                {length(@following)}
+              </span>
+            </div>
+
+            <div class="mt-4 space-y-2">
+              <%= for entry <- @following do %>
+                <div
+                  id={"following-#{entry.relationship.id}"}
+                  class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm shadow-sm shadow-slate-200/20 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40"
+                >
+                  <div class="flex min-w-0 items-center gap-3">
+                    <div class="shrink-0">
+                      <%= if entry.target &&
+                             is_binary(entry.target.avatar_url) and
+                             entry.target.avatar_url != "" do %>
+                        <img
+                          src={URL.absolute(entry.target.avatar_url)}
+                          alt={entry.target.nickname}
+                          class="h-9 w-9 rounded-xl border border-slate-200/80 bg-white object-cover shadow-sm shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-950/60 dark:shadow-slate-900/40"
+                          loading="lazy"
+                        />
+                      <% else %>
+                        <div class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white/70 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-200/30 dark:border-slate-700/60 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40">
+                          {if entry.target,
+                            do: avatar_initial(entry.target.name || entry.target.nickname),
+                            else: "?"}
+                        </div>
+                      <% end %>
+                    </div>
+
+                    <div class="min-w-0">
+                      <p class="truncate font-semibold text-slate-900 dark:text-slate-100">
+                        {if entry.target,
+                          do: entry.target.name || entry.target.nickname,
+                          else: entry.relationship.object}
+                      </p>
+                      <p class="truncate text-xs text-slate-500 dark:text-slate-400">
+                        {if entry.target,
+                          do: user_handle(entry.target, entry.target.ap_id),
+                          else: entry.relationship.object}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    data-role="unfollow"
+                    phx-click="unfollow"
+                    phx-value-id={entry.relationship.id}
+                    class="shrink-0 rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                  >
+                    Unfollow
+                  </button>
+                </div>
+              <% end %>
+
+              <p :if={@following == []} class="text-sm text-slate-500 dark:text-slate-400">
+                Follow someone to start building your home graph.
+              </p>
+            </div>
+          </section>
         </aside>
 
         <section id="timeline-feed" class="space-y-4 lg:col-span-8">
