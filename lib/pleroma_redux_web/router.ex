@@ -81,6 +81,12 @@ defmodule PleromaReduxWeb.Router do
     get "/accounts/:id/statuses", AccountsController, :statuses
   end
 
+  scope "/api/v2", PleromaReduxWeb.MastodonAPI do
+    pipe_through :api
+
+    get "/instance", InstanceController, :show_v2
+  end
+
   scope "/api/v1/pleroma", PleromaReduxWeb.PleromaAPI do
     pipe_through [:api, :api_auth]
 

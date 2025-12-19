@@ -10,4 +10,14 @@ defmodule PleromaReduxWeb.MastodonAPI.InstanceControllerTest do
     assert is_binary(response["version"])
     assert is_map(response["stats"])
   end
+
+  test "GET /api/v2/instance returns instance information", %{conn: conn} do
+    conn = get(conn, "/api/v2/instance")
+    response = json_response(conn, 200)
+
+    assert is_binary(response["domain"])
+    assert is_binary(response["title"])
+    assert is_binary(response["version"])
+    assert is_map(response["usage"])
+  end
 end

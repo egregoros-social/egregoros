@@ -39,6 +39,39 @@ defmodule PleromaReduxWeb.MastodonAPI.InstanceController do
     })
   end
 
+  def show_v2(conn, _params) do
+    base_url = Endpoint.url()
+    host = URI.parse(base_url).host || "localhost"
+
+    active_month = Repo.aggregate(User, :count, :id)
+
+    json(conn, %{
+      "domain" => host,
+      "title" => "Pleroma Redux",
+      "version" => "pleroma_redux/#{app_version()}",
+      "source_url" => nil,
+      "description" => "A reduced federation core with an opinionated UI.",
+      "usage" => %{
+        "users" => %{
+          "active_month" => active_month
+        }
+      },
+      "thumbnail" => nil,
+      "languages" => ["en"],
+      "configuration" => %{},
+      "registrations" => %{
+        "enabled" => true,
+        "approval_required" => false,
+        "message" => nil
+      },
+      "contact" => %{
+        "email" => nil,
+        "account" => nil
+      },
+      "rules" => []
+    })
+  end
+
   defp app_version do
     case Application.spec(:pleroma_redux, :vsn) do
       nil -> "0.0.0"
