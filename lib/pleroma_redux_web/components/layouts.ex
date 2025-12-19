@@ -35,40 +35,39 @@ defmodule PleromaReduxWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
+    <div class="relative min-h-screen overflow-hidden bg-gradient-to-br from-amber-50 via-white to-slate-100 text-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-slate-100">
+      <div class="pointer-events-none absolute -top-40 right-10 h-72 w-72 rounded-full bg-amber-200/60 blur-3xl dark:bg-sky-500/20"></div>
+      <div class="pointer-events-none absolute -bottom-48 left-6 h-80 w-80 rounded-full bg-rose-200/60 blur-3xl dark:bg-fuchsia-500/20"></div>
+
+      <div class="relative mx-auto max-w-4xl px-6 py-10">
+        <header class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">
+              Pleroma Redux
+            </p>
+            <h1 class="mt-2 font-display text-3xl sm:text-4xl">Signal feed</h1>
+            <p class="mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-300">
+              A reduced federation core with a live, opinionated front door.
+            </p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a
+              href="https://docs.joinmastodon.org/client/intro/"
+              class="text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            >
+              Mastodon API
             </a>
-          </li>
-        </ul>
-      </div>
-    </header>
+            <.theme_toggle />
+          </div>
+        </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
+        <main class="mt-10">
+          {render_slot(@inner_block)}
+        </main>
       </div>
-    </main>
 
-    <.flash_group flash={@flash} />
+      <.flash_group flash={@flash} />
+    </div>
     """
   end
 
@@ -122,31 +121,31 @@ defmodule PleromaReduxWeb.Layouts do
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
+    <div class="relative flex items-center rounded-full border border-slate-200/70 bg-white/70 p-1 shadow-sm shadow-slate-200/30 backdrop-blur transition dark:border-slate-700/70 dark:bg-slate-900/70 dark:shadow-slate-900/40">
+      <div class="absolute inset-y-1 w-10 rounded-full bg-slate-900 text-slate-100 transition-all duration-300 [[data-theme=system]_&]:translate-x-0 [[data-theme=light]_&]:translate-x-10 [[data-theme=dark]_&]:translate-x-20 dark:bg-slate-100 dark:text-slate-900"></div>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="relative z-10 flex h-8 w-10 items-center justify-center text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
       >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
+        <.icon name="hero-computer-desktop-micro" class="size-4" />
       </button>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="relative z-10 flex h-8 w-10 items-center justify-center text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
       >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
+        <.icon name="hero-sun-micro" class="size-4" />
       </button>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="relative z-10 flex h-8 w-10 items-center justify-center text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
       >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
+        <.icon name="hero-moon-micro" class="size-4" />
       </button>
     </div>
     """
