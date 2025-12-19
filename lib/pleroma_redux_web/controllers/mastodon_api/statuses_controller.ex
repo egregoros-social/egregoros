@@ -1,10 +1,12 @@
 defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
   use PleromaReduxWeb, :controller
 
+  alias PleromaRedux.Activities.Announce
+  alias PleromaRedux.Activities.Like
+  alias PleromaRedux.Activities.Undo
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Publish
-  alias PleromaReduxWeb.Endpoint
   alias PleromaReduxWeb.MastodonAPI.StatusRenderer
 
   def create(conn, %{"status" => status}) do
@@ -39,7 +41,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
   def favourite(conn, %{"id" => id}) do
     with %{} = object <- Objects.get(id),
          {:ok, _liked} <-
-           Pipeline.ingest(build_activity("Like", conn.assigns.current_user.ap_id, object.ap_id), local: true) do
+           Pipeline.ingest(Like.build(conn.assigns.current_user, object), local: true) do
       json(conn, StatusRenderer.render_status(object, conn.assigns.current_user))
     else
       nil -> send_resp(conn, 404, "Not Found")
@@ -50,7 +52,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
   def unfavourite(conn, %{"id" => id}) do
     with %{} = object <- Objects.get(id),
          %{} = like <- Objects.get_by_type_actor_object("Like", conn.assigns.current_user.ap_id, object.ap_id),
-         {:ok, _undo} <- Pipeline.ingest(build_activity("Undo", conn.assigns.current_user.ap_id, like.ap_id), local: true) do
+         {:ok, _undo} <- Pipeline.ingest(Undo.build(conn.assigns.current_user, like), local: true) do
       json(conn, StatusRenderer.render_status(object, conn.assigns.current_user))
     else
       nil -> send_resp(conn, 404, "Not Found")
@@ -60,7 +62,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
 
   def reblog(conn, %{"id" => id}) do
     with %{} = object <- Objects.get(id),
-         {:ok, _announce} <- Pipeline.ingest(build_activity("Announce", conn.assigns.current_user.ap_id, object.ap_id), local: true) do
+         {:ok, _announce} <- Pipeline.ingest(Announce.build(conn.assigns.current_user, object), local: true) do
       json(conn, StatusRenderer.render_status(object, conn.assigns.current_user))
     else
       nil -> send_resp(conn, 404, "Not Found")
@@ -71,21 +73,11 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
   def unreblog(conn, %{"id" => id}) do
     with %{} = object <- Objects.get(id),
          %{} = announce <- Objects.get_by_type_actor_object("Announce", conn.assigns.current_user.ap_id, object.ap_id),
-         {:ok, _undo} <- Pipeline.ingest(build_activity("Undo", conn.assigns.current_user.ap_id, announce.ap_id), local: true) do
+         {:ok, _undo} <- Pipeline.ingest(Undo.build(conn.assigns.current_user, announce), local: true) do
       json(conn, StatusRenderer.render_status(object, conn.assigns.current_user))
     else
       nil -> send_resp(conn, 404, "Not Found")
       {:error, _} -> send_resp(conn, 422, "Unprocessable Entity")
     end
-  end
-
-  defp build_activity(type, actor, object) do
-    %{
-      "id" => Endpoint.url() <> "/activities/" <> String.downcase(type) <> "/" <> Ecto.UUID.generate(),
-      "type" => type,
-      "actor" => actor,
-      "object" => object,
-      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
-    }
   end
 end
