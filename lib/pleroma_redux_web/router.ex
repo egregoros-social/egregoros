@@ -26,6 +26,10 @@ defmodule PleromaReduxWeb.Router do
     post "/register", RegistrationController, :create
     get "/login", SessionController, :new
     post "/login", SessionController, :create
+    get "/settings", SettingsController, :edit
+    post "/settings/profile", SettingsController, :update_profile
+    post "/settings/account", SettingsController, :update_account
+    post "/settings/password", SettingsController, :update_password
     get "/logout", RegistrationController, :logout
 
     live "/", TimelineLive

@@ -1,0 +1,119 @@
+<Layouts.app flash={@flash} current_user={@current_user}>
+  <section class="space-y-8">
+    <div class="rounded-3xl border border-white/80 bg-white/80 p-8 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40">
+      <h2 class="font-display text-2xl text-slate-900 dark:text-slate-100">Settings</h2>
+      <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+        Signed in as <span class="font-semibold"><%= @current_user.email %></span>
+      </p>
+
+      <p :if={@error} class="mt-4 text-sm text-rose-500">{@error}</p>
+    </div>
+
+    <div class="grid gap-6">
+      <section class="rounded-3xl border border-white/80 bg-white/80 p-8 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50">
+        <h3 class="font-display text-xl text-slate-900 dark:text-slate-100">Profile</h3>
+
+        <.form for={@profile_form} id="profile-form" action={~p"/settings/profile"} class="mt-6 space-y-4">
+          <.input
+            type="text"
+            field={@profile_form[:name]}
+            label="Name"
+            placeholder={@current_user.nickname}
+            class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+          />
+
+          <.input
+            type="textarea"
+            field={@profile_form[:bio]}
+            label="Bio"
+            placeholder="A short summary for your actor profile"
+            class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+          />
+
+          <.input
+            type="url"
+            field={@profile_form[:avatar_url]}
+            label="Avatar URL"
+            placeholder="https://cdn.example/avatar.png"
+            class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+          />
+
+          <button
+            type="submit"
+            class="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+          >
+            Save profile
+          </button>
+        </.form>
+      </section>
+
+      <section class="rounded-3xl border border-white/80 bg-white/80 p-8 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50">
+        <h3 class="font-display text-xl text-slate-900 dark:text-slate-100">Account</h3>
+
+        <.form
+          for={@account_form}
+          id="account-form"
+          action={~p"/settings/account"}
+          class="mt-6 space-y-4"
+        >
+          <.input
+            type="email"
+            field={@account_form[:email]}
+            label="Email"
+            placeholder="alice@example.com"
+            class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+          />
+
+          <button
+            type="submit"
+            class="w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+          >
+            Update email
+          </button>
+        </.form>
+      </section>
+
+      <section class="rounded-3xl border border-white/80 bg-white/80 p-8 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50">
+        <h3 class="font-display text-xl text-slate-900 dark:text-slate-100">Password</h3>
+
+        <.form
+          for={@password_form}
+          id="password-form"
+          action={~p"/settings/password"}
+          class="mt-6 space-y-4"
+        >
+          <.input
+            type="password"
+            field={@password_form[:current_password]}
+            label="Current password"
+            placeholder="••••••••"
+            class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+          />
+
+          <.input
+            type="password"
+            field={@password_form[:password]}
+            label="New password"
+            placeholder="••••••••"
+            class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+          />
+
+          <.input
+            type="password"
+            field={@password_form[:password_confirmation]}
+            label="Confirm new password"
+            placeholder="••••••••"
+            class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+          />
+
+          <button
+            type="submit"
+            class="w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+          >
+            Update password
+          </button>
+        </.form>
+      </section>
+    </div>
+  </section>
+</Layouts.app>
