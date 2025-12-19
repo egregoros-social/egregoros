@@ -41,4 +41,18 @@ defmodule PleromaRedux.Relationships do
     from(r in Relationship, where: r.type == ^type and r.object == ^object_ap_id)
     |> Repo.aggregate(:count, :id)
   end
+
+  def count_by_type_actor(type, actor_ap_id) when is_binary(type) and is_binary(actor_ap_id) do
+    from(r in Relationship, where: r.type == ^type and r.actor == ^actor_ap_id)
+    |> Repo.aggregate(:count, :id)
+  end
+
+  def emoji_reaction_counts(object_ap_id) when is_binary(object_ap_id) do
+    from(r in Relationship,
+      where: r.object == ^object_ap_id and like(r.type, "EmojiReact:%"),
+      group_by: r.type,
+      select: {r.type, count(r.id)}
+    )
+    |> Repo.all()
+  end
 end

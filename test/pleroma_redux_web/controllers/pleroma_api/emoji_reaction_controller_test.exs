@@ -101,4 +101,52 @@ defmodule PleromaReduxWeb.PleromaAPI.EmojiReactionControllerTest do
 
     assert Objects.get_by_type_actor_object("Undo", user.ap_id, reaction.ap_id)
   end
+
+  test "GET /api/v1/pleroma/statuses/:id/reactions lists emoji reactions", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+    {:ok, other_user} = Users.create_local_user("bob")
+
+    PleromaRedux.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    {:ok, note} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/objects/emoji-3",
+          "type" => "Note",
+          "actor" => "https://example.com/users/alice",
+          "content" => "Emoji reaction target"
+        },
+        local: false
+      )
+
+    assert {:ok, _} =
+             Pipeline.ingest(
+               %{
+                 "id" => "https://example.com/activities/react/user",
+                 "type" => "EmojiReact",
+                 "actor" => user.ap_id,
+                 "object" => note.ap_id,
+                 "content" => "🔥"
+               },
+               local: true
+             )
+
+    assert {:ok, _} =
+             Pipeline.ingest(
+               %{
+                 "id" => "https://example.com/activities/react/other",
+                 "type" => "EmojiReact",
+                 "actor" => other_user.ap_id,
+                 "object" => note.ap_id,
+                 "content" => "🔥"
+               },
+               local: true
+             )
+
+    conn = get(conn, "/api/v1/pleroma/statuses/#{note.id}/reactions")
+    response = json_response(conn, 200)
+
+    assert %{"name" => "🔥", "count" => 2, "me" => true} in response
+  end
 end

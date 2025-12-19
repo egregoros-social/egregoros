@@ -7,6 +7,29 @@ defmodule PleromaReduxWeb.PleromaAPI.EmojiReactionController do
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Relationships
 
+  def index(conn, %{"id" => id}) do
+    with %{} = object <- Objects.get(id),
+         %{} = user <- conn.assigns.current_user do
+      reactions =
+        object.ap_id
+        |> Relationships.emoji_reaction_counts()
+        |> Enum.map(fn {type, count} ->
+          emoji = String.replace_prefix(type, "EmojiReact:", "")
+
+          %{
+            "name" => emoji,
+            "count" => count,
+            "me" => Relationships.get_by_type_actor_object(type, user.ap_id, object.ap_id) != nil
+          }
+        end)
+
+      json(conn, reactions)
+    else
+      nil -> send_resp(conn, 404, "Not Found")
+      {:error, _} -> send_resp(conn, 422, "Unprocessable Entity")
+    end
+  end
+
   def create(conn, %{"id" => id, "emoji" => emoji}) do
     with %{} = object <- Objects.get(id),
          %{} = user <- conn.assigns.current_user do

@@ -56,7 +56,10 @@ defmodule PleromaReduxWeb.Router do
     pipe_through [:api, :api_auth]
 
     get "/accounts/verify_credentials", AccountsController, :verify_credentials
+    get "/accounts/relationships", AccountsController, :relationships
     get "/timelines/home", TimelinesController, :home
+    get "/notifications", NotificationsController, :index
+    get "/preferences", PreferencesController, :show
     post "/accounts/:id/follow", AccountsController, :follow
     post "/accounts/:id/unfollow", AccountsController, :unfollow
     post "/statuses", StatusesController, :create
@@ -70,14 +73,18 @@ defmodule PleromaReduxWeb.Router do
     pipe_through :api
 
     post "/apps", AppsController, :create
+    get "/instance", InstanceController, :show
+    get "/custom_emojis", CustomEmojisController, :index
     get "/timelines/public", TimelinesController, :public
     get "/statuses/:id", StatusesController, :show
     get "/accounts/:id", AccountsController, :show
+    get "/accounts/:id/statuses", AccountsController, :statuses
   end
 
   scope "/api/v1/pleroma", PleromaReduxWeb.PleromaAPI do
     pipe_through [:api, :api_auth]
 
+    get "/statuses/:id/reactions", EmojiReactionController, :index
     put "/statuses/:id/reactions/:emoji", EmojiReactionController, :create
     delete "/statuses/:id/reactions/:emoji", EmojiReactionController, :delete
   end
