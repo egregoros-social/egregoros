@@ -1,6 +1,7 @@
 defmodule PleromaRedux.Activities.Create do
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
+  alias PleromaRedux.Relationships
   alias PleromaRedux.User
   alias PleromaRedux.Users
   alias PleromaReduxWeb.Endpoint
@@ -63,10 +64,10 @@ defmodule PleromaRedux.Activities.Create do
   defp deliver_to_followers(create_object) do
     with %{} = actor <- Users.get_by_ap_id(create_object.actor) do
       actor.ap_id
-      |> Objects.list_follows_to()
-      |> Enum.filter(&(&1.local == false))
+      |> Relationships.list_follows_to()
       |> Enum.each(fn follow ->
-        with %{} = follower <- Users.get_by_ap_id(follow.actor) do
+        with %{} = follower <- Users.get_by_ap_id(follow.actor),
+             false <- follower.local do
           PleromaRedux.Federation.Delivery.deliver(actor, follower.inbox, create_object.data)
         end
       end)

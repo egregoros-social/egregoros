@@ -3,6 +3,7 @@ defmodule PleromaRedux.ObjectsTest do
 
   alias PleromaRedux.Object
   alias PleromaRedux.Objects
+  alias PleromaRedux.Pipeline
   alias PleromaRedux.Users
 
   @note_attrs %{
@@ -70,19 +71,15 @@ defmodule PleromaRedux.ObjectsTest do
     carol_ap_id = "https://remote.example/users/carol"
 
     assert {:ok, %Object{}} =
-             Objects.create_object(%{
-               ap_id: "https://local.example/activities/follow/1",
-               type: "Follow",
-               actor: alice.ap_id,
-               object: bob_ap_id,
-               data: %{
+             Pipeline.ingest(
+               %{
                  "id" => "https://local.example/activities/follow/1",
                  "type" => "Follow",
                  "actor" => alice.ap_id,
                  "object" => bob_ap_id
                },
                local: true
-             })
+             )
 
     assert {:ok, %Object{}} =
              Objects.create_object(%{

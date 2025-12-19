@@ -3,7 +3,7 @@ defmodule PleromaRedux.PublishTest do
 
   import Mox
 
-  alias PleromaRedux.Objects
+  alias PleromaRedux.Pipeline
   alias PleromaRedux.Publish
   alias PleromaRedux.Users
 
@@ -27,15 +27,7 @@ defmodule PleromaRedux.PublishTest do
       "object" => local.ap_id
     }
 
-    assert {:ok, _} =
-             Objects.create_object(%{
-               ap_id: follow["id"],
-               type: follow["type"],
-               actor: follow["actor"],
-               object: follow["object"],
-               data: follow,
-               local: false
-             })
+    assert {:ok, _} = Pipeline.ingest(follow, local: false)
 
     PleromaRedux.HTTP.Mock
     |> expect(:post, fn url, body, _headers ->

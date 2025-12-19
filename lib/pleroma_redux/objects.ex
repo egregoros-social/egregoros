@@ -2,6 +2,7 @@ defmodule PleromaRedux.Objects do
   import Ecto.Query, only: [from: 2]
 
   alias PleromaRedux.Object
+  alias PleromaRedux.Relationships
   alias PleromaRedux.Repo
 
   def create_object(attrs) do
@@ -89,7 +90,7 @@ defmodule PleromaRedux.Objects do
   def list_home_notes(actor_ap_id, limit \\ 20) when is_binary(actor_ap_id) do
     followed_actor_ids =
       actor_ap_id
-      |> list_follows_by_actor()
+      |> Relationships.list_follows_by_actor()
       |> Enum.map(& &1.object)
       |> Enum.filter(&is_binary/1)
 

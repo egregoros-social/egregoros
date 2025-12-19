@@ -76,6 +76,9 @@ defmodule PleromaRedux.Federation.OutgoingDeliveryTest do
 
     assert {:ok, _} = Pipeline.ingest(follow, local: false)
 
+    follow_2 = %{follow | "id" => "https://remote.example/activities/follow/2"}
+    assert {:ok, _} = Pipeline.ingest(follow_2, local: false)
+
     note = %{
       "id" => "https://local.example/objects/1",
       "type" => "Note",

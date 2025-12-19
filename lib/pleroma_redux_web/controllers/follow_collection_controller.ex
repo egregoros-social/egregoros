@@ -1,7 +1,7 @@
 defmodule PleromaReduxWeb.FollowCollectionController do
   use PleromaReduxWeb, :controller
 
-  alias PleromaRedux.Objects
+  alias PleromaRedux.Relationships
   alias PleromaRedux.Users
 
   def followers(conn, %{"nickname" => nickname}) do
@@ -12,7 +12,7 @@ defmodule PleromaReduxWeb.FollowCollectionController do
       user ->
         items =
           user.ap_id
-          |> Objects.list_follows_to()
+          |> Relationships.list_follows_to()
           |> Enum.map(& &1.actor)
 
         respond_collection(conn, user.ap_id <> "/followers", items)
@@ -27,7 +27,7 @@ defmodule PleromaReduxWeb.FollowCollectionController do
       user ->
         items =
           user.ap_id
-          |> Objects.list_follows_by_actor()
+          |> Relationships.list_follows_by_actor()
           |> Enum.map(& &1.object)
 
         respond_collection(conn, user.ap_id <> "/following", items)

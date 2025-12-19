@@ -2,6 +2,7 @@ defmodule PleromaRedux.Activities.Announce do
   alias PleromaRedux.Federation.Delivery
   alias PleromaRedux.Object
   alias PleromaRedux.Objects
+  alias PleromaRedux.Relationships
   alias PleromaRedux.User
   alias PleromaRedux.Users
   alias PleromaReduxWeb.Endpoint
@@ -67,10 +68,10 @@ defmodule PleromaRedux.Activities.Announce do
   defp deliver_to_followers(announce_object) do
     with %{} = actor <- Users.get_by_ap_id(announce_object.actor) do
       actor.ap_id
-      |> Objects.list_follows_to()
-      |> Enum.filter(&(&1.local == false))
+      |> Relationships.list_follows_to()
       |> Enum.each(fn follow ->
-        with %{} = follower <- Users.get_by_ap_id(follow.actor) do
+        with %{} = follower <- Users.get_by_ap_id(follow.actor),
+             false <- follower.local do
           Delivery.deliver(actor, follower.inbox, announce_object.data)
         end
       end)

@@ -26,13 +26,17 @@ defmodule PleromaReduxWeb.FollowCollectionControllerTest do
 
     assert {:ok, _} = Pipeline.ingest(follow, local: false)
 
+    follow_2 = %{follow | "id" => "https://remote.example/activities/follow/followers-2"}
+    assert {:ok, _} = Pipeline.ingest(follow_2, local: false)
+
     conn = get(conn, "/users/alice-followers/followers")
     assert conn.status == 200
 
     decoded = Jason.decode!(conn.resp_body)
     assert decoded["type"] == "OrderedCollection"
     assert decoded["id"] == local.ap_id <> "/followers"
-    assert remote.ap_id in decoded["orderedItems"]
+    assert decoded["totalItems"] == 1
+    assert decoded["orderedItems"] == [remote.ap_id]
   end
 
   test "GET /users/:nickname/following returns following collection", %{conn: conn} do
@@ -57,12 +61,16 @@ defmodule PleromaReduxWeb.FollowCollectionControllerTest do
 
     assert {:ok, _} = Pipeline.ingest(follow, local: true)
 
+    follow_2 = %{follow | "id" => "http://localhost:4000/activities/follow/following-2"}
+    assert {:ok, _} = Pipeline.ingest(follow_2, local: true)
+
     conn = get(conn, "/users/alice-following/following")
     assert conn.status == 200
 
     decoded = Jason.decode!(conn.resp_body)
     assert decoded["type"] == "OrderedCollection"
     assert decoded["id"] == local.ap_id <> "/following"
-    assert remote.ap_id in decoded["orderedItems"]
+    assert decoded["totalItems"] == 1
+    assert decoded["orderedItems"] == [remote.ap_id]
   end
 end
