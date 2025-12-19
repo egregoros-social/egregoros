@@ -104,5 +104,143 @@ defmodule PleromaRedux.Federation.OutgoingDeliveryTest do
 
     assert {:ok, _} = Pipeline.ingest(create, local: true)
   end
-end
 
+  test "local Like delivers to remote object's actor inbox" do
+    {:ok, local} = Users.create_local_user("alice")
+
+    {:ok, remote_author} =
+      Users.create_user(%{
+        nickname: "bob",
+        ap_id: "https://remote.example/users/bob",
+        inbox: "https://remote.example/users/bob/inbox",
+        outbox: "https://remote.example/users/bob/outbox",
+        public_key: "PUB",
+        private_key: nil,
+        local: false
+      })
+
+    note = %{
+      "id" => "https://remote.example/objects/like-target",
+      "type" => "Note",
+      "attributedTo" => remote_author.ap_id,
+      "content" => "Like me"
+    }
+
+    assert {:ok, _} = Pipeline.ingest(note, local: false)
+
+    like = %{
+      "id" => "https://local.example/activities/like/1",
+      "type" => "Like",
+      "actor" => local.ap_id,
+      "object" => note["id"]
+    }
+
+    PleromaRedux.HTTP.Mock
+    |> expect(:post, fn url, body, _headers ->
+      assert url == remote_author.inbox
+
+      decoded = Jason.decode!(body)
+      assert decoded["type"] == "Like"
+      assert decoded["actor"] == local.ap_id
+      assert decoded["object"] == note["id"]
+
+      {:ok, %{status: 202, body: "", headers: []}}
+    end)
+
+    assert {:ok, _} = Pipeline.ingest(like, local: true)
+  end
+
+  test "local EmojiReact delivers to remote object's actor inbox" do
+    {:ok, local} = Users.create_local_user("alice")
+
+    {:ok, remote_author} =
+      Users.create_user(%{
+        nickname: "bob",
+        ap_id: "https://remote.example/users/bob",
+        inbox: "https://remote.example/users/bob/inbox",
+        outbox: "https://remote.example/users/bob/outbox",
+        public_key: "PUB",
+        private_key: nil,
+        local: false
+      })
+
+    note = %{
+      "id" => "https://remote.example/objects/react-target",
+      "type" => "Note",
+      "attributedTo" => remote_author.ap_id,
+      "content" => "React to me"
+    }
+
+    assert {:ok, _} = Pipeline.ingest(note, local: false)
+
+    react = %{
+      "id" => "https://local.example/activities/react/1",
+      "type" => "EmojiReact",
+      "actor" => local.ap_id,
+      "object" => note["id"],
+      "content" => ":fire:"
+    }
+
+    PleromaRedux.HTTP.Mock
+    |> expect(:post, fn url, body, _headers ->
+      assert url == remote_author.inbox
+
+      decoded = Jason.decode!(body)
+      assert decoded["type"] == "EmojiReact"
+      assert decoded["actor"] == local.ap_id
+      assert decoded["object"] == note["id"]
+      assert decoded["content"] == ":fire:"
+
+      {:ok, %{status: 202, body: "", headers: []}}
+    end)
+
+    assert {:ok, _} = Pipeline.ingest(react, local: true)
+  end
+
+  test "local Announce delivers to remote followers" do
+    {:ok, local} = Users.create_local_user("alice")
+
+    {:ok, remote_follower} =
+      Users.create_user(%{
+        nickname: "carol",
+        ap_id: "https://remote.example/users/carol",
+        inbox: "https://remote.example/users/carol/inbox",
+        outbox: "https://remote.example/users/carol/outbox",
+        public_key: "PUB",
+        private_key: nil,
+        local: false
+      })
+
+    follow = %{
+      "id" => "https://remote.example/activities/follow/1-announce",
+      "type" => "Follow",
+      "actor" => remote_follower.ap_id,
+      "object" => local.ap_id
+    }
+
+    assert {:ok, _} = Pipeline.ingest(follow, local: false)
+
+    announce = %{
+      "id" => "https://local.example/activities/announce/1",
+      "type" => "Announce",
+      "actor" => local.ap_id,
+      "object" => "https://remote.example/objects/1",
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => [local.ap_id <> "/followers"]
+    }
+
+    PleromaRedux.HTTP.Mock
+    |> expect(:post, fn url, body, _headers ->
+      assert url == remote_follower.inbox
+
+      decoded = Jason.decode!(body)
+      assert decoded["type"] == "Announce"
+      assert decoded["actor"] == local.ap_id
+      assert decoded["object"] == "https://remote.example/objects/1"
+
+      {:ok, %{status: 202, body: "", headers: []}}
+    end)
+
+    assert {:ok, _} = Pipeline.ingest(announce, local: true)
+  end
+end

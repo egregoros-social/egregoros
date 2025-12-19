@@ -1,5 +1,7 @@
 defmodule PleromaRedux.Activities.Announce do
+  alias PleromaRedux.Federation.Delivery
   alias PleromaRedux.Objects
+  alias PleromaRedux.Users
 
   def type, do: "Announce"
 
@@ -21,7 +23,26 @@ defmodule PleromaRedux.Activities.Announce do
     |> Objects.upsert_object()
   end
 
-  def side_effects(_object, _opts), do: :ok
+  def side_effects(object, opts) do
+    if Keyword.get(opts, :local, true) do
+      deliver_to_followers(object)
+    end
+
+    :ok
+  end
+
+  defp deliver_to_followers(announce_object) do
+    with %{} = actor <- Users.get_by_ap_id(announce_object.actor) do
+      actor.ap_id
+      |> Objects.list_follows_to()
+      |> Enum.filter(&(&1.local == false))
+      |> Enum.each(fn follow ->
+        with %{} = follower <- Users.get_by_ap_id(follow.actor) do
+          Delivery.deliver(actor, follower.inbox, announce_object.data)
+        end
+      end)
+    end
+  end
 
   defp to_object_attrs(activity, opts) do
     %{

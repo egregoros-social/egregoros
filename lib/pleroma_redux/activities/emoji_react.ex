@@ -1,5 +1,7 @@
 defmodule PleromaRedux.Activities.EmojiReact do
+  alias PleromaRedux.Federation.Delivery
   alias PleromaRedux.Objects
+  alias PleromaRedux.Users
 
   def type, do: "EmojiReact"
 
@@ -31,7 +33,32 @@ defmodule PleromaRedux.Activities.EmojiReact do
     |> Objects.upsert_object()
   end
 
-  def side_effects(_object, _opts), do: :ok
+  def side_effects(object, opts) do
+    if Keyword.get(opts, :local, true) do
+      deliver_reaction(object)
+    end
+
+    :ok
+  end
+
+  defp deliver_reaction(object) do
+    with %{} = actor <- Users.get_by_ap_id(object.actor),
+         %{} = reacted_object <- Objects.get_by_ap_id(object.object),
+         %{} = target <- get_or_fetch_user(reacted_object.actor),
+         false <- target.local do
+      Delivery.deliver(actor, target.inbox, object.data)
+    end
+  end
+
+  defp get_or_fetch_user(nil), do: nil
+
+  defp get_or_fetch_user(ap_id) when is_binary(ap_id) do
+    Users.get_by_ap_id(ap_id) ||
+      case PleromaRedux.Federation.Actor.fetch_and_store(ap_id) do
+        {:ok, user} -> user
+        _ -> nil
+      end
+  end
 
   defp to_object_attrs(activity, opts) do
     %{
