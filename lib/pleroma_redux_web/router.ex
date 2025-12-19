@@ -60,6 +60,13 @@ defmodule PleromaReduxWeb.Router do
     get "/timelines/home", TimelinesController, :home
     get "/notifications", NotificationsController, :index
     get "/preferences", PreferencesController, :show
+    get "/filters", EmptyListController, :index
+    get "/lists", EmptyListController, :index
+    get "/bookmarks", EmptyListController, :index
+    get "/favourites", EmptyListController, :index
+    get "/blocks", EmptyListController, :index
+    get "/mutes", EmptyListController, :index
+    get "/follow_requests", EmptyListController, :index
     get "/markers", MarkersController, :index
     post "/markers", MarkersController, :create
     post "/follows", FollowsController, :create
