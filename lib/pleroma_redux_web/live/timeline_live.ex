@@ -1,9 +1,14 @@
 defmodule PleromaReduxWeb.TimelineLive do
   use PleromaReduxWeb, :live_view
 
+  alias PleromaRedux.Activities.Like
+  alias PleromaRedux.Activities.Undo
   alias PleromaRedux.Federation
+  alias PleromaRedux.Objects
+  alias PleromaRedux.Pipeline
   alias PleromaRedux.Publish
   alias PleromaRedux.Timeline
+  alias PleromaRedux.User
   alias PleromaRedux.Users
 
   @impl true
@@ -23,7 +28,7 @@ defmodule PleromaReduxWeb.TimelineLive do
 
     {:ok,
      assign(socket,
-       posts: Timeline.list_posts(),
+       posts: decorate_posts(Timeline.list_posts(), current_user),
        error: nil,
        follow_error: nil,
        follow_success: nil,
@@ -76,9 +81,33 @@ defmodule PleromaReduxWeb.TimelineLive do
     end
   end
 
+  def handle_event("toggle_like", %{"id" => id}, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         {post_id, ""} <- Integer.parse(to_string(id)),
+         %{object: post, liked?: liked?} <- Enum.find(socket.assigns.posts, &(&1.object.id == post_id)) do
+      if liked? do
+        case Objects.get_by_type_actor_object("Like", user.ap_id, post.ap_id) do
+          %{} = like_object -> Pipeline.ingest(Undo.build(user, like_object), local: true)
+          _ -> {:error, :not_found}
+        end
+      else
+        Pipeline.ingest(Like.build(user, post), local: true)
+      end
+
+      {:noreply, refresh_post(socket, post_id)}
+    else
+      nil ->
+        {:noreply, assign(socket, error: "Register to like posts.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   @impl true
   def handle_info({:post_created, post}, socket) do
-    {:noreply, update(socket, :posts, fn posts -> [post | posts] end)}
+    {:noreply,
+     update(socket, :posts, fn posts -> [decorate_post(post, socket.assigns.current_user) | posts] end)}
   end
 
   @impl true
@@ -156,8 +185,9 @@ defmodule PleromaReduxWeb.TimelineLive do
         </div>
 
         <section class="space-y-4">
-          <%= for {post, idx} <- Enum.with_index(@posts) do %>
+          <%= for {entry, idx} <- Enum.with_index(@posts) do %>
             <article
+              id={"post-#{entry.object.id}"}
               class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-lg shadow-slate-200/30 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50 animate-rise"
               style={"animation-delay: #{idx * 45}ms"}
             >
@@ -167,10 +197,28 @@ defmodule PleromaReduxWeb.TimelineLive do
                     local
                   </p>
                   <p class="mt-3 text-base leading-relaxed text-slate-900 dark:text-slate-100">
-                    <%= post.data["content"] %>
+                    <%= entry.object.data["content"] %>
                   </p>
                 </div>
-                <span class="text-xs text-slate-400 dark:text-slate-500"><%= format_time(post.inserted_at) %></span>
+                <span class="text-xs text-slate-400 dark:text-slate-500">
+                  <%= format_time(entry.object.inserted_at) %>
+                </span>
+              </div>
+
+              <div class="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  :if={@current_user}
+                  type="button"
+                  data-role="like"
+                  phx-click="toggle_like"
+                  phx-value-id={entry.object.id}
+                  class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                >
+                  <%= if entry.liked?, do: "Unlike", else: "Like" %>
+                  <span class="text-xs font-normal text-slate-500 dark:text-slate-400">
+                    <%= entry.likes_count %>
+                  </span>
+                </button>
               </div>
             </article>
           <% end %>
@@ -178,6 +226,35 @@ defmodule PleromaReduxWeb.TimelineLive do
       </section>
     </Layouts.app>
     """
+  end
+
+  defp decorate_posts(posts, current_user) when is_list(posts) do
+    Enum.map(posts, &decorate_post(&1, current_user))
+  end
+
+  defp decorate_post(post, current_user) do
+    %{
+      object: post,
+      likes_count: Objects.count_by_type_object("Like", post.ap_id),
+      liked?: liked_by_current_user?(post, current_user)
+    }
+  end
+
+  defp liked_by_current_user?(_post, nil), do: false
+
+  defp liked_by_current_user?(post, %User{} = current_user) do
+    Objects.get_by_type_actor_object("Like", current_user.ap_id, post.ap_id) != nil
+  end
+
+  defp refresh_post(socket, post_id) when is_integer(post_id) do
+    current_user = socket.assigns.current_user
+
+    update(socket, :posts, fn posts ->
+      Enum.map(posts, fn
+        %{object: %{id: ^post_id} = object} -> decorate_post(object, current_user)
+        entry -> entry
+      end)
+    end)
   end
 
   defp format_time(%DateTime{} = dt) do

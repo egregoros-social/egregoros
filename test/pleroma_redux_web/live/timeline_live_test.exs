@@ -3,6 +3,7 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias PleromaRedux.Objects
   alias PleromaRedux.Timeline
   alias PleromaRedux.Users
 
@@ -24,5 +25,25 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     |> render_submit()
 
     assert has_element?(view, "article", "Hello world")
+  end
+
+  test "liking a post creates a Like activity", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    view
+    |> form("#timeline-form", post: %{content: "Hello world"})
+    |> render_submit()
+
+    [note] = Objects.list_notes()
+
+    refute Objects.get_by_type_actor_object("Like", user.ap_id, note.ap_id)
+
+    view
+    |> element("#post-#{note.id} button[data-role='like']")
+    |> render_click()
+
+    assert Objects.get_by_type_actor_object("Like", user.ap_id, note.ap_id)
+    assert has_element?(view, "#post-#{note.id} button[data-role='like']", "Unlike")
   end
 end

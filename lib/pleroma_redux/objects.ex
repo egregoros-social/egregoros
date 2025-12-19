@@ -108,6 +108,11 @@ defmodule PleromaRedux.Objects do
     |> Repo.aggregate(:count, :id)
   end
 
+  def count_by_type_object(type, object_ap_id) when is_binary(type) and is_binary(object_ap_id) do
+    from(o in Object, where: o.type == ^type and o.object == ^object_ap_id)
+    |> Repo.aggregate(:count, :id)
+  end
+
   def list_creates_by_actor(actor, limit \\ 20) when is_binary(actor) do
     from(o in Object,
       where: o.type == "Create" and o.actor == ^actor,
