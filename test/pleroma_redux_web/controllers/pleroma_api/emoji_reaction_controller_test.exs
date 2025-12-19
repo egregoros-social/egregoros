@@ -3,6 +3,7 @@ defmodule PleromaReduxWeb.PleromaAPI.EmojiReactionControllerTest do
 
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
+  alias PleromaRedux.Relationships
   alias PleromaRedux.Users
 
   test "PUT /api/v1/pleroma/statuses/:id/reactions/:emoji creates emoji reaction", %{conn: conn} do
@@ -31,6 +32,39 @@ defmodule PleromaReduxWeb.PleromaAPI.EmojiReactionControllerTest do
     assert reaction
     assert reaction.type == "EmojiReact"
     assert reaction.data["content"] == "🔥"
+  end
+
+  test "PUT /api/v1/pleroma/statuses/:id/reactions/:emoji is idempotent", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+
+    PleromaRedux.Auth.Mock
+    |> expect(:current_user, 2, fn _conn -> {:ok, user} end)
+
+    {:ok, note} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/objects/emoji-idempotent",
+          "type" => "Note",
+          "actor" => "https://example.com/users/alice",
+          "content" => "Emoji reaction target"
+        },
+        local: false
+      )
+
+    conn = put(conn, "/api/v1/pleroma/statuses/#{note.id}/reactions/🔥")
+    assert response(conn, 200)
+
+    conn = put(conn, "/api/v1/pleroma/statuses/#{note.id}/reactions/🔥")
+    assert response(conn, 200)
+
+    assert %{} =
+             Relationships.get_by_type_actor_object(
+               "EmojiReact:🔥",
+               user.ap_id,
+               note.ap_id
+             )
+
+    assert Objects.count_by_type_object("EmojiReact", note.ap_id) == 1
   end
 
   test "DELETE /api/v1/pleroma/statuses/:id/reactions/:emoji creates undo", %{conn: conn} do
