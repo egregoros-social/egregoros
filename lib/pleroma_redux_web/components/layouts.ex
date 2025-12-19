@@ -65,12 +65,24 @@ defmodule PleromaReduxWeb.Layouts do
             </a>
             <%= if @current_user do %>
               <a
+                href={~p"/settings"}
+                class="hidden text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 sm:block"
+              >
+                Settings
+              </a>
+              <a
                 href={~p"/logout"}
                 class="hidden text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 sm:block"
               >
                 {@current_user.nickname} · Logout
               </a>
             <% else %>
+              <a
+                href={~p"/login"}
+                class="hidden text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 sm:block"
+              >
+                Login
+              </a>
               <a
                 href={~p"/register"}
                 class="hidden text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 sm:block"
