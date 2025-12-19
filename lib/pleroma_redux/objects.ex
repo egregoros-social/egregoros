@@ -48,7 +48,12 @@ defmodule PleromaRedux.Objects do
 
   def get_by_type_actor_object(type, actor, object)
       when is_binary(type) and is_binary(actor) and is_binary(object) do
-    Repo.get_by(Object, type: type, actor: actor, object: object)
+    from(o in Object,
+      where: o.type == ^type and o.actor == ^actor and o.object == ^object,
+      order_by: [desc: o.inserted_at, desc: o.id],
+      limit: 1
+    )
+    |> Repo.one()
   end
 
   def get_emoji_react(actor, object, emoji)

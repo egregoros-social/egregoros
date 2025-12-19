@@ -58,6 +58,17 @@ defmodule PleromaRedux.ObjectsTest do
     assert Enum.all?(notes, &(&1.type == "Note"))
   end
 
+  test "get_by_type_actor_object returns the latest matching object without raising" do
+    like_1 = Map.put(@like_attrs, :ap_id, "https://example.com/activities/like/latest/1")
+    like_2 = Map.put(@like_attrs, :ap_id, "https://example.com/activities/like/latest/2")
+
+    assert {:ok, %Object{} = obj_1} = Objects.create_object(like_1)
+    assert {:ok, %Object{} = obj_2} = Objects.create_object(like_2)
+
+    assert %Object{} = latest = Objects.get_by_type_actor_object("Like", obj_1.actor, obj_1.object)
+    assert latest.id == obj_2.id
+  end
+
   test "delete_all_notes clears notes" do
     assert {:ok, %Object{}} = Objects.create_object(@note_attrs)
     Objects.delete_all_notes()
