@@ -95,4 +95,3 @@ defmodule PleromaReduxWeb.MastodonAPI.Pagination do
 
   defp parse_id(_), do: nil
 end
-
