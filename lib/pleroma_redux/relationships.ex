@@ -35,4 +35,10 @@ defmodule PleromaRedux.Relationships do
     from(r in Relationship, where: r.type == "Follow" and r.actor == ^actor_ap_id)
     |> Repo.all()
   end
+
+  def count_by_type_object(type, object_ap_id)
+      when is_binary(type) and is_binary(object_ap_id) do
+    from(r in Relationship, where: r.type == ^type and r.object == ^object_ap_id)
+    |> Repo.aggregate(:count, :id)
+  end
 end

@@ -2,6 +2,7 @@ defmodule PleromaRedux.Activities.Like do
   alias PleromaRedux.Federation.Delivery
   alias PleromaRedux.Object
   alias PleromaRedux.Objects
+  alias PleromaRedux.Relationships
   alias PleromaRedux.User
   alias PleromaRedux.Users
   alias PleromaReduxWeb.Endpoint
@@ -62,6 +63,14 @@ defmodule PleromaRedux.Activities.Like do
   end
 
   def side_effects(object, opts) do
+    _ =
+      Relationships.upsert_relationship(%{
+        type: object.type,
+        actor: object.actor,
+        object: object.object,
+        activity_ap_id: object.ap_id
+      })
+
     if Keyword.get(opts, :local, true) do
       deliver_like(object)
     end

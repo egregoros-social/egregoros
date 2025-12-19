@@ -58,6 +58,14 @@ defmodule PleromaRedux.Activities.Announce do
   end
 
   def side_effects(object, opts) do
+    _ =
+      Relationships.upsert_relationship(%{
+        type: object.type,
+        actor: object.actor,
+        object: object.object,
+        activity_ap_id: object.ap_id
+      })
+
     if Keyword.get(opts, :local, true) do
       deliver_to_followers(object)
     end

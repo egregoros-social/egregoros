@@ -120,8 +120,24 @@ defmodule PleromaRedux.Activities.Undo do
     Objects.delete_object(target_activity)
   end
 
+  defp undo_target(
+         %Object{type: type, actor: actor, object: object, ap_id: target_ap_id} = target_activity
+       )
+       when type in ["Like", "Announce"] do
+    case Relationships.get_by_type_actor_object(type, actor, object) do
+      %{activity_ap_id: ^target_ap_id} ->
+        _ = Relationships.delete_by_type_actor_object(type, actor, object)
+        :ok
+
+      _ ->
+        :ok
+    end
+
+    Objects.delete_object(target_activity)
+  end
+
   defp undo_target(%Object{type: type} = target_activity)
-       when type in ["Like", "EmojiReact", "Announce"] do
+       when type in ["EmojiReact"] do
     Objects.delete_object(target_activity)
   end
 
