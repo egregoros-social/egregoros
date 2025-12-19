@@ -1,7 +1,10 @@
 defmodule PleromaRedux.Signature.HTTP do
   @behaviour PleromaRedux.Signature
 
+  alias PleromaRedux.User
   alias PleromaRedux.Users
+
+  @default_headers ["(request-target)", "host", "date", "digest", "content-length"]
 
   @impl true
   def verify_request(conn) do
@@ -9,6 +12,7 @@ defmodule PleromaRedux.Signature.HTTP do
 
     with {:ok, key_id, signature, headers_param} <- parse_signature(headers),
          {:ok, key} <- public_key_for_key_id(key_id),
+         :ok <- validate_date(headers, headers_param),
          {:ok, method} <- method_atom(conn.method) do
       headers_param = normalize_header_names(headers_param)
       headers = augment_headers(headers, conn, headers_param)
@@ -25,6 +29,49 @@ defmodule PleromaRedux.Signature.HTTP do
     else
       {:error, _} = error -> error
       _ -> {:error, :invalid_signature}
+    end
+  end
+
+  def sign_request(%User{} = user, method, url, body, headers_param \\ @default_headers)
+      when is_binary(method) and is_binary(url) and is_binary(body) do
+    headers_param = normalize_header_names(headers_param)
+
+    with {:ok, method} <- method_atom(method),
+         {:ok, private_key} <- private_key_from_user(user) do
+      uri = URI.parse(url)
+      request_target = method <> " " <> request_path_with_query(uri)
+      date = signed_date()
+      host = host_header_for_uri(uri)
+      content_length = Integer.to_string(byte_size(body))
+      digest = digest_for(body)
+
+      headers =
+        %{
+          "date" => date,
+          "host" => host,
+          "content-length" => content_length,
+          "digest" => digest
+        }
+
+      signature_string = signature_string(request_target, headers, headers_param)
+      signature = :public_key.sign(signature_string, :sha256, private_key) |> Base.encode64()
+
+      signature_header =
+        "Signature " <>
+          "keyId=\"#{user.ap_id}#main-key\"," <>
+          "algorithm=\"rsa-sha256\"," <>
+          "headers=\"#{Enum.join(headers_param, " ")}\"," <>
+          "signature=\"#{signature}\""
+
+      {:ok,
+       %{
+         signature: signature_header,
+         date: date,
+         digest: digest,
+         content_length: content_length,
+         host: host,
+         headers: headers_param
+       }}
     end
   end
 
@@ -139,6 +186,48 @@ defmodule PleromaRedux.Signature.HTTP do
     end
   end
 
+  defp validate_date(headers, headers_param) do
+    headers_param = normalize_header_names(headers_param)
+
+    if "date" in headers_param do
+      case Map.get(headers, "date") do
+        nil -> {:error, :missing_date}
+        date -> check_date_skew(date)
+      end
+    else
+      {:error, :missing_date}
+    end
+  end
+
+  defp check_date_skew(date_header) do
+    with {:ok, signed_at} <- parse_http_date(date_header) do
+      diff = DateTime.diff(DateTime.utc_now(), signed_at) |> abs()
+
+      if diff <= max_skew_seconds() do
+        :ok
+      else
+        {:error, :date_skew}
+      end
+    end
+  end
+
+  defp parse_http_date(date_header) when is_binary(date_header) do
+    case :httpd_util.convert_request_date(String.to_charlist(date_header)) do
+      {{year, month, day}, {hour, minute, second}} ->
+        with {:ok, naive} <- NaiveDateTime.from_erl({{year, month, day}, {hour, minute, second}}),
+             {:ok, dt} <- DateTime.from_naive(naive, "Etc/UTC") do
+          {:ok, dt}
+        end
+
+      :bad_date ->
+        {:error, :invalid_date}
+    end
+  end
+
+  defp max_skew_seconds do
+    Application.get_env(:pleroma_redux, :signature_skew_seconds, 300)
+  end
+
   defp normalize_header_names(headers_param) do
     headers_param
     |> Enum.map(&String.downcase/1)
@@ -154,7 +243,7 @@ defmodule PleromaRedux.Signature.HTTP do
 
   defp maybe_put_host(headers, conn, headers_param_set) do
     if MapSet.member?(headers_param_set, "host") and not Map.has_key?(headers, "host") do
-      Map.put(headers, "host", host_header(conn))
+      Map.put(headers, "host", host_header_for_conn(conn))
     else
       headers
     end
@@ -184,7 +273,7 @@ defmodule PleromaRedux.Signature.HTTP do
     "SHA-256=" <> (:crypto.hash(:sha256, body) |> Base.encode64())
   end
 
-  defp host_header(conn) do
+  defp host_header_for_conn(conn) do
     default_port =
       case conn.scheme do
         :https -> 443
@@ -196,5 +285,40 @@ defmodule PleromaRedux.Signature.HTTP do
     else
       "#{conn.host}:#{conn.port}"
     end
+  end
+
+  defp host_header_for_uri(%URI{} = uri) do
+    default_port = URI.default_port(uri.scheme)
+
+    if uri.port in [nil, default_port] do
+      uri.host
+    else
+      "#{uri.host}:#{uri.port}"
+    end
+  end
+
+  defp request_path_with_query(%URI{} = uri) do
+    path =
+      case uri.path do
+        nil -> "/"
+        "" -> "/"
+        value -> value
+      end
+
+    case uri.query do
+      nil -> path
+      "" -> path
+      query -> path <> "?" <> query
+    end
+  end
+
+  defp signed_date do
+    :httpd_util.rfc1123_date()
+    |> List.to_string()
+  end
+
+  defp private_key_from_user(%User{private_key: pem}) when is_binary(pem) do
+    [entry] = :public_key.pem_decode(pem)
+    {:ok, :public_key.pem_entry_decode(entry)}
   end
 end

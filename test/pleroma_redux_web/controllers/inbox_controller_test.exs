@@ -124,6 +124,40 @@ defmodule PleromaReduxWeb.InboxControllerTest do
     refute Objects.get_by_ap_id(note["id"])
   end
 
+  test "POST /users/:nickname/inbox rejects old date signature", %{conn: conn} do
+    {:ok, _user} = Users.create_local_user("frank")
+    {public_key, private_key} = PleromaRedux.Keys.generate_rsa_keypair()
+
+    {:ok, _} =
+      Users.create_user(%{
+        nickname: "alice",
+        ap_id: "https://remote.example/users/alice",
+        inbox: "https://remote.example/users/alice/inbox",
+        outbox: "https://remote.example/users/alice/outbox",
+        public_key: public_key,
+        private_key: private_key,
+        local: false
+      })
+
+    note = %{
+      "id" => "https://remote.example/objects/1-old-date",
+      "type" => "Note",
+      "attributedTo" => "https://remote.example/users/alice",
+      "content" => "Old date note"
+    }
+
+    old_date = DateTime.utc_now() |> DateTime.add(-400, :second) |> date_header()
+
+    conn =
+      conn
+      |> put_req_header("date", old_date)
+      |> sign_request("post", "/users/frank/inbox", private_key, "https://remote.example/users/alice#main-key")
+      |> post("/users/frank/inbox", note)
+
+    assert response(conn, 401)
+    refute Objects.get_by_ap_id(note["id"])
+  end
+
   test "POST /users/:nickname/inbox rejects invalid signature", %{conn: conn} do
     {:ok, _user} = Users.create_local_user("frank")
 
@@ -227,7 +261,16 @@ defmodule PleromaReduxWeb.InboxControllerTest do
   end
 
   defp date_header do
-    {{year, month, day}, {hour, minute, second}} = :calendar.universal_time()
+    date_header(DateTime.utc_now())
+  end
+
+  defp date_header(%DateTime{} = dt) do
+    year = dt.year
+    month = dt.month
+    day = dt.day
+    hour = dt.hour
+    minute = dt.minute
+    second = dt.second
 
     weekday =
       case :calendar.day_of_the_week({year, month, day}) do
