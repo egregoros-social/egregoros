@@ -24,7 +24,12 @@ defmodule PleromaReduxWeb.OutboxControllerTest do
     assert {:ok, _object} = Pipeline.ingest(create, local: true)
 
     conn = get(conn, "/users/ella/outbox")
-    body = json_response(conn, 200)
+    assert conn.status == 200
+
+    [content_type] = get_resp_header(conn, "content-type")
+    assert String.contains?(content_type, "application/activity+json")
+
+    body = Jason.decode!(conn.resp_body)
 
     assert body["type"] == "OrderedCollection"
     assert Enum.any?(body["orderedItems"], &(&1["id"] == create["id"]))

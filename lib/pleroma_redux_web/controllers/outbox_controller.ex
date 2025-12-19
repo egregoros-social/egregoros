@@ -13,13 +13,17 @@ defmodule PleromaReduxWeb.OutboxController do
         items = Objects.list_creates_by_actor(user.ap_id)
         total = Objects.count_creates_by_actor(user.ap_id)
 
-        json(conn, %{
+        payload = %{
           "@context" => "https://www.w3.org/ns/activitystreams",
           "id" => user.outbox,
           "type" => "OrderedCollection",
           "totalItems" => total,
           "orderedItems" => Enum.map(items, & &1.data)
-        })
+        }
+
+        conn
+        |> put_resp_content_type("application/activity+json")
+        |> send_resp(200, Jason.encode!(payload))
     end
   end
 end
