@@ -2,6 +2,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
   alias PleromaRedux.Object
   alias PleromaRedux.User
   alias PleromaRedux.Users
+  alias PleromaReduxWeb.MastodonAPI.AccountRenderer
 
   def render_status(%Object{} = object) do
     account = account_from_actor(object.actor)
@@ -9,7 +10,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
   end
 
   def render_status(%Object{} = object, %User{} = user) do
-    render_status_with_account(object, account_from_user(user))
+    render_status_with_account(object, AccountRenderer.render_account(user))
   end
 
   def render_statuses(objects) when is_list(objects) do
@@ -28,20 +29,15 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
 
   defp account_from_actor(actor) when is_binary(actor) do
     case Users.get_by_ap_id(actor) do
-      %User{} = user -> account_from_user(user)
-      _ -> %{"id" => actor, "username" => fallback_username(actor), "acct" => fallback_username(actor)}
+      %User{} = user ->
+        AccountRenderer.render_account(user)
+
+      _ ->
+        %{"id" => actor, "username" => fallback_username(actor), "acct" => fallback_username(actor)}
     end
   end
 
   defp account_from_actor(_), do: %{"id" => "unknown", "username" => "unknown", "acct" => "unknown"}
-
-  defp account_from_user(%User{} = user) do
-    %{
-      "id" => user.ap_id,
-      "username" => user.nickname,
-      "acct" => user.nickname
-    }
-  end
 
   defp fallback_username(actor) do
     case URI.parse(actor) do

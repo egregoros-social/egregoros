@@ -35,6 +35,15 @@ defmodule PleromaRedux.Users do
   def get_by_ap_id(nil), do: nil
   def get_by_ap_id(ap_id), do: Repo.get_by(User, ap_id: ap_id)
 
+  def get(id) when is_integer(id), do: Repo.get(User, id)
+
+  def get(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> Repo.get(User, int)
+      _ -> nil
+    end
+  end
+
   def get_by_nickname(nil), do: nil
   def get_by_nickname(nickname), do: Repo.get_by(User, nickname: nickname)
 end
