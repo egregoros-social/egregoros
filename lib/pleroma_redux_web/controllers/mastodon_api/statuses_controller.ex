@@ -4,23 +4,28 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
   alias PleromaRedux.Activities.Announce
   alias PleromaRedux.Activities.Like
   alias PleromaRedux.Activities.Undo
+  alias PleromaRedux.Media
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Publish
   alias PleromaRedux.Relationships
   alias PleromaReduxWeb.MastodonAPI.StatusRenderer
 
-  def create(conn, %{"status" => status}) do
+  def create(conn, %{"status" => status} = params) do
     status = String.trim(status || "")
+    media_ids = Map.get(params, "media_ids", [])
 
     if status == "" do
       send_resp(conn, 422, "Unprocessable Entity")
     else
       user = conn.assigns.current_user
 
-      with {:ok, create_object} <- Publish.post_note(user, status),
+      with {:ok, attachments} <- Media.attachments_from_ids(user, media_ids),
+           {:ok, create_object} <- Publish.post_note(user, status, attachments: attachments),
            %{} = object <- Objects.get_by_ap_id(create_object.object) do
         json(conn, StatusRenderer.render_status(object, user))
+      else
+        {:error, _} -> send_resp(conn, 422, "Unprocessable Entity")
       end
     end
   end

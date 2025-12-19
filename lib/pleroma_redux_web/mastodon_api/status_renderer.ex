@@ -1,8 +1,10 @@
 defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
   alias PleromaRedux.Object
+  alias PleromaRedux.Objects
   alias PleromaRedux.Relationships
   alias PleromaRedux.User
   alias PleromaRedux.Users
+  alias PleromaReduxWeb.URL
   alias PleromaReduxWeb.MastodonAPI.AccountRenderer
 
   def render_status(%Object{} = object) do
@@ -50,7 +52,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
       "content" => Map.get(object.data, "content", ""),
       "account" => account,
       "created_at" => format_datetime(object),
-      "media_attachments" => [],
+      "media_attachments" => media_attachments(object),
       "mentions" => [],
       "tags" => [],
       "emojis" => [],
@@ -118,6 +120,80 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
   end
 
   defp format_datetime(%Object{}), do: DateTime.utc_now() |> DateTime.to_iso8601()
+
+  defp media_attachments(%Object{} = object) do
+    object.data
+    |> Map.get("attachment", [])
+    |> List.wrap()
+    |> Enum.filter(&is_map/1)
+    |> Enum.map(&render_media_attachment/1)
+  end
+
+  defp render_media_attachment(%{"id" => ap_id} = attachment) when is_binary(ap_id) do
+    object = Objects.get_by_ap_id(ap_id)
+
+    url = attachment_url(attachment)
+    description = Map.get(attachment, "name")
+    blurhash = Map.get(attachment, "blurhash")
+
+    %{
+      "id" => media_id(object, ap_id),
+      "type" => mastodon_type(attachment),
+      "url" => url,
+      "preview_url" => url,
+      "remote_url" => nil,
+      "meta" => %{},
+      "description" => description,
+      "blurhash" => blurhash
+    }
+  end
+
+  defp render_media_attachment(attachment) when is_map(attachment) do
+    url = attachment_url(attachment)
+
+    %{
+      "id" => Map.get(attachment, "id", "unknown"),
+      "type" => mastodon_type(attachment),
+      "url" => url,
+      "preview_url" => url,
+      "remote_url" => nil,
+      "meta" => %{},
+      "description" => Map.get(attachment, "name"),
+      "blurhash" => Map.get(attachment, "blurhash")
+    }
+  end
+
+  defp media_id(%Object{} = object, _fallback), do: Integer.to_string(object.id)
+  defp media_id(_object, fallback), do: fallback
+
+  defp attachment_url(%{"url" => [%{"href" => href} | _]}) when is_binary(href) do
+    URL.absolute(href) || href
+  end
+
+  defp attachment_url(%{"url" => href}) when is_binary(href) do
+    URL.absolute(href) || href
+  end
+
+  defp attachment_url(_), do: ""
+
+  defp mastodon_type(%{"mediaType" => media_type}) when is_binary(media_type) do
+    mastodon_type_from_mime(media_type)
+  end
+
+  defp mastodon_type(%{"url" => [%{"mediaType" => media_type} | _]}) when is_binary(media_type) do
+    mastodon_type_from_mime(media_type)
+  end
+
+  defp mastodon_type(_), do: "unknown"
+
+  defp mastodon_type_from_mime(mime) when is_binary(mime) do
+    cond do
+      String.starts_with?(mime, "image/") -> "image"
+      String.starts_with?(mime, "video/") -> "video"
+      String.starts_with?(mime, "audio/") -> "audio"
+      true -> "unknown"
+    end
+  end
 
   defp emoji_reactions(%Object{} = object, %User{} = current_user) do
     object.ap_id

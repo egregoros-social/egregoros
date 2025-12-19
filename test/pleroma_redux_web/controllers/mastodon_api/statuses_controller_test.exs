@@ -4,6 +4,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Users
+  alias PleromaReduxWeb.Endpoint
 
   test "POST /api/v1/statuses creates a status", %{conn: conn} do
     {:ok, user} = Users.create_local_user("local")
@@ -221,6 +222,132 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
     assert Objects.count_by_type_object("Announce", note.ap_id) == 1
   end
 
+  test "POST /api/v1/statuses accepts media_ids and attaches media", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+
+    PleromaRedux.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    ap_id = Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, media} =
+      Objects.create_object(%{
+        ap_id: ap_id,
+        type: "Image",
+        actor: user.ap_id,
+        local: true,
+        published: DateTime.utc_now(),
+        data: %{
+          "id" => ap_id,
+          "type" => "Image",
+          "mediaType" => "image/png",
+          "url" => [
+            %{
+              "type" => "Link",
+              "mediaType" => "image/png",
+              "href" => Endpoint.url() <> "/uploads/media/#{user.id}/image.png"
+            }
+          ],
+          "name" => ""
+        }
+      })
+
+    conn =
+      post(conn, "/api/v1/statuses", %{
+        "status" => "Hello with media",
+        "media_ids" => [Integer.to_string(media.id)]
+      })
+
+    response = json_response(conn, 200)
+
+    assert response["content"] == "Hello with media"
+    assert length(response["media_attachments"]) == 1
+
+    attachment = Enum.at(response["media_attachments"], 0)
+    assert attachment["id"] == Integer.to_string(media.id)
+    assert attachment["type"] == "image"
+    assert String.ends_with?(attachment["url"], "/uploads/media/#{user.id}/image.png")
+
+    [note] = Objects.list_notes()
+    assert is_list(note.data["attachment"])
+    assert Enum.at(note.data["attachment"], 0)["type"] == "Image"
+  end
+
+  test "POST /api/v1/statuses rejects media_ids not owned by the user", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+    {:ok, other} = Users.create_local_user("other")
+
+    PleromaRedux.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    ap_id = Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, media} =
+      Objects.create_object(%{
+        ap_id: ap_id,
+        type: "Image",
+        actor: other.ap_id,
+        local: true,
+        published: DateTime.utc_now(),
+        data: %{
+          "id" => ap_id,
+          "type" => "Image",
+          "mediaType" => "image/png",
+          "url" => [
+            %{
+              "type" => "Link",
+              "mediaType" => "image/png",
+              "href" => Endpoint.url() <> "/uploads/media/#{other.id}/image.png"
+            }
+          ],
+          "name" => ""
+        }
+      })
+
+    conn =
+      post(conn, "/api/v1/statuses", %{
+        "status" => "Hello with media",
+        "media_ids" => [Integer.to_string(media.id)]
+      })
+
+    assert response(conn, 422)
+  end
+
+  test "POST /api/v1/statuses attaches uploaded media from /api/v1/media", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+
+    PleromaRedux.Auth.Mock
+    |> expect(:current_user, 2, fn _conn -> {:ok, user} end)
+
+    PleromaRedux.MediaStorage.Mock
+    |> expect(:store_media, fn ^user, %Plug.Upload{filename: "image.png"} ->
+      {:ok, "/uploads/media/#{user.id}/image.png"}
+    end)
+
+    upload =
+      %Plug.Upload{
+        path: tmp_upload_path(),
+        filename: "image.png",
+        content_type: "image/png"
+      }
+
+    conn = post(conn, "/api/v1/media", %{"file" => upload})
+    media = json_response(conn, 200)
+
+    conn =
+      build_conn()
+      |> post("/api/v1/statuses", %{
+        "status" => "Hello with uploaded media",
+        "media_ids" => [media["id"]]
+      })
+
+    response = json_response(conn, 200)
+
+    assert response["content"] == "Hello with uploaded media"
+    assert length(response["media_attachments"]) == 1
+    assert Enum.at(response["media_attachments"], 0)["id"] == media["id"]
+  end
+
   test "GET /api/v1/statuses/:id/context returns empty context", %{conn: conn} do
     {:ok, _user} = Users.create_local_user("local")
 
@@ -240,5 +367,11 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
 
     assert response["ancestors"] == []
     assert response["descendants"] == []
+  end
+
+  defp tmp_upload_path do
+    path = Path.join(System.tmp_dir!(), "pleroma-redux-test-upload-#{Ecto.UUID.generate()}")
+    File.write!(path, <<0, 1, 2, 3>>)
+    path
   end
 end
