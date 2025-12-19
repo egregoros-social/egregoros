@@ -78,6 +78,7 @@ defmodule PleromaReduxWeb.Router do
     get "/custom_emojis", CustomEmojisController, :index
     get "/timelines/public", TimelinesController, :public
     get "/statuses/:id", StatusesController, :show
+    get "/statuses/:id/context", StatusesController, :context
     get "/accounts/lookup", AccountsController, :lookup
     get "/accounts/:id", AccountsController, :show
     get "/accounts/:id/statuses", AccountsController, :statuses

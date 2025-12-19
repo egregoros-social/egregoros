@@ -220,4 +220,25 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
 
     assert Objects.count_by_type_object("Announce", note.ap_id) == 1
   end
+
+  test "GET /api/v1/statuses/:id/context returns empty context", %{conn: conn} do
+    {:ok, _user} = Users.create_local_user("local")
+
+    {:ok, note} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/objects/ctx-1",
+          "type" => "Note",
+          "actor" => "https://example.com/users/alice",
+          "content" => "Hello context"
+        },
+        local: false
+      )
+
+    conn = get(conn, "/api/v1/statuses/#{note.id}/context")
+    response = json_response(conn, 200)
+
+    assert response["ancestors"] == []
+    assert response["descendants"] == []
+  end
 end

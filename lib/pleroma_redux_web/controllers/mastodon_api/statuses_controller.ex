@@ -39,6 +39,16 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
     end
   end
 
+  def context(conn, %{"id" => id}) do
+    case Objects.get(id) do
+      nil ->
+        send_resp(conn, 404, "Not Found")
+
+      _object ->
+        json(conn, %{"ancestors" => [], "descendants" => []})
+    end
+  end
+
   def favourite(conn, %{"id" => id}) do
     with %{} = object <- Objects.get(id),
          %{} = user <- conn.assigns.current_user do
