@@ -4,6 +4,7 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
   import Phoenix.LiveViewTest
 
   alias PleromaRedux.Activities.Follow
+  alias PleromaRedux.Activities.Note
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Relationships
@@ -124,5 +125,44 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     assert Relationships.get(relationship.id) == nil
     refute has_element?(view, "#following-#{relationship.id}")
+  end
+
+  test "duplicate likes are deduped and can be fully unliked", %{conn: conn, user: user} do
+    {:ok, note} = Pipeline.ingest(Note.build(user, "Hello world"), local: true)
+
+    assert {:ok, _} =
+             Pipeline.ingest(
+               %{
+                 "id" => "https://local.example/activities/like/1",
+                 "type" => "Like",
+                 "actor" => user.ap_id,
+                 "object" => note.ap_id
+               },
+               local: true
+             )
+
+    assert {:ok, _} =
+             Pipeline.ingest(
+               %{
+                 "id" => "https://local.example/activities/like/2",
+                 "type" => "Like",
+                 "actor" => user.ap_id,
+                 "object" => note.ap_id
+               },
+               local: true
+             )
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "#post-#{note.id} button[data-role='like']", "Unlike")
+    assert has_element?(view, "#post-#{note.id} button[data-role='like']", "1")
+
+    view
+    |> element("#post-#{note.id} button[data-role='like']")
+    |> render_click()
+
+    assert has_element?(view, "#post-#{note.id} button[data-role='like']", "Like")
+    assert has_element?(view, "#post-#{note.id} button[data-role='like']", "0")
   end
 end

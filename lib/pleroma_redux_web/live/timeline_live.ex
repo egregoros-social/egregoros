@@ -113,8 +113,10 @@ defmodule PleromaReduxWeb.TimelineLive do
          %{object: post, liked?: liked?} <-
            Enum.find(socket.assigns.posts, &(&1.object.id == post_id)) do
       if liked? do
-        case Objects.get_by_type_actor_object("Like", user.ap_id, post.ap_id) do
-          %{} = like_object -> Pipeline.ingest(Undo.build(user, like_object), local: true)
+        case Relationships.get_by_type_actor_object("Like", user.ap_id, post.ap_id) do
+          %{} = relationship ->
+            Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
+
           _ -> {:error, :not_found}
         end
       else
@@ -137,8 +139,10 @@ defmodule PleromaReduxWeb.TimelineLive do
          %{object: post, reposted?: reposted?} <-
            Enum.find(socket.assigns.posts, &(&1.object.id == post_id)) do
       if reposted? do
-        case Objects.get_by_type_actor_object("Announce", user.ap_id, post.ap_id) do
-          %{} = announce_object -> Pipeline.ingest(Undo.build(user, announce_object), local: true)
+        case Relationships.get_by_type_actor_object("Announce", user.ap_id, post.ap_id) do
+          %{} = relationship ->
+            Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
+
           _ -> {:error, :not_found}
         end
       else
@@ -408,9 +412,9 @@ defmodule PleromaReduxWeb.TimelineLive do
   defp decorate_post(post, current_user) do
     %{
       object: post,
-      likes_count: Objects.count_by_type_object("Like", post.ap_id),
+      likes_count: Relationships.count_by_type_object("Like", post.ap_id),
       liked?: liked_by_current_user?(post, current_user),
-      reposts_count: Objects.count_by_type_object("Announce", post.ap_id),
+      reposts_count: Relationships.count_by_type_object("Announce", post.ap_id),
       reposted?: reposted_by_current_user?(post, current_user),
       reactions: reactions_for_post(post, current_user)
     }
@@ -419,13 +423,13 @@ defmodule PleromaReduxWeb.TimelineLive do
   defp liked_by_current_user?(_post, nil), do: false
 
   defp liked_by_current_user?(post, %User{} = current_user) do
-    Objects.get_by_type_actor_object("Like", current_user.ap_id, post.ap_id) != nil
+    Relationships.get_by_type_actor_object("Like", current_user.ap_id, post.ap_id) != nil
   end
 
   defp reposted_by_current_user?(_post, nil), do: false
 
   defp reposted_by_current_user?(post, %User{} = current_user) do
-    Objects.get_by_type_actor_object("Announce", current_user.ap_id, post.ap_id) != nil
+    Relationships.get_by_type_actor_object("Announce", current_user.ap_id, post.ap_id) != nil
   end
 
   defp reactions_for_post(post, current_user) do
