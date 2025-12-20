@@ -77,7 +77,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 |---|---:|---|
 | Safe HTML rendering (sanitized) | DONE | Rendering uses safe HTML pipeline. |
 | Local text rendering | DONE | Local posts render as text. |
-| Linkify mentions/hashtags for local content | TODO | Make `@user@host` and `#tag` clickable. |
+| Linkify mentions/hashtags for local content | PARTIAL | `@user` and `@user@host` linkified in local text; hashtags still TODO. |
 | Emoji reactions UI | DONE | Limited emoji set; improve UX (picker/custom emoji). |
 | Like / unlike | DONE | |
 | Repost / unrepost | DONE | |
