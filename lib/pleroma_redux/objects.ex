@@ -114,6 +114,38 @@ defmodule PleromaRedux.Objects do
     |> Repo.all()
   end
 
+  def list_notes_by_hashtag(tag, opts \\ [])
+
+  def list_notes_by_hashtag(tag, opts) when is_binary(tag) and is_list(opts) do
+    tag =
+      tag
+      |> String.trim()
+      |> String.trim_leading("#")
+
+    if tag == "" do
+      []
+    else
+      limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+      max_id = Keyword.get(opts, :max_id)
+      since_id = Keyword.get(opts, :since_id)
+
+      pattern = "%#" <> tag <> "%"
+
+      from(o in Object,
+        where:
+          o.type == "Note" and
+            fragment("?->>'content' ILIKE ?", o.data, ^pattern),
+        order_by: [desc: o.id],
+        limit: ^limit
+      )
+      |> maybe_where_max_id(max_id)
+      |> maybe_where_since_id(since_id)
+      |> Repo.all()
+    end
+  end
+
+  def list_notes_by_hashtag(_tag, _opts), do: []
+
   @status_types ~w(Note Announce)
 
   def list_public_statuses(opts \\ []) when is_list(opts) do
