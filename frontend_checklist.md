@@ -87,7 +87,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Edit own post | TODO | (Optional; Mastodon doesn’t support editing by default.) |
 | Report post/user action menu | TODO | Common “…” menu. |
 | Media attachments render | PARTIAL | Images/video/audio render; documents fall back to download links; still needs lightbox/carousel. |
-| Attachment lightbox / media viewer | PARTIAL | Modal viewer supports image carousel (next/prev); still needs video/audio in viewer and keyboard/focus management. |
+| Attachment lightbox / media viewer | PARTIAL | Modal viewer supports image carousel + arrow keys + ESC + click-away; still needs video/audio in viewer and focus management. |
 | Cards for link previews (OpenGraph) | TODO | “Twitter cards” / link previews (optional). |
 | Content collapse (long posts) | TODO | Readability + performance. |
 
