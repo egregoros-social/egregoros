@@ -13,6 +13,7 @@ config :pleroma_redux,
 
 config :pleroma_redux, PleromaRedux.Signature, PleromaRedux.Signature.HTTP
 config :pleroma_redux, PleromaRedux.Auth, PleromaRedux.Auth.BearerToken
+config :pleroma_redux, PleromaRedux.AuthZ, PleromaRedux.AuthZ.OAuthScopes
 config :pleroma_redux, PleromaRedux.Discovery, PleromaRedux.Discovery.DNS
 config :pleroma_redux, PleromaRedux.HTTP, PleromaRedux.HTTP.Req
 config :pleroma_redux, PleromaRedux.AvatarStorage, PleromaRedux.AvatarStorage.Local
