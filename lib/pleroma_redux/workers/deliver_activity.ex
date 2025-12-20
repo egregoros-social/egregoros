@@ -5,7 +5,9 @@ defmodule PleromaRedux.Workers.DeliverActivity do
   alias PleromaRedux.Users
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"user_id" => user_id, "inbox_url" => inbox_url, "activity" => activity}})
+  def perform(%Oban.Job{
+        args: %{"user_id" => user_id, "inbox_url" => inbox_url, "activity" => activity}
+      })
       when is_binary(inbox_url) and is_map(activity) do
     with %{} = user <- Users.get(user_id),
          {:ok, _response} <- Delivery.deliver_now(user, inbox_url, activity) do
@@ -19,4 +21,3 @@ defmodule PleromaRedux.Workers.DeliverActivity do
 
   def perform(%Oban.Job{}), do: {:discard, :invalid_args}
 end
-
