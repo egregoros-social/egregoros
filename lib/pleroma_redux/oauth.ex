@@ -111,16 +111,21 @@ defmodule PleromaRedux.OAuth do
   def get_user_by_token(nil), do: nil
 
   def get_user_by_token(token) when is_binary(token) do
+    case get_token(token) do
+      %Token{user: %User{} = user} -> user
+      _ -> nil
+    end
+  end
+
+  def get_token(nil), do: nil
+
+  def get_token(token) when is_binary(token) do
     from(t in Token,
       where: t.token == ^token and is_nil(t.revoked_at),
       join: u in assoc(t, :user),
       preload: [user: u]
     )
     |> Repo.one()
-    |> case do
-      %Token{user: %User{} = user} -> user
-      _ -> nil
-    end
   end
 
   defp create_token(%OAuthApplication{} = application, %AuthorizationCode{} = auth_code) do

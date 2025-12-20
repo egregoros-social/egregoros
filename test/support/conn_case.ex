@@ -36,6 +36,7 @@ defmodule PleromaReduxWeb.ConnCase do
     Mox.set_mox_from_context(tags)
     Mox.stub_with(PleromaRedux.HTTP.Mock, PleromaRedux.HTTP.Stub)
     Mox.stub_with(PleromaRedux.DNS.Mock, PleromaRedux.DNS.Stub)
+    Mox.stub_with(PleromaRedux.AuthZ.Mock, PleromaRedux.AuthZ.Stub)
     Mox.verify_on_exit!(tags)
     PleromaRedux.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}

@@ -4,19 +4,23 @@ defmodule PleromaRedux.Auth.BearerToken do
   import Plug.Conn, only: [get_req_header: 2]
 
   alias PleromaRedux.OAuth
+  alias PleromaRedux.OAuth.Token
   alias PleromaRedux.User
+
+  def access_token(conn) do
+    bearer_token(conn) || access_token_param(conn)
+  end
 
   @impl true
   def current_user(conn) do
-    token = bearer_token(conn) || access_token_param(conn)
-
-    case token do
+    case access_token(conn) do
       nil ->
         {:error, :unauthorized}
 
       token ->
-        case OAuth.get_user_by_token(token) do
-          %User{} = user -> {:ok, user}
+        with %Token{user: %User{} = user} <- OAuth.get_token(token) do
+          {:ok, user}
+        else
           _ -> {:error, :unauthorized}
         end
     end
