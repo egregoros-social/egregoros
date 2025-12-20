@@ -1,4 +1,11 @@
 defmodule PleromaRedux.Activities.Like do
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.ObjectID
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.Recipients
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias PleromaRedux.Federation.Delivery
   alias PleromaRedux.Object
   alias PleromaRedux.Objects
@@ -10,6 +17,17 @@ defmodule PleromaRedux.Activities.Like do
   @public "https://www.w3.org/ns/activitystreams#Public"
 
   def type, do: "Like"
+
+  @primary_key false
+  embedded_schema do
+    field :id, ObjectID
+    field :type, :string
+    field :actor, ObjectID
+    field :object, ObjectID
+    field :to, Recipients
+    field :cc, Recipients
+    field :published, APDateTime
+  end
 
   def build(%User{ap_id: actor}, %Object{} = object) do
     build(actor, object)
@@ -49,9 +67,25 @@ defmodule PleromaRedux.Activities.Like do
   def normalize(%{"type" => "Like"} = activity), do: activity
   def normalize(_), do: nil
 
-  def validate(%{"id" => id, "type" => "Like", "actor" => actor, "object" => object} = activity)
-      when is_binary(id) and is_binary(actor) and is_binary(object) do
-    {:ok, activity}
+  def cast_and_validate(activity) when is_map(activity) do
+    changeset =
+      %__MODULE__{}
+      |> cast(activity, __schema__(:fields))
+      |> validate_required([:id, :type, :actor, :object])
+      |> validate_inclusion(:type, [type()])
+
+    case apply_action(changeset, :insert) do
+      {:ok, %__MODULE__{} = like} -> {:ok, apply_like(activity, like)}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset}
+    end
+  end
+
+  def validate(activity) when is_map(activity) do
+    case cast_and_validate(activity) do
+      {:ok, validated} -> {:ok, validated}
+      {:error, %Ecto.Changeset{}} -> {:error, :invalid}
+      {:error, _} = error -> error
+    end
   end
 
   def validate(_), do: {:error, :invalid}
@@ -124,6 +158,20 @@ defmodule PleromaRedux.Activities.Like do
       local: Keyword.get(opts, :local, true)
     }
   end
+
+  defp apply_like(activity, %__MODULE__{} = like) do
+    activity
+    |> Map.put("id", like.id)
+    |> Map.put("type", like.type)
+    |> Map.put("actor", like.actor)
+    |> Map.put("object", like.object)
+    |> maybe_put("to", like.to)
+    |> maybe_put("cc", like.cc)
+    |> maybe_put("published", like.published)
+  end
+
+  defp maybe_put(activity, _key, nil), do: activity
+  defp maybe_put(activity, key, value), do: Map.put(activity, key, value)
 
   defp parse_datetime(nil), do: nil
 

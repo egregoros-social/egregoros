@@ -1,4 +1,11 @@
 defmodule PleromaRedux.Activities.EmojiReact do
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.ObjectID
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.Recipients
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias PleromaRedux.Federation.Delivery
   alias PleromaRedux.Object
   alias PleromaRedux.Objects
@@ -10,6 +17,18 @@ defmodule PleromaRedux.Activities.EmojiReact do
   @public "https://www.w3.org/ns/activitystreams#Public"
 
   def type, do: "EmojiReact"
+
+  @primary_key false
+  embedded_schema do
+    field :id, ObjectID
+    field :type, :string
+    field :actor, ObjectID
+    field :object, ObjectID
+    field :content, :string
+    field :to, Recipients
+    field :cc, Recipients
+    field :published, APDateTime
+  end
 
   def build(%User{ap_id: actor}, %Object{} = object, content) when is_binary(content) do
     build(actor, object, content)
@@ -47,23 +66,33 @@ defmodule PleromaRedux.Activities.EmojiReact do
   end
 
   def normalize(%{"type" => "EmojiReact"} = activity) do
-    trim_content(activity)
+    activity
   end
 
   def normalize(_), do: nil
 
-  def validate(
-        %{
-          "id" => id,
-          "type" => "EmojiReact",
-          "actor" => actor,
-          "object" => object,
-          "content" => content
-        } = activity
-      )
-      when is_binary(id) and is_binary(actor) and is_binary(object) and is_binary(content) and
-             content != "" do
-    {:ok, activity}
+  def cast_and_validate(activity) when is_map(activity) do
+    activity = trim_content(activity)
+
+    changeset =
+      %__MODULE__{}
+      |> cast(activity, __schema__(:fields))
+      |> validate_required([:id, :type, :actor, :object, :content])
+      |> validate_inclusion(:type, [type()])
+      |> validate_length(:content, min: 1)
+
+    case apply_action(changeset, :insert) do
+      {:ok, %__MODULE__{} = react} -> {:ok, apply_react(activity, react)}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset}
+    end
+  end
+
+  def validate(activity) when is_map(activity) do
+    case cast_and_validate(activity) do
+      {:ok, validated} -> {:ok, validated}
+      {:error, %Ecto.Changeset{}} -> {:error, :invalid}
+      {:error, _} = error -> error
+    end
   end
 
   def validate(_), do: {:error, :invalid}
@@ -140,6 +169,21 @@ defmodule PleromaRedux.Activities.EmojiReact do
       local: Keyword.get(opts, :local, true)
     }
   end
+
+  defp apply_react(activity, %__MODULE__{} = react) do
+    activity
+    |> Map.put("id", react.id)
+    |> Map.put("type", react.type)
+    |> Map.put("actor", react.actor)
+    |> Map.put("object", react.object)
+    |> Map.put("content", react.content)
+    |> maybe_put("to", react.to)
+    |> maybe_put("cc", react.cc)
+    |> maybe_put("published", react.published)
+  end
+
+  defp maybe_put(activity, _key, nil), do: activity
+  defp maybe_put(activity, key, value), do: Map.put(activity, key, value)
 
   defp trim_content(%{"content" => content} = activity) when is_binary(content) do
     Map.put(activity, "content", String.trim(content))

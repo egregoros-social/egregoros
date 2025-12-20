@@ -1,4 +1,11 @@
 defmodule PleromaRedux.Activities.Delete do
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.ObjectID
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.Recipients
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias PleromaRedux.Federation.Delivery
   alias PleromaRedux.Object
   alias PleromaRedux.Objects
@@ -10,6 +17,17 @@ defmodule PleromaRedux.Activities.Delete do
   @public "https://www.w3.org/ns/activitystreams#Public"
 
   def type, do: "Delete"
+
+  @primary_key false
+  embedded_schema do
+    field :id, ObjectID
+    field :type, :string
+    field :actor, ObjectID
+    field :object, ObjectID
+    field :to, Recipients
+    field :cc, Recipients
+    field :published, APDateTime
+  end
 
   def build(%User{ap_id: actor}, %Object{} = object) do
     build(actor, object)
@@ -43,17 +61,24 @@ defmodule PleromaRedux.Activities.Delete do
   def normalize(%{"type" => "Delete"} = activity), do: activity
   def normalize(_), do: nil
 
-  def validate(%{"id" => id, "type" => "Delete", "actor" => actor, "object" => object} = activity)
-      when is_binary(id) and is_binary(actor) do
-    case object do
-      object_id when is_binary(object_id) and object_id != "" ->
-        {:ok, activity}
+  def cast_and_validate(activity) when is_map(activity) do
+    changeset =
+      %__MODULE__{}
+      |> cast(activity, __schema__(:fields))
+      |> validate_required([:id, :type, :actor, :object])
+      |> validate_inclusion(:type, [type()])
 
-      %{"id" => object_id} when is_binary(object_id) and object_id != "" ->
-        {:ok, Map.put(activity, "object", object_id)}
+    case apply_action(changeset, :insert) do
+      {:ok, %__MODULE__{} = delete} -> {:ok, apply_delete(activity, delete)}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset}
+    end
+  end
 
-      _ ->
-        {:error, :invalid}
+  def validate(activity) when is_map(activity) do
+    case cast_and_validate(activity) do
+      {:ok, validated} -> {:ok, validated}
+      {:error, %Ecto.Changeset{}} -> {:error, :invalid}
+      {:error, _} = error -> error
     end
   end
 
@@ -119,6 +144,20 @@ defmodule PleromaRedux.Activities.Delete do
       local: Keyword.get(opts, :local, true)
     }
   end
+
+  defp apply_delete(activity, %__MODULE__{} = delete) do
+    activity
+    |> Map.put("id", delete.id)
+    |> Map.put("type", delete.type)
+    |> Map.put("actor", delete.actor)
+    |> Map.put("object", delete.object)
+    |> maybe_put("to", delete.to)
+    |> maybe_put("cc", delete.cc)
+    |> maybe_put("published", delete.published)
+  end
+
+  defp maybe_put(activity, _key, nil), do: activity
+  defp maybe_put(activity, key, value), do: Map.put(activity, key, value)
 
   defp parse_datetime(nil), do: nil
 

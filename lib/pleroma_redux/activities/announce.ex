@@ -1,4 +1,11 @@
 defmodule PleromaRedux.Activities.Announce do
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.ObjectID
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.Recipients
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias PleromaRedux.Federation.Delivery
   alias PleromaRedux.Object
   alias PleromaRedux.Objects
@@ -11,6 +18,18 @@ defmodule PleromaRedux.Activities.Announce do
   @public "https://www.w3.org/ns/activitystreams#Public"
 
   def type, do: "Announce"
+
+  @primary_key false
+  embedded_schema do
+    field :id, ObjectID
+    field :type, :string
+    field :actor, ObjectID
+    field :object, ObjectID
+    field :embedded_object, :map
+    field :to, Recipients
+    field :cc, Recipients
+    field :published, APDateTime
+  end
 
   def build(%User{ap_id: actor}, %Object{} = object) do
     build(actor, object)
@@ -42,24 +61,30 @@ defmodule PleromaRedux.Activities.Announce do
 
   def normalize(%{"type" => "Announce"} = activity) do
     activity
-    |> normalize_actor()
   end
 
   def normalize(_), do: nil
 
-  def validate(
-        %{"id" => id, "type" => "Announce", "actor" => actor, "object" => object} = activity
-      )
-      when is_binary(id) and is_binary(actor) do
-    cond do
-      is_binary(object) ->
-        {:ok, activity}
+  def cast_and_validate(activity) when is_map(activity) do
+    cast_activity = maybe_embed_object(activity)
 
-      is_map(object) and is_binary(object["id"]) ->
-        {:ok, activity}
+    changeset =
+      %__MODULE__{}
+      |> cast(cast_activity, __schema__(:fields))
+      |> validate_required([:id, :type, :actor, :object])
+      |> validate_inclusion(:type, [type()])
 
-      true ->
-        {:error, :invalid}
+    case apply_action(changeset, :insert) do
+      {:ok, %__MODULE__{} = announce} -> {:ok, apply_announce(activity, announce)}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset}
+    end
+  end
+
+  def validate(activity) when is_map(activity) do
+    case cast_and_validate(activity) do
+      {:ok, validated} -> {:ok, validated}
+      {:error, %Ecto.Changeset{}} -> {:error, :invalid}
+      {:error, _} = error -> error
     end
   end
 
@@ -128,11 +153,27 @@ defmodule PleromaRedux.Activities.Announce do
     }
   end
 
-  defp normalize_actor(%{"actor" => %{"id" => id}} = activity) when is_binary(id) do
-    Map.put(activity, "actor", id)
+  defp apply_announce(activity, %__MODULE__{} = announce) do
+    object_value = announce.embedded_object || announce.object
+
+    activity
+    |> Map.put("id", announce.id)
+    |> Map.put("type", announce.type)
+    |> Map.put("actor", announce.actor)
+    |> Map.put("object", object_value)
+    |> maybe_put("to", announce.to)
+    |> maybe_put("cc", announce.cc)
+    |> maybe_put("published", announce.published)
   end
 
-  defp normalize_actor(activity), do: activity
+  defp maybe_embed_object(%{"object" => %{} = object} = activity) do
+    Map.put(activity, "embedded_object", object)
+  end
+
+  defp maybe_embed_object(activity), do: activity
+
+  defp maybe_put(activity, _key, maybe_nil) when is_nil(maybe_nil), do: activity
+  defp maybe_put(activity, key, value), do: Map.put(activity, key, value)
 
   defp extract_object_id(%{"id" => id}) when is_binary(id), do: id
   defp extract_object_id(id) when is_binary(id), do: id
