@@ -40,6 +40,35 @@ defmodule PleromaRedux.HTMLTest do
       assert scrubbed =~ "ok"
       refute scrubbed =~ "<iframe"
     end
+
+    test "allows img tags with http(s) src" do
+      html = "<p>ok</p><img src=\"https://cdn.example/emoji.png\" alt=\":blob:\" class=\"emoji\">"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "<img"
+      assert scrubbed =~ "src=\"https://cdn.example/emoji.png\""
+    end
+
+    test "removes event handler attributes from img tags" do
+      html =
+        "<img src=\"https://cdn.example/x.png\" onerror=\"alert(1)\" alt=\"x\" class=\"emoji\">"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "src=\"https://cdn.example/x.png\""
+      refute scrubbed =~ "onerror="
+      refute scrubbed =~ "alert(1)"
+    end
+
+    test "rejects javascript: src on img tags" do
+      html = "<img src=\"javascript:alert(1)\" alt=\"x\" class=\"emoji\">"
+
+      scrubbed = HTML.sanitize(html)
+
+      refute scrubbed =~ "javascript:"
+      refute scrubbed =~ "alert(1)"
+    end
   end
 
   describe "to_safe_html/2" do

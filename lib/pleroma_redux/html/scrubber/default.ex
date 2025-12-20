@@ -6,11 +6,15 @@ defmodule PleromaRedux.HTML.Scrubber.Default do
   alias FastSanitize.Sanitizer.Meta
 
   @valid_schemes ["http", "https", "mailto"]
+  @valid_image_schemes ["http", "https"]
 
   Meta.strip_comments()
 
   Meta.allow_tag_with_uri_attributes(:a, ["href"], @valid_schemes)
   Meta.allow_tag_with_these_attributes(:a, ["class", "rel", "title", "target"])
+
+  Meta.allow_tag_with_uri_attributes(:img, ["src"], @valid_image_schemes)
+  Meta.allow_tag_with_these_attributes(:img, ["alt", "title", "class", "width", "height"])
 
   Meta.allow_tag_with_these_attributes(:p, ["class"])
   Meta.allow_tag_with_these_attributes(:br, [])
@@ -36,4 +40,3 @@ defmodule PleromaRedux.HTML.Scrubber.Default do
 
   Meta.strip_everything_not_covered()
 end
-
