@@ -5,6 +5,7 @@ defmodule PleromaReduxWeb.RelationshipsLiveTest do
 
   alias PleromaRedux.Activities.Follow
   alias PleromaRedux.Pipeline
+  alias PleromaRedux.Relationships
   alias PleromaRedux.Users
 
   setup do
@@ -29,5 +30,50 @@ defmodule PleromaReduxWeb.RelationshipsLiveTest do
     assert has_element?(view, "[data-role='relationships-title']", "Following")
     assert has_element?(view, "[data-role='relationship-item']", "@bob")
   end
-end
 
+  test "followers page can load more followers", %{conn: conn, bob: bob} do
+    for idx <- 1..41 do
+      nickname = "follower#{idx}"
+
+      {:ok, user} =
+        Users.create_user(%{
+          nickname: nickname,
+          ap_id: "https://remote.example/users/#{nickname}",
+          inbox: "https://remote.example/users/#{nickname}/inbox",
+          outbox: "https://remote.example/users/#{nickname}/outbox",
+          public_key: "public-key",
+          local: false
+        })
+
+      assert {:ok, _follow} = Pipeline.ingest(Follow.build(user.ap_id, bob.ap_id), local: false)
+    end
+
+    excluded_relationship =
+      bob.ap_id
+      |> Relationships.list_follows_to(limit: 80)
+      |> Enum.drop(40)
+      |> List.first()
+
+    assert excluded_relationship
+    excluded_user = Users.get_by_ap_id(excluded_relationship.actor)
+    assert excluded_user
+
+    assert {:ok, view, _html} = live(conn, "/@#{bob.nickname}/followers")
+
+    refute has_element?(
+             view,
+             "[data-role='relationship-item']",
+             "@#{excluded_user.nickname}@remote.example"
+           )
+
+    view
+    |> element("button[data-role='relationships-load-more']")
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "[data-role='relationship-item']",
+             "@#{excluded_user.nickname}@remote.example"
+           )
+  end
+end
