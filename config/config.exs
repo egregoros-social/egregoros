@@ -11,6 +11,15 @@ config :pleroma_redux,
   ecto_repos: [PleromaRedux.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :pleroma_redux, Oban,
+  repo: PleromaRedux.Repo,
+  notifier: Oban.Notifiers.PG,
+  queues: [
+    federation_incoming: 10,
+    federation_outgoing: 25
+  ],
+  plugins: [{Oban.Plugins.Pruner, max_age: 60 * 60 * 24}]
+
 config :pleroma_redux, PleromaRedux.Signature, PleromaRedux.Signature.HTTP
 config :pleroma_redux, PleromaRedux.Auth, PleromaRedux.Auth.BearerToken
 config :pleroma_redux, PleromaRedux.AuthZ, PleromaRedux.AuthZ.OAuthScopes

@@ -51,3 +51,5 @@ config :pleroma_redux, PleromaRedux.MediaStorage, PleromaRedux.MediaStorage.Mock
 config :pleroma_redux, :password_iterations, 1_000
 
 config :pleroma_redux, :req_options, plug: {Req.Test, PleromaRedux.HTTP.Req}
+
+config :pleroma_redux, Oban, testing: :manual
