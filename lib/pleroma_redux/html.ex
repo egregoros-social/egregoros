@@ -121,6 +121,14 @@ defmodule PleromaRedux.HTML do
           :error -> escape(token)
         end
 
+      String.starts_with?(token, "#") ->
+        {core, trailing} = split_trailing_punctuation(token, @mention_trailing)
+
+        case hashtag_href(core) do
+          {:ok, href} -> [anchor(href, core), escape(trailing)]
+          :error -> escape(token)
+        end
+
       true ->
         escape(token)
     end
@@ -148,6 +156,18 @@ defmodule PleromaRedux.HTML do
   end
 
   defp mention_href(_token), do: :error
+
+  defp hashtag_href("#" <> rest) when is_binary(rest) and rest != "" do
+    tag = rest
+
+    if valid_hashtag?(tag) do
+      {:ok, Endpoint.url() <> "/tags/" <> tag}
+    else
+      :error
+    end
+  end
+
+  defp hashtag_href(_token), do: :error
 
   defp parse_mention(rest) when is_binary(rest) do
     case String.split(rest, "@", parts: 2) do
@@ -182,6 +202,12 @@ defmodule PleromaRedux.HTML do
   end
 
   defp valid_host?(_), do: false
+
+  defp valid_hashtag?(tag) when is_binary(tag) do
+    Regex.match?(~r/^[\p{L}\p{N}_][\p{L}\p{N}_-]{0,63}$/u, tag)
+  end
+
+  defp valid_hashtag?(_tag), do: false
 
   defp mention_profile_href(nickname, nil) when is_binary(nickname),
     do: Endpoint.url() <> "/@" <> nickname

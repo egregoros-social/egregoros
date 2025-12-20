@@ -150,5 +150,16 @@ defmodule PleromaRedux.HTMLTest do
       safe = HTML.to_safe_html("hi @alice,", format: :text)
       assert safe =~ ">@alice</a>,"
     end
+
+    test "linkifies hashtags in plain text" do
+      safe = HTML.to_safe_html("hi #elixir", format: :text)
+      assert safe =~ ~s(href="#{PleromaReduxWeb.Endpoint.url()}/tags/elixir")
+      assert safe =~ ">#elixir</a>"
+    end
+
+    test "keeps trailing punctuation outside hashtag links" do
+      safe = HTML.to_safe_html("hi #elixir,", format: :text)
+      assert safe =~ ">#elixir</a>,"
+    end
   end
 end
