@@ -81,11 +81,14 @@ defmodule PleromaRedux.Activities.Undo do
   def side_effects(object, opts) do
     target_activity = Objects.get_by_ap_id(object.object)
 
-    if Keyword.get(opts, :local, true) do
-      deliver_undo(object, target_activity)
+    if authorized_undo?(object, target_activity) do
+      if Keyword.get(opts, :local, true) do
+        deliver_undo(object, target_activity)
+      end
+
+      _ = undo_target(target_activity)
     end
 
-    _ = undo_target(target_activity)
     :ok
   end
 
@@ -96,6 +99,11 @@ defmodule PleromaRedux.Activities.Undo do
   end
 
   defp deliver_undo(_undo_object, _target_activity), do: :ok
+
+  defp authorized_undo?(%Object{actor: actor}, %Object{actor: actor}) when is_binary(actor),
+    do: true
+
+  defp authorized_undo?(_undo_object, _target_activity), do: false
 
   defp do_deliver(actor, %Object{type: "Follow"} = follow, undo_object) do
     with %{} = target <- Users.get_by_ap_id(follow.object),
