@@ -18,6 +18,10 @@ defmodule PleromaReduxWeb.NotificationsLive do
         id -> Users.get(id)
       end
 
+    if connected?(socket) and match?(%User{}, current_user) do
+      Notifications.subscribe(current_user.ap_id)
+    end
+
     notifications = list_notifications(current_user, limit: @page_size)
 
     {:ok,
@@ -31,6 +35,22 @@ defmodule PleromaReduxWeb.NotificationsLive do
      |> stream(:notifications, decorate_notifications(notifications),
        dom_id: &notification_dom_id/1
      )}
+  end
+
+  @impl true
+  def handle_info({:notification_created, activity}, socket) do
+    case socket.assigns.current_user do
+      %User{} ->
+        entry = decorate_notification(activity)
+
+        {:noreply,
+         socket
+         |> stream_insert(:notifications, entry, at: 0)
+         |> assign(:notifications_count, socket.assigns.notifications_count + 1)}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   @impl true

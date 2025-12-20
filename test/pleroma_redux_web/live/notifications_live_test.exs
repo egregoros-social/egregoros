@@ -54,4 +54,16 @@ defmodule PleromaReduxWeb.NotificationsLiveTest do
 
     assert has_element?(view, "#notification-#{oldest.id}")
   end
+
+  test "streams new notifications into the list", %{conn: conn, user: user, actor: actor} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/notifications")
+
+    assert {:ok, activity} = Pipeline.ingest(Follow.build(actor, user), local: true)
+
+    send(view.pid, {:notification_created, activity})
+    _ = :sys.get_state(view.pid)
+
+    assert has_element?(view, "#notification-#{activity.id}")
+  end
 end
