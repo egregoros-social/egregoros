@@ -31,7 +31,13 @@ defmodule PleromaRedux.SafeURL do
           {:error, :unsafe_url}
       end
     else
-      :ok
+      case PleromaRedux.DNS.lookup_ips(host) do
+        {:ok, ips} when is_list(ips) and ips != [] ->
+          if Enum.any?(ips, &private_ip?/1), do: {:error, :unsafe_url}, else: :ok
+
+        _ ->
+          {:error, :unsafe_url}
+      end
     end
   end
 
