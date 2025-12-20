@@ -49,6 +49,7 @@ defmodule PleromaReduxWeb.Router do
     live "/", TimelineLive
     live "/notifications", NotificationsLive
     live "/@:nickname", ProfileLive
+    live "/@:nickname/:uuid", StatusLive
   end
 
   scope "/", PleromaReduxWeb do
