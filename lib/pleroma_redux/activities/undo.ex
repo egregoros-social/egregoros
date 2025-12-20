@@ -41,7 +41,11 @@ defmodule PleromaRedux.Activities.Undo do
     }
   end
 
-  def normalize(%{"type" => "Undo"} = activity), do: activity
+  def normalize(%{"type" => "Undo"} = activity) do
+    activity
+    |> normalize_object()
+  end
+
   def normalize(_), do: nil
 
   def validate(%{"id" => id, "type" => "Undo", "actor" => actor, "object" => object} = activity)
@@ -183,6 +187,16 @@ defmodule PleromaRedux.Activities.Undo do
       local: Keyword.get(opts, :local, true)
     }
   end
+
+  defp normalize_object(%{"object" => %{"id" => id}} = activity) when is_binary(id) do
+    Map.put(activity, "object", id)
+  end
+
+  defp normalize_object(%{"object" => %{"id" => %{"id" => id}}} = activity) when is_binary(id) do
+    Map.put(activity, "object", id)
+  end
+
+  defp normalize_object(activity), do: activity
 
   defp parse_datetime(nil), do: nil
 

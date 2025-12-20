@@ -2,6 +2,7 @@ defmodule PleromaRedux.Activities.Announce do
   alias PleromaRedux.Federation.Delivery
   alias PleromaRedux.Object
   alias PleromaRedux.Objects
+  alias PleromaRedux.Pipeline
   alias PleromaRedux.Relationships
   alias PleromaRedux.User
   alias PleromaRedux.Users
@@ -39,17 +40,38 @@ defmodule PleromaRedux.Activities.Announce do
     Map.merge(base, recipients(actor, object))
   end
 
-  def normalize(%{"type" => "Announce"} = activity), do: activity
+  def normalize(%{"type" => "Announce"} = activity) do
+    activity
+    |> normalize_actor()
+  end
+
   def normalize(_), do: nil
 
   def validate(
         %{"id" => id, "type" => "Announce", "actor" => actor, "object" => object} = activity
       )
-      when is_binary(id) and is_binary(actor) and is_binary(object) do
-    {:ok, activity}
+      when is_binary(id) and is_binary(actor) do
+    cond do
+      is_binary(object) ->
+        {:ok, activity}
+
+      is_map(object) and is_binary(object["id"]) ->
+        {:ok, activity}
+
+      true ->
+        {:error, :invalid}
+    end
   end
 
   def validate(_), do: {:error, :invalid}
+
+  def ingest(%{"object" => %{} = embedded_object} = activity, opts) do
+    with {:ok, _} <- Pipeline.ingest(embedded_object, opts) do
+      activity
+      |> to_object_attrs(opts)
+      |> Objects.upsert_object()
+    end
+  end
 
   def ingest(activity, opts) do
     activity
@@ -99,12 +121,22 @@ defmodule PleromaRedux.Activities.Announce do
       ap_id: activity["id"],
       type: activity["type"],
       actor: activity["actor"],
-      object: activity["object"],
+      object: extract_object_id(activity["object"]),
       data: activity,
       published: parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
   end
+
+  defp normalize_actor(%{"actor" => %{"id" => id}} = activity) when is_binary(id) do
+    Map.put(activity, "actor", id)
+  end
+
+  defp normalize_actor(activity), do: activity
+
+  defp extract_object_id(%{"id" => id}) when is_binary(id), do: id
+  defp extract_object_id(id) when is_binary(id), do: id
+  defp extract_object_id(_), do: nil
 
   defp parse_datetime(nil), do: nil
 

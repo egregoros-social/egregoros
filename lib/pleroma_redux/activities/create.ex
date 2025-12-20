@@ -86,9 +86,17 @@ defmodule PleromaRedux.Activities.Create do
     }
   end
 
-  defp put_actor(%{"actor" => _} = activity), do: activity
+  defp put_actor(%{"actor" => actor} = activity) when is_binary(actor), do: activity
+
+  defp put_actor(%{"actor" => %{"id" => actor}} = activity) when is_binary(actor) do
+    Map.put(activity, "actor", actor)
+  end
 
   defp put_actor(%{"attributedTo" => actor} = activity) when is_binary(actor) do
+    Map.put(activity, "actor", actor)
+  end
+
+  defp put_actor(%{"attributedTo" => %{"id" => actor}} = activity) when is_binary(actor) do
     Map.put(activity, "actor", actor)
   end
 

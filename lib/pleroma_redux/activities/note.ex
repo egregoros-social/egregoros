@@ -60,9 +60,17 @@ defmodule PleromaRedux.Activities.Note do
     :ok
   end
 
-  defp put_actor(%{"actor" => _} = note), do: note
+  defp put_actor(%{"actor" => actor} = note) when is_binary(actor), do: note
+
+  defp put_actor(%{"actor" => %{"id" => actor}} = note) when is_binary(actor) do
+    Map.put(note, "actor", actor)
+  end
 
   defp put_actor(%{"attributedTo" => actor} = note) when is_binary(actor) do
+    Map.put(note, "actor", actor)
+  end
+
+  defp put_actor(%{"attributedTo" => %{"id" => actor}} = note) when is_binary(actor) do
     Map.put(note, "actor", actor)
   end
 

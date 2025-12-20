@@ -24,7 +24,12 @@ defmodule PleromaRedux.Activities.Follow do
     }
   end
 
-  def normalize(%{"type" => "Follow"} = activity), do: activity
+  def normalize(%{"type" => "Follow"} = activity) do
+    activity
+    |> normalize_actor()
+    |> normalize_object()
+  end
+
   def normalize(_), do: nil
 
   def validate(%{"id" => id, "type" => "Follow", "actor" => actor, "object" => object} = activity)
@@ -88,6 +93,18 @@ defmodule PleromaRedux.Activities.Follow do
       local: Keyword.get(opts, :local, true)
     }
   end
+
+  defp normalize_actor(%{"actor" => %{"id" => id}} = activity) when is_binary(id) do
+    Map.put(activity, "actor", id)
+  end
+
+  defp normalize_actor(activity), do: activity
+
+  defp normalize_object(%{"object" => %{"id" => id}} = activity) when is_binary(id) do
+    Map.put(activity, "object", id)
+  end
+
+  defp normalize_object(activity), do: activity
 
   defp parse_datetime(nil), do: nil
 
