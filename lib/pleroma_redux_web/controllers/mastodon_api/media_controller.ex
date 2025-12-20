@@ -1,18 +1,18 @@
 defmodule PleromaReduxWeb.MastodonAPI.MediaController do
   use PleromaReduxWeb, :controller
 
+  alias PleromaRedux.Media
   alias PleromaRedux.MediaStorage
   alias PleromaRedux.Objects
   alias PleromaRedux.Object
   alias PleromaRedux.User
-  alias PleromaReduxWeb.Endpoint
   alias PleromaReduxWeb.URL
 
   def create(conn, %{"file" => %Plug.Upload{} = upload}) do
     user = conn.assigns.current_user
 
     with {:ok, url_path} <- MediaStorage.store_media(user, upload),
-         {:ok, object} <- create_media_object(user, upload, url_path) do
+         {:ok, object} <- Media.create_media_object(user, upload, url_path) do
       url = URL.absolute(url_path) || ""
 
       json(conn, %{
@@ -47,38 +47,6 @@ defmodule PleromaReduxWeb.MastodonAPI.MediaController do
       _ -> send_resp(conn, 404, "Not Found")
     end
   end
-
-  defp create_media_object(user, %Plug.Upload{} = upload, url_path) when is_binary(url_path) do
-    ap_id = Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
-    href = URL.absolute(url_path) || url_path
-
-    Objects.create_object(%{
-      ap_id: ap_id,
-      type: activity_type(upload.content_type),
-      actor: user.ap_id,
-      local: true,
-      published: DateTime.utc_now(),
-      data: %{
-        "id" => ap_id,
-        "type" => activity_type(upload.content_type),
-        "mediaType" => upload.content_type,
-        "url" => [
-          %{
-            "type" => "Link",
-            "mediaType" => upload.content_type,
-            "href" => href
-          }
-        ],
-        "name" => ""
-      }
-    })
-  end
-
-  defp activity_type(content_type) when is_binary(content_type) do
-    if String.starts_with?(content_type, "image/"), do: "Image", else: "Document"
-  end
-
-  defp activity_type(_), do: "Document"
 
   defp mastodon_media_type(content_type) when is_binary(content_type) do
     cond do

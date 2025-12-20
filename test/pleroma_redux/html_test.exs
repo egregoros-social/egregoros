@@ -32,6 +32,28 @@ defmodule PleromaRedux.HTMLTest do
       refute scrubbed =~ "javascript:"
     end
 
+    test "adds safe rel attributes to links" do
+      html = "<a href=\"https://example.com\">x</a>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "nofollow"
+      assert scrubbed =~ "noopener"
+      assert scrubbed =~ "noreferrer"
+    end
+
+    test "preserves existing rel values while adding required ones" do
+      html = "<a href=\"https://example.com\" rel=\"me\">x</a>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "rel="
+      assert scrubbed =~ "me"
+      assert scrubbed =~ "nofollow"
+      assert scrubbed =~ "noopener"
+      assert scrubbed =~ "noreferrer"
+    end
+
     test "removes disallowed tags like iframe" do
       html = "<p>ok</p><iframe src=\"https://evil.example/\"></iframe>"
 

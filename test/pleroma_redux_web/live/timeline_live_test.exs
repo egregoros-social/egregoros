@@ -90,6 +90,25 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     assert has_element?(view, "[data-role='timeline-current']", "public")
   end
 
+  test "compose sheet can be opened and closed", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    refute has_element?(view, "#compose-overlay")
+
+    view
+    |> element("button[data-role='compose-open']")
+    |> render_click()
+
+    assert has_element?(view, "#compose-overlay")
+
+    view
+    |> element("button[data-role='compose-close']")
+    |> render_click()
+
+    refute has_element?(view, "#compose-overlay")
+  end
+
   test "public timeline sanitizes remote html content", %{conn: conn} do
     assert {:ok, _object} =
              Pipeline.ingest(
@@ -108,6 +127,26 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     assert html =~ "ok"
     refute html =~ "<script"
+  end
+
+  test "timeline can load more posts", %{conn: conn, user: user} do
+    for idx <- 1..25 do
+      assert {:ok, _} = Pipeline.ingest(Note.build(user, "Post #{idx}"), local: true)
+    end
+
+    notes = Objects.list_notes(25)
+    oldest = List.last(notes)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    refute has_element?(view, "#post-#{oldest.id}")
+
+    view
+    |> element("button[data-role='load-more']")
+    |> render_click()
+
+    assert has_element?(view, "#post-#{oldest.id}")
   end
 
   test "liking a post creates a Like activity", %{conn: conn, user: user} do
@@ -173,6 +212,131 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
              "#post-#{note.id} button[data-role='reaction'][data-emoji='🔥']",
              "1"
            )
+  end
+
+  test "posting with an attachment renders it in the timeline", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    fixture_path = Path.expand("pleroma-old/test/fixtures/DSCN0010.png", File.cwd!())
+    content = File.read!(fixture_path)
+
+    upload =
+      file_input(view, "#timeline-form", :media, [
+        %{
+          last_modified: 1_694_171_879_000,
+          name: "photo.png",
+          content: content,
+          size: byte_size(content),
+          type: "image/png"
+        }
+      ])
+
+    expect(PleromaRedux.MediaStorage.Mock, :store_media, fn passed_user, passed_upload ->
+      assert passed_user.id == user.id
+      assert passed_upload.filename == "photo.png"
+      assert passed_upload.content_type == "image/png"
+      {:ok, "/uploads/media/#{passed_user.id}/photo.png"}
+    end)
+
+    assert render_upload(upload, "photo.png") =~ "100%"
+
+    view
+    |> form("#timeline-form", post: %{content: "Hello with media"})
+    |> render_submit()
+
+    [note] = Objects.list_notes()
+
+    assert has_element?(view, "#post-#{note.id} img[data-role='attachment']")
+  end
+
+  test "posting with only an attachment is allowed", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    fixture_path = Path.expand("pleroma-old/test/fixtures/DSCN0010.png", File.cwd!())
+    content = File.read!(fixture_path)
+
+    upload =
+      file_input(view, "#timeline-form", :media, [
+        %{
+          last_modified: 1_694_171_879_000,
+          name: "photo.png",
+          content: content,
+          size: byte_size(content),
+          type: "image/png"
+        }
+      ])
+
+    expect(PleromaRedux.MediaStorage.Mock, :store_media, fn passed_user, passed_upload ->
+      assert passed_user.id == user.id
+      assert passed_upload.filename == "photo.png"
+      assert passed_upload.content_type == "image/png"
+      {:ok, "/uploads/media/#{passed_user.id}/photo.png"}
+    end)
+
+    assert render_upload(upload, "photo.png") =~ "100%"
+
+    view
+    |> form("#timeline-form", post: %{content: ""})
+    |> render_submit()
+
+    assert [_note] = Objects.list_notes()
+    refute has_element?(view, "[data-role='compose-error']")
+  end
+
+  test "invalid attachment uploads are rejected and block posting", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    upload =
+      file_input(view, "#timeline-form", :media, [
+        %{
+          last_modified: 1_694_171_879_000,
+          name: "bad.txt",
+          content: "bad",
+          size: 3,
+          type: "text/plain"
+        }
+      ])
+
+    _ = render_upload(upload, "bad.txt")
+    assert has_element?(view, "[data-role='upload-error']")
+
+    view
+    |> form("#timeline-form", post: %{content: "Hello world"})
+    |> render_submit()
+
+    assert Objects.list_notes() == []
+    assert has_element?(view, "[data-role='compose-error']")
+  end
+
+  test "oversized attachment uploads are rejected and block posting", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    content = :binary.copy("a", 10_000_001)
+
+    upload =
+      file_input(view, "#timeline-form", :media, [
+        %{
+          last_modified: 1_694_171_879_000,
+          name: "huge.png",
+          content: content,
+          size: byte_size(content),
+          type: "image/png"
+        }
+      ])
+
+    _ = render_upload(upload, "huge.png")
+    assert has_element?(view, "[data-role='upload-error']")
+
+    view
+    |> form("#timeline-form", post: %{content: "Hello world"})
+    |> render_submit()
+
+    assert Objects.list_notes() == []
+    assert has_element?(view, "[data-role='compose-error']")
   end
 
   test "unfollowing removes the follow from the UI", %{conn: conn, user: user} do

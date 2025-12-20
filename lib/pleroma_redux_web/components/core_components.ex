@@ -8,22 +8,9 @@ defmodule PleromaReduxWeb.CoreComponents do
   with doc strings and declarative assigns. You may customize and style
   them in any way you want, based on your application growth and needs.
 
-  The foundation for styling is Tailwind CSS, a utility-first CSS framework,
-  augmented with daisyUI, a Tailwind CSS plugin that provides UI components
-  and themes. Here are useful references:
-
-    * [daisyUI](https://daisyui.com/docs/intro/) - a good place to get
-      started and see the available components.
-
-    * [Tailwind CSS](https://tailwindcss.com) - the foundational framework
-      we build on. You will use it for layout, sizing, flexbox, grid, and
-      spacing.
-
-    * [Heroicons](https://heroicons.com) - see `icon/1` for usage.
-
-    * [Phoenix.Component](https://hexdocs.pm/phoenix_live_view/Phoenix.Component.html) -
-      the component system used by Phoenix. Some components, such as `<.link>`
-      and `<.form>`, are defined there.
+  The foundation for styling is Tailwind CSS, a utility-first CSS framework.
+  The components in this module form a small, app-specific design system so
+  templates can stay consistent without repeating large class lists.
 
   """
   use Phoenix.Component
@@ -43,6 +30,7 @@ defmodule PleromaReduxWeb.CoreComponents do
   attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
   attr :title, :string, default: nil
   attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
+  attr :class, :any, default: nil, doc: "additional classes for the flash container"
   attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
 
   slot :inner_block, doc: "the optional inner block that renders the flash message"
@@ -56,23 +44,42 @@ defmodule PleromaReduxWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class="toast toast-top toast-end z-50"
+      data-role="toast"
+      class={[
+        "pointer-events-auto w-full max-w-sm animate-rise overflow-hidden rounded-2xl border px-4 py-3 shadow-lg shadow-slate-900/10 backdrop-blur",
+        "border-white/70 bg-white/90 text-slate-900 dark:border-slate-700/70 dark:bg-slate-950/70 dark:text-slate-100",
+        @kind == :info && "ring-1 ring-slate-900/5 dark:ring-white/10",
+        @kind == :error &&
+          "border-rose-200/70 ring-1 ring-rose-200/70 dark:border-rose-500/30 dark:ring-rose-500/20",
+        @class
+      ]}
       {@rest}
     >
-      <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "alert-info",
-        @kind == :error && "alert-error"
-      ]}>
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <div>
-          <p :if={@title} class="font-semibold">{@title}</p>
-          <p>{msg}</p>
+      <div class="flex items-start gap-3">
+        <div class="mt-0.5 shrink-0">
+          <.icon
+            :if={@kind == :info}
+            name="hero-information-circle"
+            class="size-5 text-slate-500 dark:text-slate-300"
+          />
+          <.icon
+            :if={@kind == :error}
+            name="hero-exclamation-circle"
+            class="size-5 text-rose-600 dark:text-rose-400"
+          />
         </div>
-        <div class="flex-1" />
-        <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
+
+        <div class="min-w-0 flex-1">
+          <p :if={@title} class="font-semibold leading-6">{@title}</p>
+          <p class="text-sm leading-6 text-slate-700 dark:text-slate-200">{msg}</p>
+        </div>
+
+        <button
+          type="button"
+          class="group -m-1 inline-flex items-center justify-center rounded-xl p-1 text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+          aria-label={gettext("close")}
+        >
+          <.icon name="hero-x-mark" class="size-4 opacity-70 group-hover:opacity-100" />
         </button>
       </div>
     </div>
@@ -88,32 +95,139 @@ defmodule PleromaReduxWeb.CoreComponents do
       <.button phx-click="go" variant="primary">Send!</.button>
       <.button navigate={~p"/"}>Home</.button>
   """
-  attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :rest, :global,
+    include: ~w(href navigate patch method download phx-click phx-disable-with phx-target)
+
+  attr :class, :any, default: nil
+  attr :type, :string, default: nil
+  attr :variant, :string, values: ~w(primary secondary ghost destructive), default: "primary"
+  attr :size, :string, values: ~w(sm md lg), default: "md"
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    link? = rest[:href] || rest[:navigate] || rest[:patch]
+
+    base_classes = [
+      "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold transition",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+      "disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-offset-slate-950"
+    ]
+
+    size_classes =
+      case assigns.size do
+        "sm" -> "px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em]"
+        "lg" -> "px-6 py-3 text-base"
+        _ -> "px-5 py-3 text-sm"
+      end
+
+    variant_classes =
+      case assigns.variant do
+        "secondary" ->
+          "border border-slate-200/80 bg-white/70 text-slate-700 shadow-sm shadow-slate-200/20 hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+
+        "ghost" ->
+          "bg-transparent text-slate-700 hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10"
+
+        "destructive" ->
+          "bg-rose-600 text-white shadow-lg shadow-rose-600/20 hover:-translate-y-0.5 hover:bg-rose-500 dark:bg-rose-500 dark:hover:bg-rose-400"
+
+        _ ->
+          "bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+      end
 
     assigns =
-      assign_new(assigns, :class, fn ->
-        ["btn", Map.fetch!(variants, assigns[:variant])]
-      end)
+      assigns
+      |> assign(:button_type, if(link?, do: nil, else: assigns.type || "button"))
+      |> assign(:button_class, [base_classes, size_classes, variant_classes, assigns.class])
 
-    if rest[:href] || rest[:navigate] || rest[:patch] do
+    if link? do
       ~H"""
-      <.link class={@class} {@rest}>
+      <.link class={@button_class} {@rest}>
         {render_slot(@inner_block)}
       </.link>
       """
     else
       ~H"""
-      <button class={@class} {@rest}>
+      <button type={@button_type} class={@button_class} {@rest}>
         {render_slot(@inner_block)}
       </button>
       """
     end
+  end
+
+  @doc """
+  Renders a surface container (card/panel) with consistent styling.
+  """
+  attr :rest, :global
+  attr :class, :any, default: nil
+  attr :data_role, :string, default: "card"
+  slot :inner_block, required: true
+
+  def card(assigns) do
+    ~H"""
+    <section
+      data-role={@data_role}
+      class={[
+        "rounded-3xl border border-white/80 bg-white/80 shadow-xl shadow-slate-200/40 backdrop-blur",
+        "dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40",
+        @class
+      ]}
+      {@rest}
+    >
+      {render_slot(@inner_block)}
+    </section>
+    """
+  end
+
+  @doc """
+  Renders an actor/avatar image with a graceful initial fallback.
+  """
+  attr :rest, :global
+  attr :class, :any, default: nil
+  attr :data_role, :string, default: "avatar"
+  attr :name, :string, required: true
+  attr :src, :string, default: nil
+  attr :alt, :string, default: nil
+  attr :size, :string, values: ~w(xs sm md lg xl), default: "md"
+
+  def avatar(assigns) do
+    assigns = assign_new(assigns, :alt, fn -> assigns.name end)
+
+    {box_classes, text_classes} =
+      case assigns.size do
+        "xs" -> {"h-7 w-7 rounded-lg", "text-xs"}
+        "sm" -> {"h-9 w-9 rounded-xl", "text-sm"}
+        "lg" -> {"h-14 w-14 rounded-2xl", "text-base"}
+        "xl" -> {"h-16 w-16 rounded-2xl", "text-lg"}
+        _ -> {"h-11 w-11 rounded-2xl", "text-sm"}
+      end
+
+    assigns =
+      assigns
+      |> assign(:box_classes, box_classes)
+      |> assign(:text_classes, text_classes)
+      |> assign(:initial, avatar_initial(assigns.name))
+
+    ~H"""
+    <span
+      data-role={@data_role}
+      class={[
+        "inline-flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/80 bg-white shadow-sm shadow-slate-200/30",
+        "dark:border-slate-700/60 dark:bg-slate-950/60 dark:shadow-slate-900/40",
+        @box_classes,
+        @class
+      ]}
+      {@rest}
+    >
+      <%= if is_binary(@src) and @src != "" do %>
+        <img src={@src} alt={@alt} class="h-full w-full object-cover" loading="lazy" />
+      <% else %>
+        <span class={["font-semibold text-slate-700 dark:text-slate-200", @text_classes]}>
+          {@initial}
+        </span>
+      <% end %>
+    </span>
+    """
   end
 
   @doc """
@@ -205,8 +319,8 @@ defmodule PleromaReduxWeb.CoreComponents do
       end)
 
     ~H"""
-    <div class="fieldset mb-2">
-      <label>
+    <div class="space-y-1">
+      <label class="inline-flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200">
         <input
           type="hidden"
           name={@name}
@@ -214,17 +328,20 @@ defmodule PleromaReduxWeb.CoreComponents do
           disabled={@rest[:disabled]}
           form={@rest[:form]}
         />
-        <span class="label">
-          <input
-            type="checkbox"
-            id={@id}
-            name={@name}
-            value="true"
-            checked={@checked}
-            class={@class || "checkbox checkbox-sm"}
-            {@rest}
-          />{@label}
-        </span>
+        <input
+          type="checkbox"
+          id={@id}
+          name={@name}
+          value="true"
+          checked={@checked}
+          class={[
+            @class ||
+              "h-4 w-4 rounded border-slate-300 text-slate-900 shadow-sm focus:ring-2 focus:ring-slate-300 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-slate-600",
+            @errors != [] && (@error_class || "border-rose-400 dark:border-rose-500/50")
+          ]}
+          {@rest}
+        />
+        <span :if={@label} class="select-none">{@label}</span>
       </label>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
@@ -233,20 +350,28 @@ defmodule PleromaReduxWeb.CoreComponents do
 
   def input(%{type: "select"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
-      <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <select
-          id={@id}
-          name={@name}
-          class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}
-          multiple={@multiple}
-          {@rest}
-        >
-          <option :if={@prompt} value="">{@prompt}</option>
-          {Phoenix.HTML.Form.options_for_select(@options, @value)}
-        </select>
+    <div class="space-y-1">
+      <label
+        :if={@label}
+        for={@id}
+        class="block text-sm font-semibold text-slate-700 dark:text-slate-200"
+      >
+        {@label}
       </label>
+      <select
+        id={@id}
+        name={@name}
+        class={[
+          @class ||
+            "w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600",
+          @errors != [] && (@error_class || "border-rose-400 dark:border-rose-500/50")
+        ]}
+        multiple={@multiple}
+        {@rest}
+      >
+        <option :if={@prompt} value="">{@prompt}</option>
+        {Phoenix.HTML.Form.options_for_select(@options, @value)}
+      </select>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -254,19 +379,24 @@ defmodule PleromaReduxWeb.CoreComponents do
 
   def input(%{type: "textarea"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
-      <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <textarea
-          id={@id}
-          name={@name}
-          class={[
-            @class || "w-full textarea",
-            @errors != [] && (@error_class || "textarea-error")
-          ]}
-          {@rest}
-        >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
+    <div class="space-y-1">
+      <label
+        :if={@label}
+        for={@id}
+        class="block text-sm font-semibold text-slate-700 dark:text-slate-200"
+      >
+        {@label}
       </label>
+      <textarea
+        id={@id}
+        name={@name}
+        class={[
+          @class ||
+            "w-full resize-none rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600",
+          @errors != [] && (@error_class || "border-rose-400 dark:border-rose-500/50")
+        ]}
+        {@rest}
+      >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -275,21 +405,26 @@ defmodule PleromaReduxWeb.CoreComponents do
   # All other inputs text, datetime-local, url, password, etc. are handled here...
   def input(assigns) do
     ~H"""
-    <div class="fieldset mb-2">
-      <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <input
-          type={@type}
-          name={@name}
-          id={@id}
-          value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-          class={[
-            @class || "w-full input",
-            @errors != [] && (@error_class || "input-error")
-          ]}
-          {@rest}
-        />
+    <div class="space-y-1">
+      <label
+        :if={@label}
+        for={@id}
+        class="block text-sm font-semibold text-slate-700 dark:text-slate-200"
+      >
+        {@label}
       </label>
+      <input
+        type={@type}
+        name={@name}
+        id={@id}
+        value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+        class={[
+          @class ||
+            "w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600",
+          @errors != [] && (@error_class || "border-rose-400 dark:border-rose-500/50")
+        ]}
+        {@rest}
+      />
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -298,8 +433,8 @@ defmodule PleromaReduxWeb.CoreComponents do
   # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex gap-2 items-center text-sm text-error">
-      <.icon name="hero-exclamation-circle" class="size-5" />
+    <p class="mt-1.5 flex items-center gap-2 text-sm text-rose-600 dark:text-rose-400">
+      <.icon name="hero-exclamation-circle" class="size-4" />
       {render_slot(@inner_block)}
     </p>
     """
@@ -319,7 +454,7 @@ defmodule PleromaReduxWeb.CoreComponents do
         <h1 class="text-lg font-semibold leading-8">
           {render_slot(@inner_block)}
         </h1>
-        <p :if={@subtitle != []} class="text-sm text-base-content/70">
+        <p :if={@subtitle != []} class="text-sm text-slate-600 dark:text-slate-300">
           {render_slot(@subtitle)}
         </p>
       </div>
@@ -360,34 +495,54 @@ defmodule PleromaReduxWeb.CoreComponents do
       end
 
     ~H"""
-    <table class="table table-zebra">
-      <thead>
-        <tr>
-          <th :for={col <- @col}>{col[:label]}</th>
-          <th :if={@action != []}>
-            <span class="sr-only">{gettext("Actions")}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody id={@id} phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}>
-        <tr :for={row <- @rows} id={@row_id && @row_id.(row)}>
-          <td
-            :for={col <- @col}
-            phx-click={@row_click && @row_click.(row)}
-            class={@row_click && "hover:cursor-pointer"}
+    <div class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/70 shadow-sm shadow-slate-200/20 dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40">
+      <table class="min-w-full divide-y divide-slate-200/80 text-sm dark:divide-slate-700/70">
+        <thead class="bg-slate-50/80 dark:bg-slate-900/60">
+          <tr>
+            <th
+              :for={col <- @col}
+              scope="col"
+              class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300"
+            >
+              {col[:label]}
+            </th>
+            <th
+              :if={@action != []}
+              scope="col"
+              class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300"
+            >
+              <span class="sr-only">{gettext("Actions")}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody
+          id={@id}
+          phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}
+          class="divide-y divide-slate-200/70 dark:divide-slate-700/70"
+        >
+          <tr
+            :for={row <- @rows}
+            id={@row_id && @row_id.(row)}
+            class="transition hover:bg-slate-900/5 dark:hover:bg-white/5"
           >
-            {render_slot(col, @row_item.(row))}
-          </td>
-          <td :if={@action != []} class="w-0 font-semibold">
-            <div class="flex gap-4">
-              <%= for action <- @action do %>
-                {render_slot(action, @row_item.(row))}
-              <% end %>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+            <td
+              :for={col <- @col}
+              phx-click={@row_click && @row_click.(row)}
+              class={["px-4 py-3 align-top", @row_click && "cursor-pointer"]}
+            >
+              {render_slot(col, @row_item.(row))}
+            </td>
+            <td :if={@action != []} class="px-4 py-3 text-right align-top">
+              <div class="inline-flex items-center justify-end gap-3">
+                <%= for action <- @action do %>
+                  {render_slot(action, @row_item.(row))}
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     """
   end
 
@@ -407,14 +562,17 @@ defmodule PleromaReduxWeb.CoreComponents do
 
   def list(assigns) do
     ~H"""
-    <ul class="list">
-      <li :for={item <- @item} class="list-row">
-        <div class="list-col-grow">
-          <div class="font-bold">{item.title}</div>
-          <div>{render_slot(item)}</div>
-        </div>
-      </li>
-    </ul>
+    <dl class="divide-y divide-slate-200/70 rounded-2xl border border-slate-200/80 bg-white/70 text-sm shadow-sm shadow-slate-200/20 dark:divide-slate-700/70 dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40">
+      <div
+        :for={item <- @item}
+        class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between"
+      >
+        <dt class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+          {item.title}
+        </dt>
+        <dd class="text-slate-800 dark:text-slate-200">{render_slot(item)}</dd>
+      </div>
+    </dl>
     """
   end
 
@@ -495,4 +653,15 @@ defmodule PleromaReduxWeb.CoreComponents do
   def translate_errors(errors, field) when is_list(errors) do
     for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
   end
+
+  defp avatar_initial(name) when is_binary(name) do
+    name
+    |> String.trim()
+    |> case do
+      "" -> "?"
+      trimmed -> trimmed |> String.first() |> String.upcase()
+    end
+  end
+
+  defp avatar_initial(_name), do: "?"
 end

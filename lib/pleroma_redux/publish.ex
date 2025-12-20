@@ -19,7 +19,7 @@ defmodule PleromaRedux.Publish do
     sensitive = Keyword.get(opts, :sensitive)
     language = Keyword.get(opts, :language)
 
-    if content == "" do
+    if content == "" and attachments == [] do
       {:error, :empty}
     else
       note =

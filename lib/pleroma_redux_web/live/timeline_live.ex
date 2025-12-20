@@ -6,7 +6,9 @@ defmodule PleromaReduxWeb.TimelineLive do
   alias PleromaRedux.Activities.Like
   alias PleromaRedux.Activities.Undo
   alias PleromaRedux.Federation
-  alias PleromaRedux.HTML
+  alias PleromaRedux.Media
+  alias PleromaRedux.MediaStorage
+  alias PleromaRedux.Notifications
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Publish
@@ -15,6 +17,10 @@ defmodule PleromaReduxWeb.TimelineLive do
   alias PleromaRedux.User
   alias PleromaRedux.Users
   alias PleromaReduxWeb.URL
+  alias PleromaReduxWeb.ViewModels.Actor, as: ActorVM
+  alias PleromaReduxWeb.ViewModels.Status, as: StatusVM
+
+  @page_size 20
 
   @impl true
   def mount(params, session, socket) do
@@ -30,22 +36,39 @@ defmodule PleromaReduxWeb.TimelineLive do
 
     timeline = timeline_from_params(params, current_user)
 
-    form = Phoenix.Component.to_form(%{"content" => ""}, as: :post)
+    form = Phoenix.Component.to_form(default_post_params(), as: :post)
+
     follow_form = Phoenix.Component.to_form(%{"handle" => ""}, as: :follow)
 
-    {:ok,
-     assign(socket,
-       timeline: timeline,
-       home_actor_ids: home_actor_ids(current_user),
-       posts: decorate_posts(list_timeline_posts(timeline, current_user), current_user),
-       error: nil,
-       follow_error: nil,
-       follow_success: nil,
-       following: list_following(current_user),
-       form: form,
-       follow_form: follow_form,
-       current_user: current_user
-     )}
+    posts = list_timeline_posts(timeline, current_user, limit: @page_size)
+
+    socket =
+      socket
+      |> assign(
+        timeline: timeline,
+        home_actor_ids: home_actor_ids(current_user),
+        notifications_count: notifications_count(current_user),
+        compose_open?: false,
+        error: nil,
+        follow_error: nil,
+        follow_success: nil,
+        following: list_following(current_user),
+        form: form,
+        follow_form: follow_form,
+        media_alt: %{},
+        posts_cursor: posts_cursor(posts),
+        posts_end?: length(posts) < @page_size,
+        current_user: current_user
+      )
+      |> stream(:posts, StatusVM.decorate_many(posts, current_user), dom_id: &post_dom_id/1)
+      |> allow_upload(:media,
+        accept: ~w(.png .jpg .jpeg .webp .gif),
+        max_entries: 4,
+        max_file_size: 10_000_000,
+        auto_upload: true
+      )
+
+    {:ok, socket}
   end
 
   @impl true
@@ -56,13 +79,17 @@ defmodule PleromaReduxWeb.TimelineLive do
       if timeline == socket.assigns.timeline do
         socket
       else
-        assign(socket,
+        posts = list_timeline_posts(timeline, socket.assigns.current_user, limit: @page_size)
+
+        socket
+        |> assign(
           timeline: timeline,
-          posts:
-            decorate_posts(
-              list_timeline_posts(timeline, socket.assigns.current_user),
-              socket.assigns.current_user
-            )
+          posts_cursor: posts_cursor(posts),
+          posts_end?: length(posts) < @page_size
+        )
+        |> stream(:posts, StatusVM.decorate_many(posts, socket.assigns.current_user),
+          reset: true,
+          dom_id: &post_dom_id/1
         )
       end
 
@@ -70,26 +97,120 @@ defmodule PleromaReduxWeb.TimelineLive do
   end
 
   @impl true
-  def handle_event("create_post", %{"post" => %{"content" => content}}, socket) do
+  def handle_event("compose_change", %{"post" => %{} = post_params}, socket) do
+    post_params = Map.merge(default_post_params(), post_params)
+    media_alt = Map.get(post_params, "media_alt", %{})
+
+    {:noreply,
+     assign(socket,
+       form: Phoenix.Component.to_form(post_params, as: :post),
+       media_alt: media_alt
+     )}
+  end
+
+  def handle_event("open_compose", _params, socket) do
+    {:noreply, assign(socket, compose_open?: true)}
+  end
+
+  def handle_event("close_compose", _params, socket) do
+    {:noreply, assign(socket, compose_open?: false)}
+  end
+
+  def handle_event("cancel_media", %{"ref" => ref}, socket) do
+    {:noreply,
+     socket
+     |> cancel_upload(:media, ref)
+     |> assign(:media_alt, Map.delete(socket.assigns.media_alt, ref))}
+  end
+
+  def handle_event("create_post", %{"post" => %{} = post_params}, socket) do
     case socket.assigns.current_user do
       nil ->
         {:noreply, assign(socket, error: "Register to post.")}
 
       user ->
-        case Publish.post_note(user, content) do
-          {:ok, _post} ->
+        post_params = Map.merge(default_post_params(), post_params)
+        content = post_params |> Map.get("content", "") |> to_string()
+        media_alt = Map.get(post_params, "media_alt", %{})
+        visibility = Map.get(post_params, "visibility", "public")
+        spoiler_text = Map.get(post_params, "spoiler_text")
+        sensitive = Map.get(post_params, "sensitive")
+        language = Map.get(post_params, "language")
+
+        upload = socket.assigns.uploads.media
+
+        cond do
+          Enum.any?(upload.entries, &(!&1.done?)) ->
             {:noreply,
              assign(socket,
-               form: Phoenix.Component.to_form(%{"content" => ""}, as: :post),
-               error: nil
+               error: "Wait for attachments to finish uploading.",
+               form: Phoenix.Component.to_form(post_params, as: :post),
+               media_alt: media_alt
              )}
 
-          {:error, :empty} ->
+          upload.errors != [] or Enum.any?(upload.entries, &(!&1.valid?)) ->
             {:noreply,
              assign(socket,
-               error: "Post can't be empty.",
-               form: Phoenix.Component.to_form(%{"content" => content}, as: :post)
+               error: "Remove invalid attachments before posting.",
+               form: Phoenix.Component.to_form(post_params, as: :post),
+               media_alt: media_alt
              )}
+
+          true ->
+            attachments =
+              consume_uploaded_entries(socket, :media, fn %{path: path}, entry ->
+                upload = %Plug.Upload{
+                  path: path,
+                  filename: entry.client_name,
+                  content_type: entry.client_type
+                }
+
+                description = media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
+
+                with {:ok, url_path} <- MediaStorage.store_media(user, upload),
+                     {:ok, object} <-
+                       Media.create_media_object(user, upload, url_path, description: description) do
+                  {:ok, object.data}
+                else
+                  {:error, reason} -> {:ok, {:error, reason}}
+                end
+              end)
+
+            case Enum.find(attachments, &match?({:error, _}, &1)) do
+              {:error, _reason} ->
+                {:noreply,
+                 assign(socket,
+                   error: "Could not upload attachment.",
+                   form: Phoenix.Component.to_form(post_params, as: :post),
+                   media_alt: media_alt
+                 )}
+
+              nil ->
+                case Publish.post_note(user, content,
+                       attachments: attachments,
+                       visibility: visibility,
+                       spoiler_text: spoiler_text,
+                       sensitive: sensitive,
+                       language: language
+                     ) do
+                  {:ok, _post} ->
+                    {:noreply,
+                     assign(socket,
+                       form: Phoenix.Component.to_form(default_post_params(), as: :post),
+                       compose_open?: false,
+                       error: nil,
+                       media_alt: %{}
+                     )}
+
+                  {:error, :empty} ->
+                    {:noreply,
+                     assign(socket,
+                       error: "Post can't be empty.",
+                       form: Phoenix.Component.to_form(post_params, as: :post),
+                       media_alt: media_alt
+                     )}
+                end
+            end
         end
     end
   end
@@ -104,17 +225,19 @@ defmodule PleromaReduxWeb.TimelineLive do
         case Federation.follow_remote(user, handle) do
           {:ok, remote} ->
             home_actor_ids = home_actor_ids(user)
-            posts = maybe_refresh_home_posts(socket, user)
 
-            {:noreply,
-             assign(socket,
-               follow_form: Phoenix.Component.to_form(%{"handle" => ""}, as: :follow),
-               follow_error: nil,
-               follow_success: "Following #{remote.ap_id}.",
-               following: list_following(user),
-               home_actor_ids: home_actor_ids,
-               posts: posts
-             )}
+            socket =
+              socket
+              |> assign(
+                follow_form: Phoenix.Component.to_form(%{"handle" => ""}, as: :follow),
+                follow_error: nil,
+                follow_success: "Following #{remote.ap_id}.",
+                following: list_following(user),
+                home_actor_ids: home_actor_ids
+              )
+              |> maybe_refresh_home_posts(user)
+
+            {:noreply, socket}
 
           {:error, _reason} ->
             {:noreply, assign(socket, follow_error: "Could not follow.", follow_success: nil)}
@@ -130,14 +253,16 @@ defmodule PleromaReduxWeb.TimelineLive do
          {:ok, _undo} <-
            Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true) do
       home_actor_ids = home_actor_ids(user)
-      posts = maybe_refresh_home_posts(socket, user)
 
-      {:noreply,
-       assign(socket,
-         following: list_following(user),
-         home_actor_ids: home_actor_ids,
-         posts: posts
-       )}
+      socket =
+        socket
+        |> assign(
+          following: list_following(user),
+          home_actor_ids: home_actor_ids
+        )
+        |> maybe_refresh_home_posts(user)
+
+      {:noreply, socket}
     else
       nil ->
         {:noreply, assign(socket, follow_error: "Register to unfollow.", follow_success: nil)}
@@ -150,9 +275,9 @@ defmodule PleromaReduxWeb.TimelineLive do
   def handle_event("toggle_like", %{"id" => id}, socket) do
     with %User{} = user <- socket.assigns.current_user,
          {post_id, ""} <- Integer.parse(to_string(id)),
-         %{object: post, liked?: liked?} <-
-           Enum.find(socket.assigns.posts, &(&1.object.id == post_id)) do
-      if liked? do
+         %{} = post <- Objects.get(post_id),
+         true <- post.type == "Note" do
+      if Relationships.get_by_type_actor_object("Like", user.ap_id, post.ap_id) do
         case Relationships.get_by_type_actor_object("Like", user.ap_id, post.ap_id) do
           %{} = relationship ->
             Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
@@ -177,9 +302,9 @@ defmodule PleromaReduxWeb.TimelineLive do
   def handle_event("toggle_repost", %{"id" => id}, socket) do
     with %User{} = user <- socket.assigns.current_user,
          {post_id, ""} <- Integer.parse(to_string(id)),
-         %{object: post, reposted?: reposted?} <-
-           Enum.find(socket.assigns.posts, &(&1.object.id == post_id)) do
-      if reposted? do
+         %{} = post <- Objects.get(post_id),
+         true <- post.type == "Note" do
+      if Relationships.get_by_type_actor_object("Announce", user.ap_id, post.ap_id) do
         case Relationships.get_by_type_actor_object("Announce", user.ap_id, post.ap_id) do
           %{} = relationship ->
             Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
@@ -204,7 +329,8 @@ defmodule PleromaReduxWeb.TimelineLive do
   def handle_event("toggle_reaction", %{"id" => id, "emoji" => emoji}, socket) do
     with %User{} = user <- socket.assigns.current_user,
          {post_id, ""} <- Integer.parse(to_string(id)),
-         %{object: post} <- Enum.find(socket.assigns.posts, &(&1.object.id == post_id)) do
+         %{} = post <- Objects.get(post_id),
+         true <- post.type == "Note" do
       emoji = to_string(emoji)
       relationship_type = "EmojiReact:" <> emoji
 
@@ -226,13 +352,54 @@ defmodule PleromaReduxWeb.TimelineLive do
     end
   end
 
+  def handle_event("load_more", _params, socket) do
+    cursor = socket.assigns.posts_cursor
+
+    cond do
+      socket.assigns.posts_end? ->
+        {:noreply, socket}
+
+      is_nil(cursor) ->
+        {:noreply, assign(socket, posts_end?: true)}
+
+      true ->
+        posts =
+          list_timeline_posts(socket.assigns.timeline, socket.assigns.current_user,
+            limit: @page_size,
+            max_id: cursor
+          )
+
+        socket =
+          if posts == [] do
+            assign(socket, posts_end?: true)
+          else
+            new_cursor = posts_cursor(posts)
+            posts_end? = length(posts) < @page_size
+            current_user = socket.assigns.current_user
+
+            Enum.reduce(StatusVM.decorate_many(posts, current_user), socket, fn entry, socket ->
+              stream_insert(socket, :posts, entry, at: -1)
+            end)
+            |> assign(posts_cursor: new_cursor, posts_end?: posts_end?)
+          end
+
+        {:noreply, socket}
+    end
+  end
+
   @impl true
   def handle_info({:post_created, post}, socket) do
     if include_post?(post, socket.assigns.timeline, socket.assigns.home_actor_ids) do
+      cursor =
+        case socket.assigns.posts_cursor do
+          nil -> post.id
+          existing -> min(existing, post.id)
+        end
+
       {:noreply,
-       update(socket, :posts, fn posts ->
-         [decorate_post(post, socket.assigns.current_user) | posts]
-       end)}
+       socket
+       |> stream_insert(:posts, StatusVM.decorate(post, socket.assigns.current_user), at: 0)
+       |> assign(:posts_cursor, cursor)}
     else
       {:noreply, socket}
     end
@@ -242,83 +409,40 @@ defmodule PleromaReduxWeb.TimelineLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <section id="timeline-shell" class="grid gap-6 lg:grid-cols-12 lg:items-start">
-        <aside id="timeline-sidebar" class="space-y-6 lg:col-span-4 lg:sticky lg:top-10">
-          <section class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40 animate-rise">
-            <%= if @current_user do %>
-              <div class="flex items-center gap-4">
-                <div class="shrink-0">
-                  <%= if is_binary(@current_user.avatar_url) and @current_user.avatar_url != "" do %>
-                    <img
-                      src={URL.absolute(@current_user.avatar_url)}
-                      alt={@current_user.name || @current_user.nickname}
-                      class="h-14 w-14 rounded-2xl border border-slate-200/80 bg-white object-cover shadow-sm shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-950/60 dark:shadow-slate-900/40"
-                      loading="lazy"
-                    />
-                  <% else %>
-                    <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/70 text-base font-semibold text-slate-700 shadow-sm shadow-slate-200/30 dark:border-slate-700/60 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40">
-                      {avatar_initial(@current_user.name || @current_user.nickname)}
-                    </div>
-                  <% end %>
-                </div>
-
-                <div class="min-w-0">
-                  <p class="truncate font-display text-xl text-slate-900 dark:text-slate-100">
-                    {@current_user.name || @current_user.nickname}
-                  </p>
-                  <p class="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">
-                    {user_handle(@current_user, @current_user.ap_id)}
-                  </p>
-                </div>
-              </div>
-
-              <div class="mt-6 flex flex-wrap items-center gap-2">
-                <.link
-                  navigate={~p"/settings"}
-                  class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-                >
-                  Settings
-                </.link>
-                <.link
-                  href={~p"/logout"}
-                  class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-                >
-                  Logout
-                </.link>
-              </div>
-            <% else %>
-              <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
-                Welcome
-              </p>
-              <h2 class="mt-2 font-display text-2xl text-slate-900 dark:text-slate-100">
-                A small federating core
-              </h2>
-              <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">
-                Sign in to post, follow, and build a home feed. Public is available without an
-                account.
-              </p>
-
-              <div class="mt-6 flex flex-wrap items-center gap-2">
-                <.link
-                  navigate={~p"/login"}
-                  class="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-                >
-                  Login
-                </.link>
-                <.link
-                  navigate={~p"/register"}
-                  class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-                >
-                  Register
-                </.link>
-              </div>
-            <% end %>
-          </section>
-
+      <AppShell.app_shell
+        id="timeline-shell"
+        nav_id="timeline-sidebar"
+        main_id="timeline-feed"
+        aside_id="timeline-aside"
+        active={:timeline}
+        current_user={@current_user}
+        notifications_count={@notifications_count}
+      >
+        <:aside>
           <section
             id="compose-panel"
-            class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40"
+            class={[
+              "rounded-3xl border border-white/80 bg-white/80 p-6 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40",
+              !@compose_open? && "hidden lg:block",
+              @compose_open? &&
+                "fixed inset-x-4 bottom-24 z-50 max-h-[78vh] overflow-y-auto lg:static lg:inset-auto lg:bottom-auto lg:z-auto lg:max-h-none lg:overflow-visible"
+            ]}
           >
+            <div :if={@compose_open?} class="mb-4 flex items-center justify-between lg:hidden">
+              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                Compose
+              </p>
+              <button
+                type="button"
+                data-role="compose-close"
+                phx-click="close_compose"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                aria-label="Close composer"
+              >
+                <.icon name="hero-x-mark" class="size-4" />
+              </button>
+            </div>
+
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
@@ -334,29 +458,163 @@ defmodule PleromaReduxWeb.TimelineLive do
             </div>
 
             <%= if @current_user do %>
-              <.form for={@form} id="timeline-form" phx-submit="create_post" class="mt-6 space-y-4">
+              <.form
+                for={@form}
+                id="timeline-form"
+                phx-change="compose_change"
+                phx-submit="create_post"
+                class="mt-6 space-y-4"
+              >
                 <.input
                   type="textarea"
                   field={@form[:content]}
                   placeholder="What's happening?"
                   rows="3"
                   phx-debounce="blur"
-                  class="w-full resize-none rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
                 />
 
+                <details class="rounded-2xl border border-slate-200/80 bg-white/70 p-4 dark:border-slate-700/70 dark:bg-slate-950/50">
+                  <summary class="cursor-pointer select-none text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Options
+                  </summary>
+                  <div class="mt-4 grid gap-4">
+                    <.input
+                      type="select"
+                      field={@form[:visibility]}
+                      label="Visibility"
+                      options={[
+                        Public: "public",
+                        Unlisted: "unlisted",
+                        Private: "private",
+                        Direct: "direct"
+                      ]}
+                    />
+
+                    <.input
+                      type="text"
+                      field={@form[:spoiler_text]}
+                      label="Content warning"
+                      placeholder="Optional"
+                      phx-debounce="blur"
+                    />
+
+                    <.input type="checkbox" field={@form[:sensitive]} label="Mark media as sensitive" />
+                  </div>
+                </details>
+
+                <section
+                  class="rounded-2xl border border-slate-200/80 bg-white/70 p-4 dark:border-slate-700/70 dark:bg-slate-950/50"
+                  aria-label="Attachments"
+                >
+                  <div class="flex items-center justify-between gap-4">
+                    <div>
+                      <p class="text-xs uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                        Attachments
+                      </p>
+                      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        PNG, JPG, GIF, WEBP — up to 10MB
+                      </p>
+                    </div>
+
+                    <div class="shrink-0">
+                      <label
+                        for="media-input"
+                        class="inline-flex cursor-pointer items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+                      >
+                        Add photo
+                      </label>
+                      <.live_file_input upload={@uploads.media} id="media-input" class="sr-only" />
+                    </div>
+                  </div>
+
+                  <div
+                    class="mt-4 grid gap-3"
+                    phx-drop-target={@uploads.media.ref}
+                    data-role="media-drop"
+                  >
+                    <p
+                      :if={@uploads.media.entries == []}
+                      class="rounded-2xl border border-dashed border-slate-200/80 bg-white/50 p-4 text-sm text-slate-600 dark:border-slate-700/70 dark:bg-slate-950/40 dark:text-slate-300"
+                    >
+                      Drop photos here or use “Add photo”.
+                    </p>
+
+                    <div
+                      :for={entry <- @uploads.media.entries}
+                      id={"media-entry-#{entry.ref}"}
+                      data-role="media-entry"
+                      class="rounded-2xl border border-slate-200/80 bg-white/60 p-3 shadow-sm shadow-slate-200/20 dark:border-slate-700/70 dark:bg-slate-950/50 dark:shadow-slate-900/40"
+                    >
+                      <div class="flex gap-3">
+                        <div class="relative h-16 w-16 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm shadow-slate-200/20 dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40">
+                          <.live_img_preview entry={entry} class="h-full w-full object-cover" />
+                        </div>
+
+                        <div class="min-w-0 flex-1 space-y-3">
+                          <div class="flex items-start justify-between gap-3">
+                            <p class="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                              {entry.client_name}
+                            </p>
+                            <button
+                              type="button"
+                              phx-click="cancel_media"
+                              phx-value-ref={entry.ref}
+                              class="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                              aria-label="Remove attachment"
+                            >
+                              <.icon name="hero-x-mark" class="size-4" />
+                            </button>
+                          </div>
+
+                          <div class="h-2 overflow-hidden rounded-full bg-slate-200/70 dark:bg-slate-700/50">
+                            <div
+                              class="h-full bg-slate-900 transition-all dark:bg-slate-100"
+                              style={"width: #{entry.progress}%"}
+                            >
+                            </div>
+                          </div>
+                          <span class="sr-only" data-role="media-progress">{entry.progress}%</span>
+
+                          <.input
+                            type="text"
+                            id={"media-alt-#{entry.ref}"}
+                            name={"post[media_alt][#{entry.ref}]"}
+                            label="Alt text"
+                            value={Map.get(@media_alt, entry.ref, "")}
+                            placeholder="Describe the image for screen readers"
+                            phx-debounce="blur"
+                          />
+
+                          <p
+                            :for={err <- upload_errors(@uploads.media, entry)}
+                            data-role="upload-error"
+                            class="text-sm text-rose-600 dark:text-rose-400"
+                          >
+                            {upload_error_text(err)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p
+                    :for={err <- upload_errors(@uploads.media)}
+                    data-role="upload-error"
+                    class="mt-3 text-sm text-rose-600 dark:text-rose-400"
+                  >
+                    {upload_error_text(err)}
+                  </p>
+                </section>
+
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                  <p :if={@error} class="text-sm text-rose-500">{@error}</p>
+                  <p :if={@error} data-role="compose-error" class="text-sm text-rose-500">
+                    {@error}
+                  </p>
                   <div class="ml-auto flex items-center gap-3">
                     <span class="text-xs uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
                       {@current_user.nickname}
                     </span>
-                    <button
-                      type="submit"
-                      phx-disable-with="Posting..."
-                      class="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-                    >
-                      Post
-                    </button>
+                    <.button type="submit" phx-disable-with="Posting...">Post</.button>
                   </div>
                 </div>
               </.form>
@@ -364,18 +622,8 @@ defmodule PleromaReduxWeb.TimelineLive do
               <div class="mt-6 rounded-2xl border border-slate-200/80 bg-white/70 p-4 text-sm text-slate-600 dark:border-slate-700/70 dark:bg-slate-950/50 dark:text-slate-300">
                 <p>Posting requires a local account.</p>
                 <div class="mt-4 flex flex-wrap items-center gap-2">
-                  <.link
-                    navigate={~p"/login"}
-                    class="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-                  >
-                    Login
-                  </.link>
-                  <.link
-                    navigate={~p"/register"}
-                    class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-                  >
-                    Register
-                  </.link>
+                  <.button navigate={~p"/login"} size="sm">Login</.button>
+                  <.button navigate={~p"/register"} variant="secondary" size="sm">Register</.button>
                 </div>
               </div>
             <% end %>
@@ -383,7 +631,7 @@ defmodule PleromaReduxWeb.TimelineLive do
 
           <section
             id="follow-panel"
-            class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50"
+            class="hidden rounded-3xl border border-white/80 bg-white/80 p-6 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50 lg:block"
           >
             <div class="flex items-center justify-between gap-4">
               <div>
@@ -412,17 +660,12 @@ defmodule PleromaReduxWeb.TimelineLive do
                     field={@follow_form[:handle]}
                     label="Handle"
                     placeholder="bob@remote.example"
-                    class="w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  phx-disable-with="Following..."
-                  class="rounded-full border border-slate-200/80 bg-white/70 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-                >
+                <.button type="submit" phx-disable-with="Following..." variant="secondary">
                   Follow
-                </button>
+                </.button>
               </.form>
 
               <p :if={@follow_error} class="mt-3 text-sm text-rose-500">{@follow_error}</p>
@@ -439,7 +682,7 @@ defmodule PleromaReduxWeb.TimelineLive do
           <section
             :if={@current_user}
             id="following-panel"
-            class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50"
+            class="hidden rounded-3xl border border-white/80 bg-white/80 p-6 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50 lg:block"
           >
             <div class="flex items-center justify-between">
               <h3 class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
@@ -484,7 +727,7 @@ defmodule PleromaReduxWeb.TimelineLive do
                       </p>
                       <p class="truncate text-xs text-slate-500 dark:text-slate-400">
                         {if entry.target,
-                          do: user_handle(entry.target, entry.target.ap_id),
+                          do: ActorVM.handle(entry.target, entry.target.ap_id),
                           else: entry.relationship.object}
                       </p>
                     </div>
@@ -508,9 +751,9 @@ defmodule PleromaReduxWeb.TimelineLive do
               </p>
             </div>
           </section>
-        </aside>
+        </:aside>
 
-        <section id="timeline-feed" class="space-y-4 lg:col-span-8">
+        <section class="space-y-4">
           <div class="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/80 p-5 shadow-lg shadow-slate-200/20 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 class="font-display text-xl text-slate-900 dark:text-slate-100">Timeline</h2>
@@ -555,166 +798,59 @@ defmodule PleromaReduxWeb.TimelineLive do
             </div>
           </div>
 
-          <%= for {entry, idx} <- Enum.with_index(@posts) do %>
-            <article
-              id={"post-#{entry.object.id}"}
-              class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-lg shadow-slate-200/30 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50 animate-rise"
-              style={"animation-delay: #{idx * 45}ms"}
+          <div id="timeline-posts" phx-update="stream" class="space-y-4">
+            <div
+              id="timeline-posts-empty"
+              class="hidden only:block rounded-3xl border border-slate-200/80 bg-white/70 p-6 text-sm text-slate-600 shadow-sm shadow-slate-200/20 dark:border-slate-700/70 dark:bg-slate-950/50 dark:text-slate-300 dark:shadow-slate-900/30"
             >
-              <div class="flex items-start gap-4">
-                <div class="shrink-0">
-                  <%= if is_binary(entry.actor.avatar_url) and entry.actor.avatar_url != "" do %>
-                    <img
-                      src={entry.actor.avatar_url}
-                      alt={entry.actor.display_name}
-                      class="h-12 w-12 rounded-2xl border border-slate-200/80 bg-white object-cover shadow-sm shadow-slate-200/40 dark:border-slate-700/60 dark:bg-slate-950/60 dark:shadow-slate-900/40"
-                      loading="lazy"
-                    />
-                  <% else %>
-                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/70 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-200/30 dark:border-slate-700/60 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40">
-                      {avatar_initial(entry.actor.display_name)}
-                    </div>
-                  <% end %>
-                </div>
+              No posts yet.
+            </div>
 
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <p
-                        data-role="post-actor-name"
-                        class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100"
-                      >
-                        {entry.actor.display_name}
-                      </p>
-                      <div class="mt-1 flex flex-wrap items-center gap-2">
-                        <span
-                          data-role="post-actor-handle"
-                          class="truncate text-xs text-slate-500 dark:text-slate-400"
-                        >
-                          {entry.actor.handle}
-                        </span>
+            <StatusCard.status_card
+              :for={{id, entry} <- @streams.posts}
+              id={id}
+              entry={entry}
+              current_user={@current_user}
+            />
+          </div>
 
-                        <span class="text-[10px] uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
-                          {if entry.object.local, do: "local", else: "remote"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <span class="text-xs text-slate-400 dark:text-slate-500">
-                      {format_time(entry.object.inserted_at)}
-                    </span>
-                  </div>
-
-                  <div class="mt-3 text-base leading-relaxed text-slate-900 dark:text-slate-100">
-                    {post_content_html(entry.object)}
-                  </div>
-                </div>
-              </div>
-
-              <div class="mt-5 flex flex-wrap items-center gap-3">
-                <button
-                  :if={@current_user}
-                  type="button"
-                  data-role="like"
-                  phx-click="toggle_like"
-                  phx-value-id={entry.object.id}
-                  phx-disable-with="..."
-                  class={[
-                    "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5",
-                    entry.liked? &&
-                      "border-rose-200/70 bg-rose-50/80 text-rose-700 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/10",
-                    !entry.liked? &&
-                      "border-slate-200/80 bg-white/70 text-slate-700 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-                  ]}
-                >
-                  <.icon
-                    name={if entry.liked?, do: "hero-heart-solid", else: "hero-heart"}
-                    class="size-4"
-                  />
-                  {if entry.liked?, do: "Unlike", else: "Like"}
-                  <span class="text-xs font-normal text-slate-500 dark:text-slate-400">
-                    {entry.likes_count}
-                  </span>
-                </button>
-
-                <button
-                  :if={@current_user}
-                  type="button"
-                  data-role="repost"
-                  phx-click="toggle_repost"
-                  phx-value-id={entry.object.id}
-                  phx-disable-with="..."
-                  class={[
-                    "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5",
-                    entry.reposted? &&
-                      "border-emerald-200/70 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:bg-emerald-500/10",
-                    !entry.reposted? &&
-                      "border-slate-200/80 bg-white/70 text-slate-700 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-                  ]}
-                >
-                  <.icon
-                    name={if entry.reposted?, do: "hero-arrow-path-solid", else: "hero-arrow-path"}
-                    class="size-4"
-                  />
-                  {if entry.reposted?, do: "Unrepost", else: "Repost"}
-                  <span class="text-xs font-normal text-slate-500 dark:text-slate-400">
-                    {entry.reposts_count}
-                  </span>
-                </button>
-
-                <div :if={@current_user} class="flex flex-wrap items-center gap-2">
-                  <%= for emoji <- reaction_emojis() do %>
-                    <% reaction = Map.get(entry.reactions, emoji, %{count: 0, reacted?: false}) %>
-
-                    <button
-                      type="button"
-                      data-role="reaction"
-                      data-emoji={emoji}
-                      phx-click="toggle_reaction"
-                      phx-value-id={entry.object.id}
-                      phx-value-emoji={emoji}
-                      phx-disable-with="..."
-                      class={[
-                        "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition hover:-translate-y-0.5",
-                        reaction.reacted? &&
-                          "border-emerald-200/70 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:bg-emerald-500/10",
-                        !reaction.reacted? &&
-                          "border-slate-200/80 bg-white/70 text-slate-700 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-                      ]}
-                    >
-                      <span class="text-base leading-none">{emoji}</span>
-                      <span class="text-xs font-normal">{reaction.count}</span>
-                    </button>
-                  <% end %>
-                </div>
-              </div>
-            </article>
-          <% end %>
+          <div :if={!@posts_end?} class="flex justify-center py-2">
+            <button
+              type="button"
+              data-role="load-more"
+              phx-click="load_more"
+              phx-disable-with="Loading..."
+              class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+              aria-label="Load more posts"
+            >
+              <.icon name="hero-chevron-down" class="size-4" /> Load more
+            </button>
+          </div>
         </section>
-      </section>
+
+        <div
+          :if={@compose_open?}
+          id="compose-overlay"
+          class="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm lg:hidden"
+          phx-click="close_compose"
+          aria-hidden="true"
+        >
+        </div>
+
+        <button
+          :if={@current_user && !@compose_open?}
+          type="button"
+          data-role="compose-open"
+          phx-click="open_compose"
+          class="fixed bottom-24 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white lg:hidden"
+          aria-label="Compose a new post"
+        >
+          <.icon name="hero-pencil-square" class="size-6" />
+        </button>
+      </AppShell.app_shell>
     </Layouts.app>
     """
   end
-
-  defp decorate_posts(posts, current_user) when is_list(posts) do
-    Enum.map(posts, &decorate_post(&1, current_user))
-  end
-
-  defp post_content_html(%{data: %{} = data} = object) do
-    raw = Map.get(data, "content", "")
-
-    format =
-      case Map.get(object, :local) do
-        false -> :html
-        _ -> :text
-      end
-
-    raw
-    |> HTML.to_safe_html(format: format)
-    |> Phoenix.HTML.raw()
-  end
-
-  defp post_content_html(_object), do: ""
 
   defp list_following(nil), do: []
 
@@ -732,13 +868,25 @@ defmodule PleromaReduxWeb.TimelineLive do
   defp timeline_from_params(_params, %User{}), do: :home
   defp timeline_from_params(_params, _user), do: :public
 
-  defp list_timeline_posts(:home, %User{} = user) do
-    Objects.list_home_notes(user.ap_id)
+  defp list_timeline_posts(:home, %User{} = user, opts) when is_list(opts) do
+    Objects.list_home_notes(user.ap_id, opts)
   end
 
-  defp list_timeline_posts(_timeline, _user) do
-    Objects.list_notes()
+  defp list_timeline_posts(_timeline, _user, opts) when is_list(opts) do
+    Objects.list_notes(opts)
   end
+
+  defp posts_cursor([]), do: nil
+
+  defp posts_cursor(posts) when is_list(posts) do
+    case List.last(posts) do
+      %{id: id} when is_integer(id) -> id
+      _ -> nil
+    end
+  end
+
+  defp post_dom_id(%{object: %{id: id}}) when is_integer(id), do: "post-#{id}"
+  defp post_dom_id(_post), do: Ecto.UUID.generate()
 
   defp include_post?(%{type: "Note"} = post, :home, home_actor_ids)
        when is_list(home_actor_ids) do
@@ -760,126 +908,53 @@ defmodule PleromaReduxWeb.TimelineLive do
     Enum.uniq([user.ap_id | followed_actor_ids])
   end
 
-  defp maybe_refresh_home_posts(%{assigns: %{timeline: :home}}, %User{} = user) do
-    decorate_posts(list_timeline_posts(:home, user), user)
+  defp maybe_refresh_home_posts(%{assigns: %{timeline: :home}} = socket, %User{} = user) do
+    posts = list_timeline_posts(:home, user, limit: @page_size)
+
+    socket
+    |> assign(
+      posts_cursor: posts_cursor(posts),
+      posts_end?: length(posts) < @page_size
+    )
+    |> stream(:posts, StatusVM.decorate_many(posts, user), reset: true, dom_id: &post_dom_id/1)
   end
 
-  defp maybe_refresh_home_posts(socket, _user), do: socket.assigns.posts
+  defp maybe_refresh_home_posts(socket, _user), do: socket
 
-  defp decorate_post(post, current_user) do
+  defp default_post_params do
     %{
-      object: post,
-      actor: actor_card(post.actor),
-      likes_count: Relationships.count_by_type_object("Like", post.ap_id),
-      liked?: liked_by_current_user?(post, current_user),
-      reposts_count: Relationships.count_by_type_object("Announce", post.ap_id),
-      reposted?: reposted_by_current_user?(post, current_user),
-      reactions: reactions_for_post(post, current_user)
+      "content" => "",
+      "spoiler_text" => "",
+      "visibility" => "public",
+      "sensitive" => "false",
+      "language" => "",
+      "media_alt" => %{}
     }
   end
 
-  defp actor_card(nil) do
-    %{
-      ap_id: nil,
-      display_name: "Unknown",
-      handle: "@unknown",
-      avatar_url: nil,
-      local?: false
-    }
-  end
+  defp upload_error_text(:too_large), do: "File is too large."
+  defp upload_error_text(:not_accepted), do: "Unsupported file type."
+  defp upload_error_text(:too_many_files), do: "Too many files selected."
+  defp upload_error_text(_), do: "Upload failed."
 
-  defp actor_card(ap_id) when is_binary(ap_id) do
-    case Users.get_by_ap_id(ap_id) do
-      %User{} = user ->
-        %{
-          ap_id: user.ap_id,
-          display_name: user.name || user.nickname || ap_id,
-          handle: user_handle(user, ap_id),
-          avatar_url: URL.absolute(user.avatar_url),
-          local?: user.local
-        }
+  defp notifications_count(nil), do: 0
 
-      nil ->
-        %{
-          ap_id: ap_id,
-          display_name: ap_id,
-          handle: ap_id,
-          avatar_url: nil,
-          local?: false
-        }
-    end
-  end
-
-  defp user_handle(%User{nickname: nickname, local: true}, _ap_id) when is_binary(nickname) do
-    "@" <> nickname
-  end
-
-  defp user_handle(%User{nickname: nickname}, ap_id)
-       when is_binary(nickname) and is_binary(ap_id) do
-    case URI.parse(ap_id) do
-      %{host: host} when is_binary(host) and host != "" -> "@#{nickname}@#{host}"
-      _ -> "@" <> nickname
-    end
-  end
-
-  defp liked_by_current_user?(_post, nil), do: false
-
-  defp liked_by_current_user?(post, %User{} = current_user) do
-    Relationships.get_by_type_actor_object("Like", current_user.ap_id, post.ap_id) != nil
-  end
-
-  defp reposted_by_current_user?(_post, nil), do: false
-
-  defp reposted_by_current_user?(post, %User{} = current_user) do
-    Relationships.get_by_type_actor_object("Announce", current_user.ap_id, post.ap_id) != nil
-  end
-
-  defp reactions_for_post(post, current_user) do
-    for emoji <- reaction_emojis(), into: %{} do
-      relationship_type = "EmojiReact:" <> emoji
-
-      {emoji,
-       %{
-         count: Relationships.count_by_type_object(relationship_type, post.ap_id),
-         reacted?: reacted_by_current_user?(post, current_user, relationship_type)
-       }}
-    end
-  end
-
-  defp reacted_by_current_user?(_post, nil, _relationship_type), do: false
-
-  defp reacted_by_current_user?(post, %User{} = current_user, relationship_type)
-       when is_binary(relationship_type) do
-    Relationships.get_by_type_actor_object(relationship_type, current_user.ap_id, post.ap_id) !=
-      nil
-  end
-
-  defp reaction_emojis do
-    ["🔥", "👍", "❤️"]
+  defp notifications_count(%User{} = user) do
+    user
+    |> Notifications.list_for_user(limit: 20)
+    |> length()
   end
 
   defp refresh_post(socket, post_id) when is_integer(post_id) do
     current_user = socket.assigns.current_user
 
-    update(socket, :posts, fn posts ->
-      Enum.map(posts, fn
-        %{object: %{id: ^post_id} = object} -> decorate_post(object, current_user)
-        entry -> entry
-      end)
-    end)
-  end
+    case Objects.get(post_id) do
+      %{type: "Note"} = object ->
+        stream_insert(socket, :posts, StatusVM.decorate(object, current_user))
 
-  defp format_time(%DateTime{} = dt) do
-    dt
-    |> DateTime.to_naive()
-    |> NaiveDateTime.truncate(:second)
-    |> NaiveDateTime.to_string()
-  end
-
-  defp format_time(%NaiveDateTime{} = dt) do
-    dt
-    |> NaiveDateTime.truncate(:second)
-    |> NaiveDateTime.to_string()
+      _ ->
+        socket
+    end
   end
 
   defp avatar_initial(name) when is_binary(name) do

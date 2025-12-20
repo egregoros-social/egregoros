@@ -24,19 +24,8 @@
       <.input type="hidden" field={@form[:scope]} />
       <.input type="hidden" field={@form[:state]} />
 
-      <button
-        type="submit"
-        class="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-      >
-        Authorize
-      </button>
-
-      <.link
-        navigate={~p"/"}
-        class="block w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-3 text-center text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-      >
-        Cancel
-      </.link>
+      <.button type="submit" class="w-full">Authorize</.button>
+      <.button navigate={~p"/"} variant="secondary" class="w-full">Cancel</.button>
     </.form>
   </section>
 </Layouts.app>

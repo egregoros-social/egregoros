@@ -116,7 +116,11 @@ defmodule PleromaReduxWeb.Layouts do
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id} aria-live="polite">
+    <div
+      id={@id}
+      aria-live="polite"
+      class="pointer-events-none fixed inset-x-0 top-0 z-50 flex flex-col items-end gap-3 px-4 pt-4 sm:inset-auto sm:top-6 sm:right-6 sm:px-0 sm:pt-0"
+    >
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
 
@@ -155,7 +159,7 @@ defmodule PleromaReduxWeb.Layouts do
   def theme_toggle(assigns) do
     ~H"""
     <div class="relative flex items-center rounded-full border border-slate-200/70 bg-white/70 p-1 shadow-sm shadow-slate-200/30 backdrop-blur transition dark:border-slate-700/70 dark:bg-slate-900/70 dark:shadow-slate-900/40">
-      <div class="absolute inset-y-1 w-10 rounded-full bg-slate-900 text-slate-100 transition-all duration-300 [[data-theme=system]_&]:translate-x-0 [[data-theme=light]_&]:translate-x-10 [[data-theme=dark]_&]:translate-x-20 dark:bg-slate-100 dark:text-slate-900">
+      <div class="absolute inset-y-1 w-10 rounded-full bg-slate-900 text-slate-100 transition-all duration-300 [[data-theme-mode=system]_&]:translate-x-0 [[data-theme-mode=light]_&]:translate-x-10 [[data-theme-mode=dark]_&]:translate-x-20 dark:bg-slate-100 dark:text-slate-900">
       </div>
 
       <button

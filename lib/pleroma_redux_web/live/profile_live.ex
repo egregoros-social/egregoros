@@ -1,0 +1,437 @@
+defmodule PleromaReduxWeb.ProfileLive do
+  use PleromaReduxWeb, :live_view
+
+  alias PleromaRedux.Activities.Announce
+  alias PleromaRedux.Activities.EmojiReact
+  alias PleromaRedux.Activities.Follow
+  alias PleromaRedux.Activities.Like
+  alias PleromaRedux.Activities.Undo
+  alias PleromaRedux.Notifications
+  alias PleromaRedux.Objects
+  alias PleromaRedux.Pipeline
+  alias PleromaRedux.Relationships
+  alias PleromaRedux.User
+  alias PleromaRedux.Users
+  alias PleromaReduxWeb.URL
+  alias PleromaReduxWeb.ViewModels.Status, as: StatusVM
+
+  @page_size 20
+
+  @impl true
+  def mount(%{"nickname" => nickname}, session, socket) do
+    current_user =
+      case Map.get(session, "user_id") do
+        nil -> nil
+        id -> Users.get(id)
+      end
+
+    profile_user =
+      nickname
+      |> to_string()
+      |> String.trim()
+      |> Users.get_by_nickname()
+
+    posts =
+      case profile_user do
+        %User{} = user -> Objects.list_notes_by_actor(user.ap_id, limit: @page_size)
+        _ -> []
+      end
+
+    follow_relationship =
+      follow_relationship(current_user, profile_user)
+
+    {:ok,
+     socket
+     |> assign(
+       current_user: current_user,
+       profile_user: profile_user,
+       notifications_count: notifications_count(current_user),
+       follow_relationship: follow_relationship,
+       posts_count: count_posts(profile_user),
+       followers_count: count_followers(profile_user),
+       following_count: count_following(profile_user),
+       posts_cursor: posts_cursor(posts),
+       posts_end?: length(posts) < @page_size
+     )
+     |> stream(:posts, StatusVM.decorate_many(posts, current_user), dom_id: &post_dom_id/1)}
+  end
+
+  @impl true
+  def handle_event("follow", _params, socket) do
+    with %User{} = viewer <- socket.assigns.current_user,
+         %User{} = profile_user <- socket.assigns.profile_user,
+         true <- viewer.id != profile_user.id,
+         nil <- Relationships.get_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id),
+         {:ok, _follow} <- Pipeline.ingest(Follow.build(viewer, profile_user), local: true) do
+      relationship =
+        Relationships.get_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "Following #{profile_user.nickname}.")
+       |> assign(
+         follow_relationship: relationship,
+         followers_count: count_followers(profile_user)
+       )}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to follow people.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("unfollow", _params, socket) do
+    with %User{} = viewer <- socket.assigns.current_user,
+         %User{} = profile_user <- socket.assigns.profile_user,
+         %{} = relationship <- socket.assigns.follow_relationship,
+         {:ok, _undo} <-
+           Pipeline.ingest(Undo.build(viewer, relationship.activity_ap_id), local: true) do
+      {:noreply,
+       socket
+       |> put_flash(:info, "Unfollowed #{profile_user.nickname}.")
+       |> assign(
+         follow_relationship: nil,
+         followers_count: count_followers(profile_user)
+       )}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to unfollow people.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("load_more_posts", _params, socket) do
+    cursor = socket.assigns.posts_cursor
+
+    cond do
+      socket.assigns.posts_end? ->
+        {:noreply, socket}
+
+      is_nil(cursor) ->
+        {:noreply, assign(socket, posts_end?: true)}
+
+      true ->
+        posts =
+          case socket.assigns.profile_user do
+            %User{} = user ->
+              Objects.list_notes_by_actor(user.ap_id, limit: @page_size, max_id: cursor)
+
+            _ ->
+              []
+          end
+
+        socket =
+          if posts == [] do
+            assign(socket, posts_end?: true)
+          else
+            new_cursor = posts_cursor(posts)
+            posts_end? = length(posts) < @page_size
+            viewer = socket.assigns.current_user
+
+            socket =
+              Enum.reduce(StatusVM.decorate_many(posts, viewer), socket, fn entry, socket ->
+                stream_insert(socket, :posts, entry, at: -1)
+              end)
+
+            assign(socket, posts_cursor: new_cursor, posts_end?: posts_end?)
+          end
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_like", %{"id" => id}, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         {post_id, ""} <- Integer.parse(to_string(id)),
+         %{} = post <- Objects.get(post_id),
+         true <- post.type == "Note" do
+      if Relationships.get_by_type_actor_object("Like", user.ap_id, post.ap_id) do
+        case Relationships.get_by_type_actor_object("Like", user.ap_id, post.ap_id) do
+          %{} = relationship ->
+            Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
+
+          _ ->
+            {:error, :not_found}
+        end
+      else
+        Pipeline.ingest(Like.build(user, post), local: true)
+      end
+
+      {:noreply, refresh_post(socket, post_id)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to like posts.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_repost", %{"id" => id}, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         {post_id, ""} <- Integer.parse(to_string(id)),
+         %{} = post <- Objects.get(post_id),
+         true <- post.type == "Note" do
+      if Relationships.get_by_type_actor_object("Announce", user.ap_id, post.ap_id) do
+        case Relationships.get_by_type_actor_object("Announce", user.ap_id, post.ap_id) do
+          %{} = relationship ->
+            Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
+
+          _ ->
+            {:error, :not_found}
+        end
+      else
+        Pipeline.ingest(Announce.build(user, post), local: true)
+      end
+
+      {:noreply, refresh_post(socket, post_id)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to repost.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_reaction", %{"id" => id, "emoji" => emoji}, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         {post_id, ""} <- Integer.parse(to_string(id)),
+         %{} = post <- Objects.get(post_id),
+         true <- post.type == "Note" do
+      emoji = to_string(emoji)
+      relationship_type = "EmojiReact:" <> emoji
+
+      case Relationships.get_by_type_actor_object(relationship_type, user.ap_id, post.ap_id) do
+        %{} = relationship ->
+          Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
+
+        nil ->
+          Pipeline.ingest(EmojiReact.build(user, post, emoji), local: true)
+      end
+
+      {:noreply, refresh_post(socket, post_id)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to react.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} current_user={@current_user}>
+      <AppShell.app_shell
+        id="profile-shell"
+        nav_id="profile-nav"
+        main_id="profile-main"
+        active={:profile}
+        current_user={@current_user}
+        notifications_count={@notifications_count}
+      >
+        <%= if @profile_user do %>
+          <section class="space-y-6">
+            <.card class="overflow-hidden p-0" data_role="profile-header">
+              <div class="relative h-28 bg-gradient-to-r from-slate-900 via-slate-800 to-rose-700 dark:from-slate-950 dark:via-slate-900 dark:to-rose-600">
+                <div class="pointer-events-none absolute inset-0 opacity-70 mix-blend-overlay">
+                  <div class="absolute -left-14 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl">
+                  </div>
+                  <div class="absolute -right-12 bottom-0 h-32 w-32 rounded-full bg-white/10 blur-2xl">
+                  </div>
+                </div>
+              </div>
+
+              <div class="px-6 pb-6 pt-5">
+                <div class="-mt-16 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div class="flex items-end gap-4">
+                    <.avatar
+                      size="xl"
+                      name={@profile_user.name || @profile_user.nickname}
+                      src={URL.absolute(@profile_user.avatar_url)}
+                      class="ring-4 ring-white dark:ring-slate-900"
+                    />
+
+                    <div class="min-w-0 pb-2">
+                      <h2 class="truncate font-display text-2xl text-slate-900 dark:text-slate-100">
+                        {@profile_user.name || @profile_user.nickname}
+                      </h2>
+                      <p class="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">
+                        @{to_string(@profile_user.nickname)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-2 pb-2">
+                    <%= if @current_user && @current_user.id != @profile_user.id do %>
+                      <%= if @follow_relationship do %>
+                        <button
+                          type="button"
+                          data-role="profile-unfollow"
+                          phx-click="unfollow"
+                          phx-disable-with="Unfollowing..."
+                          class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+                        >
+                          Unfollow
+                        </button>
+                      <% else %>
+                        <button
+                          type="button"
+                          data-role="profile-follow"
+                          phx-click="follow"
+                          phx-disable-with="Following..."
+                          class="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                        >
+                          Follow
+                        </button>
+                      <% end %>
+                    <% end %>
+                  </div>
+                </div>
+
+                <p
+                  :if={is_binary(@profile_user.bio) and @profile_user.bio != ""}
+                  class="mt-5 max-w-prose text-sm text-slate-700 dark:text-slate-200"
+                >
+                  {@profile_user.bio}
+                </p>
+
+                <div class="mt-6 grid grid-cols-3 gap-3 sm:max-w-md">
+                  <.stat value={@posts_count} label="Posts" />
+                  <.stat value={@followers_count} label="Followers" />
+                  <.stat value={@following_count} label="Following" />
+                </div>
+              </div>
+            </.card>
+
+            <section class="space-y-4">
+              <div class="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/80 p-5 shadow-lg shadow-slate-200/20 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 class="font-display text-xl text-slate-900 dark:text-slate-100">
+                    Posts
+                  </h3>
+                  <p class="mt-1 text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                    Latest notes
+                  </p>
+                </div>
+              </div>
+
+              <div id="profile-posts" phx-update="stream" class="space-y-4">
+                <div
+                  id="profile-posts-empty"
+                  class="hidden only:block rounded-3xl border border-slate-200/80 bg-white/70 p-6 text-sm text-slate-600 shadow-sm shadow-slate-200/20 dark:border-slate-700/70 dark:bg-slate-950/50 dark:text-slate-300 dark:shadow-slate-900/30"
+                >
+                  No posts yet.
+                </div>
+
+                <StatusCard.status_card
+                  :for={{id, entry} <- @streams.posts}
+                  id={id}
+                  entry={entry}
+                  current_user={@current_user}
+                />
+              </div>
+
+              <div :if={!@posts_end?} class="flex justify-center py-2">
+                <button
+                  type="button"
+                  data-role="profile-load-more"
+                  phx-click="load_more_posts"
+                  phx-disable-with="Loading..."
+                  class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+                  aria-label="Load more posts"
+                >
+                  <.icon name="hero-chevron-down" class="size-4" /> Load more
+                </button>
+              </div>
+            </section>
+          </section>
+        <% else %>
+          <section class="space-y-4">
+            <.card class="p-6">
+              <p class="text-sm text-slate-600 dark:text-slate-300">
+                Profile not found.
+              </p>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <.button navigate={~p"/"} size="sm">Go home</.button>
+              </div>
+            </.card>
+          </section>
+        <% end %>
+      </AppShell.app_shell>
+    </Layouts.app>
+    """
+  end
+
+  attr :value, :integer, required: true
+  attr :label, :string, required: true
+
+  defp stat(assigns) do
+    ~H"""
+    <div class="rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-center shadow-sm shadow-slate-200/20 dark:border-slate-700/70 dark:bg-slate-950/50 dark:shadow-slate-900/30">
+      <p class="text-lg font-semibold text-slate-900 dark:text-slate-100">{@value}</p>
+      <p class="text-[10px] uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+        {@label}
+      </p>
+    </div>
+    """
+  end
+
+  defp follow_relationship(nil, _profile_user), do: nil
+  defp follow_relationship(_current_user, nil), do: nil
+
+  defp follow_relationship(%User{} = current_user, %User{} = profile_user) do
+    Relationships.get_by_type_actor_object("Follow", current_user.ap_id, profile_user.ap_id)
+  end
+
+  defp count_posts(nil), do: 0
+  defp count_posts(%User{} = user), do: Objects.count_notes_by_actor(user.ap_id)
+
+  defp count_followers(nil), do: 0
+
+  defp count_followers(%User{} = user),
+    do: Relationships.count_by_type_object("Follow", user.ap_id)
+
+  defp count_following(nil), do: 0
+
+  defp count_following(%User{} = user),
+    do: Relationships.count_by_type_actor("Follow", user.ap_id)
+
+  defp posts_cursor([]), do: nil
+
+  defp posts_cursor(posts) when is_list(posts) do
+    case List.last(posts) do
+      %{id: id} when is_integer(id) -> id
+      _ -> nil
+    end
+  end
+
+  defp post_dom_id(%{object: %{id: id}}) when is_integer(id), do: "post-#{id}"
+  defp post_dom_id(_post), do: Ecto.UUID.generate()
+
+  defp refresh_post(socket, post_id) when is_integer(post_id) do
+    current_user = socket.assigns.current_user
+
+    case Objects.get(post_id) do
+      %{type: "Note"} = object ->
+        stream_insert(socket, :posts, StatusVM.decorate(object, current_user))
+
+      _ ->
+        socket
+    end
+  end
+
+  defp notifications_count(nil), do: 0
+
+  defp notifications_count(%User{} = user) do
+    user
+    |> Notifications.list_for_user(limit: @page_size)
+    |> length()
+  end
+end

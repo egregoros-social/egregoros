@@ -47,6 +47,8 @@ defmodule PleromaReduxWeb.Router do
     get "/logout", RegistrationController, :logout
 
     live "/", TimelineLive
+    live "/notifications", NotificationsLive
+    live "/@:nickname", ProfileLive
   end
 
   scope "/", PleromaReduxWeb do
