@@ -564,6 +564,39 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     refute has_element?(view, "[data-role='media-viewer']")
   end
 
+  test "media viewer closes on escape", %{conn: conn} do
+    assert {:ok, note} =
+             Pipeline.ingest(
+               %{
+                 "id" => "https://remote.example/objects/with-image-escape",
+                 "type" => "Note",
+                 "attributedTo" => "https://remote.example/users/bob",
+                 "content" => "<p>Hello</p>",
+                 "attachment" => [
+                   %{
+                     "type" => "Document",
+                     "mediaType" => "image/png",
+                     "name" => "Alt",
+                     "url" => "https://cdn.example/image.png"
+                   }
+                 ]
+               },
+               local: false
+             )
+
+    {:ok, view, _html} = live(conn, "/?timeline=public")
+
+    view
+    |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
+    |> render_click()
+
+    assert has_element?(view, "[data-role='media-viewer']")
+
+    _html = render_keydown(view, "media_keydown", %{"key" => "Escape"})
+
+    refute has_element?(view, "[data-role='media-viewer']")
+  end
+
   test "media viewer can navigate between image attachments", %{conn: conn} do
     assert {:ok, note} =
              Pipeline.ingest(
@@ -598,15 +631,11 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/one.png']")
 
-    view
-    |> element("button[data-role='media-viewer-next']")
-    |> render_click()
+    _html = render_keydown(view, "media_keydown", %{"key" => "ArrowRight"})
 
     assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/two.png']")
 
-    view
-    |> element("button[data-role='media-viewer-prev']")
-    |> render_click()
+    _html = render_keydown(view, "media_keydown", %{"key" => "ArrowLeft"})
 
     assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/one.png']")
   end

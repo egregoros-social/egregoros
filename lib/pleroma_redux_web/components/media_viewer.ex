@@ -32,6 +32,18 @@ defmodule PleromaReduxWeb.MediaViewer do
     Phoenix.Component.assign(socket, :media_viewer, nil)
   end
 
+  def handle_keydown(socket, %{"key" => key}) when is_binary(key) do
+    case key do
+      "Escape" -> close(socket)
+      "Esc" -> close(socket)
+      "ArrowRight" -> next(socket)
+      "ArrowLeft" -> prev(socket)
+      _ -> socket
+    end
+  end
+
+  def handle_keydown(socket, _params), do: socket
+
   def next(socket) do
     bump_index(socket, 1)
   end
@@ -55,9 +67,13 @@ defmodule PleromaReduxWeb.MediaViewer do
       data-role="media-viewer"
       role="dialog"
       aria-modal="true"
+      phx-window-keydown="media_keydown"
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur"
     >
-      <div class="relative w-full max-w-4xl overflow-hidden rounded-3xl bg-black shadow-2xl">
+      <div
+        phx-click-away="close_media"
+        class="relative w-full max-w-4xl overflow-hidden rounded-3xl bg-black shadow-2xl"
+      >
         <button
           :if={@item_count > 1}
           type="button"

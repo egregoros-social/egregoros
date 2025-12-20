@@ -61,6 +61,10 @@ defmodule PleromaReduxWeb.TagLive do
     {:noreply, MediaViewer.prev(socket)}
   end
 
+  def handle_event("media_keydown", %{} = params, socket) do
+    {:noreply, MediaViewer.handle_keydown(socket, params)}
+  end
+
   def handle_event("toggle_like", %{"id" => id}, socket) do
     with %User{} = user <- socket.assigns.current_user,
          {post_id, ""} <- Integer.parse(to_string(id)),
