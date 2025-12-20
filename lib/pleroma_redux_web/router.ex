@@ -19,6 +19,18 @@ defmodule PleromaReduxWeb.Router do
     plug PleromaReduxWeb.Plugs.RequireAuth
   end
 
+  pipeline :oauth_read do
+    plug PleromaReduxWeb.Plugs.RequireScopes, ["read"]
+  end
+
+  pipeline :oauth_write do
+    plug PleromaReduxWeb.Plugs.RequireScopes, ["write"]
+  end
+
+  pipeline :oauth_follow do
+    plug PleromaReduxWeb.Plugs.RequireScopes, ["follow"]
+  end
+
   scope "/", PleromaReduxWeb do
     pipe_through :browser
 
@@ -53,9 +65,31 @@ defmodule PleromaReduxWeb.Router do
   end
 
   scope "/api/v1", PleromaReduxWeb.MastodonAPI do
-    pipe_through [:api, :api_auth]
+    pipe_through [:api, :api_auth, :oauth_write]
 
     patch "/accounts/update_credentials", AccountsController, :update_credentials
+    post "/markers", MarkersController, :create
+    post "/media", MediaController, :create
+    put "/media/:id", MediaController, :update
+    post "/statuses", StatusesController, :create
+    delete "/statuses/:id", StatusesController, :delete
+    post "/statuses/:id/favourite", StatusesController, :favourite
+    post "/statuses/:id/unfavourite", StatusesController, :unfavourite
+    post "/statuses/:id/reblog", StatusesController, :reblog
+    post "/statuses/:id/unreblog", StatusesController, :unreblog
+  end
+
+  scope "/api/v1", PleromaReduxWeb.MastodonAPI do
+    pipe_through [:api, :api_auth, :oauth_follow]
+
+    post "/follows", FollowsController, :create
+    post "/accounts/:id/follow", AccountsController, :follow
+    post "/accounts/:id/unfollow", AccountsController, :unfollow
+  end
+
+  scope "/api/v1", PleromaReduxWeb.MastodonAPI do
+    pipe_through [:api, :api_auth, :oauth_read]
+
     get "/accounts/verify_credentials", AccountsController, :verify_credentials
     get "/accounts/relationships", AccountsController, :relationships
     get "/timelines/home", TimelinesController, :home
@@ -69,20 +103,8 @@ defmodule PleromaReduxWeb.Router do
     get "/mutes", EmptyListController, :index
     get "/follow_requests", EmptyListController, :index
     get "/markers", MarkersController, :index
-    post "/markers", MarkersController, :create
-    post "/follows", FollowsController, :create
-    post "/accounts/:id/follow", AccountsController, :follow
-    post "/accounts/:id/unfollow", AccountsController, :unfollow
-    post "/media", MediaController, :create
-    put "/media/:id", MediaController, :update
-    post "/statuses", StatusesController, :create
     get "/statuses/:id/favourited_by", StatusesController, :favourited_by
     get "/statuses/:id/reblogged_by", StatusesController, :reblogged_by
-    delete "/statuses/:id", StatusesController, :delete
-    post "/statuses/:id/favourite", StatusesController, :favourite
-    post "/statuses/:id/unfavourite", StatusesController, :unfavourite
-    post "/statuses/:id/reblog", StatusesController, :reblog
-    post "/statuses/:id/unreblog", StatusesController, :unreblog
   end
 
   scope "/api/v1", PleromaReduxWeb.MastodonAPI do
@@ -109,17 +131,22 @@ defmodule PleromaReduxWeb.Router do
   end
 
   scope "/api/v2", PleromaReduxWeb.MastodonAPI do
-    pipe_through [:api, :api_auth]
+    pipe_through [:api, :api_auth, :oauth_write]
 
     post "/media", MediaController, :create
   end
 
   scope "/api/v1/pleroma", PleromaReduxWeb.PleromaAPI do
-    pipe_through [:api, :api_auth]
+    pipe_through [:api, :api_auth, :oauth_write]
 
-    get "/statuses/:id/reactions", EmojiReactionController, :index
     put "/statuses/:id/reactions/:emoji", EmojiReactionController, :create
     delete "/statuses/:id/reactions/:emoji", EmojiReactionController, :delete
+  end
+
+  scope "/api/v1/pleroma", PleromaReduxWeb.PleromaAPI do
+    pipe_through [:api, :api_auth, :oauth_read]
+
+    get "/statuses/:id/reactions", EmojiReactionController, :index
   end
 
   # Other scopes may use custom stacks.
