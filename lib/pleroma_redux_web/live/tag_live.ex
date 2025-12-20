@@ -24,16 +24,18 @@ defmodule PleromaReduxWeb.TagLive do
       |> String.trim()
       |> String.trim_leading("#")
 
-    posts = Objects.list_notes_by_hashtag(tag, limit: @page_size)
+    objects = Objects.list_notes_by_hashtag(tag, limit: @page_size)
 
     {:ok,
      socket
      |> assign(
        current_user: current_user,
-        notifications_count: notifications_count(current_user),
-        media_viewer: nil,
-        tag: tag,
-        posts: StatusVM.decorate_many(posts, current_user)
+       notifications_count: notifications_count(current_user),
+       media_viewer: nil,
+       tag: tag,
+       posts: StatusVM.decorate_many(objects, current_user),
+       posts_cursor: posts_cursor(objects),
+       posts_end?: length(objects) < @page_size
       )}
   end
 
@@ -55,7 +57,7 @@ defmodule PleromaReduxWeb.TagLive do
     with %User{} = user <- socket.assigns.current_user,
          {post_id, ""} <- Integer.parse(to_string(id)),
          {:ok, _activity} <- Interactions.toggle_like(user, post_id) do
-      {:noreply, reload_posts(socket)}
+      {:noreply, refresh_posts(socket)}
     else
       nil ->
         {:noreply, put_flash(socket, :error, "Register to like posts.")}
@@ -69,7 +71,7 @@ defmodule PleromaReduxWeb.TagLive do
     with %User{} = user <- socket.assigns.current_user,
          {post_id, ""} <- Integer.parse(to_string(id)),
          {:ok, _activity} <- Interactions.toggle_repost(user, post_id) do
-      {:noreply, reload_posts(socket)}
+      {:noreply, refresh_posts(socket)}
     else
       nil ->
         {:noreply, put_flash(socket, :error, "Register to repost.")}
@@ -84,12 +86,45 @@ defmodule PleromaReduxWeb.TagLive do
          {post_id, ""} <- Integer.parse(to_string(id)),
          emoji when is_binary(emoji) <- to_string(emoji),
          {:ok, _activity} <- Interactions.toggle_reaction(user, post_id, emoji) do
-      {:noreply, reload_posts(socket)}
+      {:noreply, refresh_posts(socket)}
     else
       nil ->
         {:noreply, put_flash(socket, :error, "Register to react.")}
 
       _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("load_more_posts", _params, socket) do
+    cursor = socket.assigns.posts_cursor
+
+    cond do
+      socket.assigns.posts_end? ->
+        {:noreply, socket}
+
+      is_nil(cursor) ->
+        {:noreply, assign(socket, posts_end?: true)}
+
+      true ->
+        objects =
+          Objects.list_notes_by_hashtag(socket.assigns.tag, limit: @page_size, max_id: cursor)
+
+        socket =
+          if objects == [] do
+            assign(socket, posts_end?: true)
+          else
+            new_cursor = posts_cursor(objects)
+            posts_end? = length(objects) < @page_size
+
+            posts =
+              socket.assigns.posts
+              |> Kernel.++(StatusVM.decorate_many(objects, socket.assigns.current_user))
+              |> Enum.uniq_by(& &1.object.id)
+
+            assign(socket, posts: posts, posts_cursor: new_cursor, posts_end?: posts_end?)
+          end
+
         {:noreply, socket}
     end
   end
@@ -144,6 +179,19 @@ defmodule PleromaReduxWeb.TagLive do
               current_user={@current_user}
             />
           </div>
+
+          <div :if={!@posts_end?} class="flex justify-center py-2">
+            <button
+              type="button"
+              data-role="tag-load-more"
+              phx-click="load_more_posts"
+              phx-disable-with="Loading..."
+              class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+              aria-label="Load more posts"
+            >
+              <.icon name="hero-chevron-down" class="size-4" /> Load more
+            </button>
+          </div>
         </section>
       </AppShell.app_shell>
 
@@ -160,9 +208,24 @@ defmodule PleromaReduxWeb.TagLive do
     |> length()
   end
 
-  defp reload_posts(socket) do
-    posts = Objects.list_notes_by_hashtag(socket.assigns.tag, limit: @page_size)
-    assign(socket, posts: StatusVM.decorate_many(posts, socket.assigns.current_user))
+  defp refresh_posts(socket) do
+    current_user = socket.assigns.current_user
+
+    posts =
+      Enum.map(socket.assigns.posts, fn entry ->
+        StatusVM.decorate(entry.object, current_user)
+      end)
+
+    assign(socket, posts: posts)
+  end
+
+  defp posts_cursor([]), do: nil
+
+  defp posts_cursor(posts) when is_list(posts) do
+    case List.last(posts) do
+      %{id: id} when is_integer(id) -> id
+      _ -> nil
+    end
   end
 
   defp timeline_href(%{id: _}), do: ~p"/?timeline=home"
