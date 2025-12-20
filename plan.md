@@ -179,6 +179,87 @@ Proposed interface:
 
 This ensures each activity lives in a single module file and reduces cross‑file churn.
 
+## Activity parsing via Ecto embedded schemas (refactor plan)
+Goal: move from ad‑hoc `normalize/validate` pattern matching toward **Pleroma‑old style embedded schemas** that (1) define canonical shapes, (2) perform normalization during casting, and (3) produce consistent errors — without losing Pleroma‑Redux’s “one file per activity type” goal.
+
+### Current state (Pleroma‑Redux)
+- Each activity module implements `normalize/1` and `validate/1` using pattern matching and guards.
+- Compatibility ingestion tests exist using real fixture payloads from `pleroma-old/test/fixtures` (`test/pleroma_redux/compat/pleroma_old_fixtures_test.exs`).
+- Normalization is duplicated across modules (e.g. inline `"actor": {"id": ...}` handling).
+
+### Reference (Pleroma‑old)
+- Central validator dispatch: `pleroma-old/lib/pleroma/web/activity_pub/object_validator.ex`
+- Per‑type embedded schema validators: `pleroma-old/lib/pleroma/web/activity_pub/object_validators/*_validator.ex`
+- Shared Ecto types + fixes: `pleroma-old/lib/pleroma/ecto_type/activity_pub/object_validators/*`
+
+### Target design (Redux)
+- Keep activity ownership: **each activity module remains the only file you edit** to add/modify that activity.
+- Add a single new “parsing entry point” per activity module:
+  - `cast_and_validate/1` → returns `{:ok, normalized_activity_map}` or `{:error, %Ecto.Changeset{}}`
+- Implement `cast_and_validate/1` via `embedded_schema` + changeset validations, using shared helper modules/types.
+- Keep the ingestion pipeline stable (same return values, same side‑effects), and migrate activity types incrementally.
+
+### Key decisions to make explicitly (before code moves)
+1) **ID strictness (ObjectIDs)**
+   - Pleroma‑old’s `ObjectID` requires `http/https` + host. Redux should likely be more permissive to avoid DNS‑lock (e.g. allow `did:`, `ap:`, `urn:` and future DHT‑style IDs).
+   - Recommendation: start with “non‑empty string” (optionally parseable URI) and evolve strictness behind a mockable boundary.
+2) **Preserve unknown keys**
+   - Pleroma‑old discards unknown keys during casting; Redux currently preserves most keys in `object.data`.
+   - Recommendation: keep the raw payload and overlay normalized canonical fields (e.g. normalized `"actor"`), so we don’t lose extensions/unknown fields while still enforcing the core schema.
+3) **Embedded objects in activities**
+   - `Create` and `Announce` commonly carry embedded objects.
+   - Recommendation: keep embedded objects in the validated map (so ingestion can recurse), but normalize *IDs* consistently and extract `object` IDs for DB columns.
+
+### Implementation plan (incremental, TDD‑first)
+1) **Introduce shared validator building blocks (small, testable)**
+   - Add `PleromaRedux.ActivityPub.ObjectValidators` helpers inspired by pleroma‑old:
+     - `CommonFields` (macros or functions for common AP fields)
+     - `CommonValidations` (actor/object presence, type inclusion, recipients shape)
+     - `Types.ObjectID` (casts `"id"` maps → ID strings; permissive schemes)
+     - `Types.Recipients` (casts string/map/list → normalized list of IDs)
+     - `Types.DateTime` (casts AP datetime strings → normalized ISO8601 string)
+   - Add unit tests for each type (casting edge‑cases pulled from real fixtures).
+
+2) **Add a “new parsing path” to the pipeline (without rewriting everything)**
+   - Update the pipeline to prefer `module.cast_and_validate/1` when exported, otherwise fall back to `normalize/validate`.
+   - Add a pipeline test proving old + new paths both work.
+
+3) **Migrate one activity type end‑to‑end (Follow first)**
+   - Convert `PleromaRedux.Activities.Follow` to use `embedded_schema` + `cast_and_validate/1`.
+   - Keep `normalize/validate` as thin wrappers (or remove after all migrations).
+   - Tests:
+     - Changeset unit tests for Follow shape rules.
+     - Compatibility test using `hubzilla-follow-activity.json` stays green.
+
+4) **Migrate core object types (Note) and Create**
+   - `Note`: validate content, `attributedTo/actor` normalization, addressing fields (`to/cc`), timestamps.
+   - `Create`: validate `object` is a map with `id/type`, normalize actor, and ensure address fields exist or can be derived.
+   - Tests:
+     - Schema tests for Note and Create derived from fixtures (`kroeg-post-activity.json`, plus additional Note fixtures as found).
+
+5) **Migrate “union” object fields (Accept/Announce/Undo/Delete)**
+   - Implement schema support for `object` being either an ID or an embedded object (validator types or explicit validations).
+   - Preserve embedded objects in `data` when needed for recursive ingestion.
+   - Tests:
+     - Extend fixture coverage by pulling more cases from `pleroma-old/test/fixtures` (especially nested Undo/Accept/Announce variants).
+
+6) **Migrate Like + EmojiReact**
+   - Normalize recipients, validate content rules for EmojiReact.
+   - Tests:
+     - Use existing fixture tests (`mastodon-like.json`, `emoji-reaction.json`) and add more variants if available.
+
+7) **Finalize + delete legacy parsing code**
+   - Once all activity types implement `cast_and_validate/1`, simplify the pipeline to use only that entry point.
+   - Standardize validation errors (HTTP 400 + machine‑readable reason for APIs; structured logs for federation).
+
+### Testing plan (fixtures + unit tests)
+- Keep `test/pleroma_redux/compat/pleroma_old_fixtures_test.exs` as the “real‑world smoke suite”.
+- Add per‑type changeset tests that:
+  - cover normalization (inline actor objects, nested `"id"` shapes),
+  - assert *minimal* required fields (TDD‑friendly; tighten later as features demand),
+  - and verify we preserve unknown keys when configured to do so.
+- When tests need future behaviour (e.g. actor lookup, auth), model it as a behaviour boundary and use Mox to assert calls, rather than encoding permissive behaviour in the core parser.
+
 ## Registry and contracts
 - Maintain a small **activity registry** mapping `type -> module` (explicit or auto‑discover via naming).
 - Enforce a strict `normalize → validate` contract to avoid drift between modules.
