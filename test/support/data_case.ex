@@ -20,6 +20,8 @@ defmodule PleromaRedux.DataCase do
     quote do
       alias PleromaRedux.Repo
 
+      use Oban.Testing, repo: PleromaRedux.Repo
+
       import Ecto
       import Ecto.Changeset
       import Ecto.Query

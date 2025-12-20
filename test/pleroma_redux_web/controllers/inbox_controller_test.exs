@@ -1,6 +1,5 @@
 defmodule PleromaReduxWeb.InboxControllerTest do
   use PleromaReduxWeb.ConnCase, async: true
-  use Oban.Testing, repo: PleromaRedux.Repo
 
   alias PleromaRedux.Objects
   alias PleromaRedux.Users

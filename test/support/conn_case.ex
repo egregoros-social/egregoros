@@ -24,6 +24,8 @@ defmodule PleromaReduxWeb.ConnCase do
 
       use PleromaReduxWeb, :verified_routes
 
+      use Oban.Testing, repo: PleromaRedux.Repo
+
       # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest

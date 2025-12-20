@@ -1,6 +1,5 @@
 defmodule PleromaReduxWeb.MastodonAPI.FollowsControllerTest do
   use PleromaReduxWeb.ConnCase, async: true
-  use Oban.Testing, repo: PleromaRedux.Repo
 
   import Mox
 

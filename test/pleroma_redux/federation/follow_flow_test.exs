@@ -1,6 +1,5 @@
 defmodule PleromaRedux.Federation.FollowFlowTest do
   use PleromaRedux.DataCase, async: true
-  use Oban.Testing, repo: PleromaRedux.Repo
 
   import Mox
 
