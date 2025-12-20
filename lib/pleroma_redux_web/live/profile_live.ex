@@ -46,6 +46,7 @@ defmodule PleromaReduxWeb.ProfileLive do
        current_user: current_user,
        profile_user: profile_user,
        notifications_count: notifications_count(current_user),
+       media_viewer: nil,
        follow_relationship: follow_relationship,
        posts_count: count_posts(profile_user),
        followers_count: count_followers(profile_user),
@@ -59,6 +60,15 @@ defmodule PleromaReduxWeb.ProfileLive do
   @impl true
   def handle_event("copied_link", _params, socket) do
     {:noreply, put_flash(socket, :info, "Copied link to clipboard.")}
+  end
+
+  def handle_event("open_media", %{} = params, socket) do
+    socket = MediaViewer.open(socket, params, socket.assigns.current_user)
+    {:noreply, socket}
+  end
+
+  def handle_event("close_media", _params, socket) do
+    {:noreply, MediaViewer.close(socket)}
   end
 
   def handle_event("follow", _params, socket) do
@@ -381,6 +391,8 @@ defmodule PleromaReduxWeb.ProfileLive do
           </section>
         <% end %>
       </AppShell.app_shell>
+
+      <MediaViewer.media_viewer :if={@media_viewer} viewer={@media_viewer} />
     </Layouts.app>
     """
   end

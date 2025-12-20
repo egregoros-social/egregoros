@@ -29,10 +29,25 @@ defmodule PleromaReduxWeb.TagLive do
      socket
      |> assign(
        current_user: current_user,
-       notifications_count: notifications_count(current_user),
-       tag: tag,
-       posts: StatusVM.decorate_many(posts, current_user)
-     )}
+        notifications_count: notifications_count(current_user),
+        media_viewer: nil,
+        tag: tag,
+        posts: StatusVM.decorate_many(posts, current_user)
+      )}
+  end
+
+  @impl true
+  def handle_event("copied_link", _params, socket) do
+    {:noreply, put_flash(socket, :info, "Copied link to clipboard.")}
+  end
+
+  def handle_event("open_media", %{} = params, socket) do
+    socket = MediaViewer.open(socket, params, socket.assigns.current_user)
+    {:noreply, socket}
+  end
+
+  def handle_event("close_media", _params, socket) do
+    {:noreply, MediaViewer.close(socket)}
   end
 
   @impl true
@@ -87,6 +102,8 @@ defmodule PleromaReduxWeb.TagLive do
           </div>
         </section>
       </AppShell.app_shell>
+
+      <MediaViewer.media_viewer :if={@media_viewer} viewer={@media_viewer} />
     </Layouts.app>
     """
   end
@@ -102,4 +119,3 @@ defmodule PleromaReduxWeb.TagLive do
   defp timeline_href(%{id: _}), do: ~p"/?timeline=home"
   defp timeline_href(_user), do: ~p"/?timeline=public"
 end
-

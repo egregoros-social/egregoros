@@ -525,4 +525,42 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     assert has_element?(view, "article", "Buffered post")
     refute has_element?(view, "button[data-role='new-posts']")
   end
+
+  test "clicking an image attachment opens a media viewer", %{conn: conn} do
+    assert {:ok, note} =
+             Pipeline.ingest(
+               %{
+                 "id" => "https://remote.example/objects/with-image",
+                 "type" => "Note",
+                 "attributedTo" => "https://remote.example/users/bob",
+                 "content" => "<p>Hello</p>",
+                 "attachment" => [
+                   %{
+                     "type" => "Document",
+                     "mediaType" => "image/png",
+                     "name" => "Alt",
+                     "url" => "https://cdn.example/image.png"
+                   }
+                 ]
+               },
+               local: false
+             )
+
+    {:ok, view, _html} = live(conn, "/?timeline=public")
+
+    refute has_element?(view, "[data-role='media-viewer']")
+
+    view
+    |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
+    |> render_click()
+
+    assert has_element?(view, "[data-role='media-viewer']")
+    assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/image.png']")
+
+    view
+    |> element("button[data-role='media-viewer-close']")
+    |> render_click()
+
+    refute has_element?(view, "[data-role='media-viewer']")
+  end
 end

@@ -55,6 +55,7 @@ defmodule PleromaReduxWeb.TimelineLive do
         following: list_following(current_user),
         pending_posts: [],
         timeline_at_top?: true,
+        media_viewer: nil,
         form: form,
         follow_form: follow_form,
         media_alt: %{},
@@ -150,6 +151,15 @@ defmodule PleromaReduxWeb.TimelineLive do
 
   def handle_event("copied_link", _params, socket) do
     {:noreply, put_flash(socket, :info, "Copied link to clipboard.")}
+  end
+
+  def handle_event("open_media", %{} = params, socket) do
+    socket = MediaViewer.open(socket, params, socket.assigns.current_user)
+    {:noreply, socket}
+  end
+
+  def handle_event("close_media", _params, socket) do
+    {:noreply, MediaViewer.close(socket)}
   end
 
   def handle_event("cancel_media", %{"ref" => ref}, socket) do
@@ -923,6 +933,8 @@ defmodule PleromaReduxWeb.TimelineLive do
           <.icon name="hero-pencil-square" class="size-6" />
         </button>
       </AppShell.app_shell>
+
+      <MediaViewer.media_viewer :if={@media_viewer} viewer={@media_viewer} />
     </Layouts.app>
     """
   end

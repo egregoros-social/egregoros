@@ -105,10 +105,10 @@ defmodule PleromaReduxWeb.StatusCard do
         class="mt-4 grid gap-3 sm:grid-cols-2"
       >
         <div
-          :for={attachment <- @entry.attachments}
+          :for={{attachment, index} <- Enum.with_index(@entry.attachments)}
           class="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm shadow-slate-200/20 dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40"
         >
-          <.attachment_media attachment={attachment} />
+          <.attachment_media attachment={attachment} post_id={@entry.object.id} index={index} />
         </div>
       </div>
 
@@ -331,19 +331,32 @@ defmodule PleromaReduxWeb.StatusCard do
   end
 
   attr :attachment, :map, required: true
+  attr :post_id, :any, required: true
+  attr :index, :integer, required: true
 
   defp attachment_media(assigns) do
     ~H"""
     <%= case attachment_kind(@attachment) do %>
       <% :image -> %>
-        <img
-          data-role="attachment"
-          data-kind="image"
-          src={@attachment.href}
-          alt={@attachment.description}
-          class="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-          loading="lazy"
-        />
+        <button
+          type="button"
+          data-role="attachment-open"
+          data-index={@index}
+          phx-click="open_media"
+          phx-value-id={@post_id}
+          phx-value-index={@index}
+          class="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          aria-label={attachment_label(@attachment, "Open image")}
+        >
+          <img
+            data-role="attachment"
+            data-kind="image"
+            src={@attachment.href}
+            alt={@attachment.description}
+            class="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+            loading="lazy"
+          />
+        </button>
       <% :video -> %>
         <video
           data-role="attachment"

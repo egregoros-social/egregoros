@@ -91,6 +91,7 @@ defmodule PleromaReduxWeb do
       alias Phoenix.LiveView.JS
       alias PleromaReduxWeb.AppShell
       alias PleromaReduxWeb.Layouts
+      alias PleromaReduxWeb.MediaViewer
       alias PleromaReduxWeb.StatusCard
 
       # Routes generation with the ~p sigil
