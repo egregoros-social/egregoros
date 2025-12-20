@@ -512,7 +512,7 @@ defmodule PleromaReduxWeb.TimelineLive do
                         Attachments
                       </p>
                       <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        PNG, JPG, GIF, WEBP — up to 10MB
+                        PNG, JPG, GIF, WEBP, HEIC — up to 10MB
                       </p>
                     </div>
 
