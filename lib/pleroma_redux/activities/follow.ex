@@ -1,4 +1,11 @@
 defmodule PleromaRedux.Activities.Follow do
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.ObjectID
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.Recipients
+  alias PleromaRedux.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias PleromaRedux.Activities.Accept
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
@@ -8,6 +15,17 @@ defmodule PleromaRedux.Activities.Follow do
   alias PleromaReduxWeb.Endpoint
 
   def type, do: "Follow"
+
+  @primary_key false
+  embedded_schema do
+    field :id, ObjectID
+    field :type, :string
+    field :actor, ObjectID
+    field :object, ObjectID
+    field :to, Recipients
+    field :cc, Recipients
+    field :published, APDateTime
+  end
 
   def build(%User{ap_id: actor}, %User{ap_id: object}) do
     build(actor, object)
@@ -26,15 +44,32 @@ defmodule PleromaRedux.Activities.Follow do
 
   def normalize(%{"type" => "Follow"} = activity) do
     activity
-    |> normalize_actor()
-    |> normalize_object()
   end
 
   def normalize(_), do: nil
 
-  def validate(%{"id" => id, "type" => "Follow", "actor" => actor, "object" => object} = activity)
-      when is_binary(id) and is_binary(actor) and is_binary(object) do
-    {:ok, activity}
+  def cast_and_validate(activity) when is_map(activity) do
+    changeset =
+      %__MODULE__{}
+      |> cast(activity, __schema__(:fields))
+      |> validate_required([:id, :type, :actor, :object])
+      |> validate_inclusion(:type, [type()])
+
+    case apply_action(changeset, :insert) do
+      {:ok, %__MODULE__{} = follow} ->
+        {:ok, apply_follow(activity, follow)}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  def validate(activity) when is_map(activity) do
+    case cast_and_validate(activity) do
+      {:ok, validated} -> {:ok, validated}
+      {:error, %Ecto.Changeset{}} -> {:error, :invalid}
+      {:error, _} = error -> error
+    end
   end
 
   def validate(_), do: {:error, :invalid}
@@ -94,17 +129,19 @@ defmodule PleromaRedux.Activities.Follow do
     }
   end
 
-  defp normalize_actor(%{"actor" => %{"id" => id}} = activity) when is_binary(id) do
-    Map.put(activity, "actor", id)
+  defp apply_follow(activity, %__MODULE__{} = follow) do
+    activity
+    |> Map.put("id", follow.id)
+    |> Map.put("type", follow.type)
+    |> Map.put("actor", follow.actor)
+    |> Map.put("object", follow.object)
+    |> maybe_put("to", follow.to)
+    |> maybe_put("cc", follow.cc)
+    |> maybe_put("published", follow.published)
   end
 
-  defp normalize_actor(activity), do: activity
-
-  defp normalize_object(%{"object" => %{"id" => id}} = activity) when is_binary(id) do
-    Map.put(activity, "object", id)
-  end
-
-  defp normalize_object(activity), do: activity
+  defp maybe_put(activity, _key, nil), do: activity
+  defp maybe_put(activity, key, value), do: Map.put(activity, key, value)
 
   defp parse_datetime(nil), do: nil
 
