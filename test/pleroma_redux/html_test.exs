@@ -112,5 +112,21 @@ defmodule PleromaRedux.HTMLTest do
       assert safe =~ "<p>ok</p>"
       refute safe =~ "<script"
     end
+
+    test "doesn't double-escape existing entities when converting to html" do
+      safe = HTML.to_safe_html("there&#39;s", format: :html)
+      assert safe =~ "there&#39;s"
+      refute safe =~ "there&amp;#39;s"
+
+      safe = HTML.to_safe_html("there&apos;s", format: :html)
+      assert safe =~ "there&#39;s"
+      refute safe =~ "there&amp;apos;"
+    end
+
+    test "preserves text like <3 when entities are present" do
+      safe = HTML.to_safe_html("I&#39;m <3", format: :html)
+      assert safe =~ "I&#39;m"
+      assert safe =~ "&lt;3"
+    end
   end
 end
