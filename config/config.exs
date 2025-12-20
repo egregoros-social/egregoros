@@ -81,7 +81,10 @@ config :phoenix, :json_library, Jason
 
 config :mime, :types, %{
   "application/activity+json" => ["json"],
-  "application/ld+json" => ["json"]
+  "application/ld+json" => ["json"],
+  "audio/mp4" => ["m4a"],
+  "audio/ogg" => ["ogg"],
+  "audio/opus" => ["opus"]
 }
 
 config :mime, :extensions, %{
