@@ -77,7 +77,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 |---|---:|---|
 | Safe HTML rendering (sanitized) | DONE | Rendering uses safe HTML pipeline. |
 | Local text rendering | DONE | Local posts render as text. |
-| Linkify mentions/hashtags for local content | PARTIAL | `@user` and `@user@host` linkified in local text; hashtags still TODO. |
+| Linkify mentions/hashtags for local content | PARTIAL | `@user`, `@user@host`, and `#tags` linkified in local text; remote tags still depend on incoming HTML. |
 | Emoji reactions UI | DONE | Limited emoji set; improve UX (picker/custom emoji). |
 | Like / unlike | DONE | |
 | Repost / unrepost | DONE | |
@@ -123,7 +123,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 |---|---:|---|
 | Search box (global) | TODO | Accounts + statuses + hashtags. |
 | Account lookup by `@user@host` | TODO | Separate from “follow by handle” workflow. |
-| Hashtag pages | TODO | |
+| Hashtag pages | PARTIAL | Tag timeline exists (`/tags/:tag`) using content search; needs pagination + tag extraction from `tag` fields. |
 | Explore / trending | TODO | |
 | User directory | TODO | |
 
