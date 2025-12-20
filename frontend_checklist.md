@@ -50,7 +50,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | “New posts” indicator when scrolled | DONE | Timeline buffers incoming posts while scrolled down and shows a “new posts” button. |
 | Human‑friendly timestamps (“5m”, “2h”) | DONE | Rendered as relative time with a full timestamp on hover. |
 | Status permalink page (single post view) | PARTIAL | LiveView route `/@:nickname/:uuid` exists; needs polish (error states, canonical redirects). |
-| Thread/context view (replies chain) | PARTIAL | Renders basic ancestors + descendants on the status page; needs better nesting + reply entrypoint. |
+| Thread/context view (replies chain) | PARTIAL | Renders basic ancestors + descendants on the status page; needs better nesting + reply polish. |
 | Clickable actor profile from timeline | DONE | Status cards link actor → profile. |
 | Link handling (open external safely, copy link) | PARTIAL | Status menu supports “Copy link” + “Open link”; needs richer share affordances. |
 
@@ -66,7 +66,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Content warning / spoiler text | DONE | Composer “Content warning” field exists. |
 | Mark media as sensitive | DONE | Composer “Mark media as sensitive” toggle exists. |
 | Visibility selector (public/unlisted/followers/direct) | DONE | Composer visibility select exists. |
-| Reply composer (in‑reply‑to) | TODO | Compose from status card. |
+| Reply composer (in‑reply‑to) | PARTIAL | Reply composer exists on the status permalink page; needs inline reply flows + full media support. |
 | Quote post | TODO | Optional; not in vanilla Mastodon but common. |
 | Drafts | TODO | Often requested; can be lightweight (local storage). |
 | Polls | TODO | Mastodon‑style polls (optional). |
@@ -81,7 +81,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Emoji reactions UI | DONE | Limited emoji set; improve UX (picker/custom emoji). |
 | Like / unlike | DONE | |
 | Repost / unrepost | DONE | |
-| Reply action | TODO | Requires reply compose + thread view. |
+| Reply action | PARTIAL | Reply links to the status page (local permalinks); remote reply UX still TODO. |
 | Bookmark action | TODO | |
 | Delete own post | TODO | |
 | Edit own post | TODO | (Optional; Mastodon doesn’t support editing by default.) |
