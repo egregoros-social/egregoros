@@ -53,6 +53,8 @@ defmodule PleromaReduxWeb.TimelineLive do
         follow_error: nil,
         follow_success: nil,
         following: list_following(current_user),
+        pending_posts: [],
+        timeline_at_top?: true,
         form: form,
         follow_form: follow_form,
         media_alt: %{},
@@ -101,6 +103,8 @@ defmodule PleromaReduxWeb.TimelineLive do
         socket
         |> assign(
           timeline: timeline,
+          pending_posts: [],
+          timeline_at_top?: true,
           posts_cursor: posts_cursor(posts),
           posts_end?: length(posts) < @page_size
         )
@@ -131,6 +135,17 @@ defmodule PleromaReduxWeb.TimelineLive do
 
   def handle_event("close_compose", _params, socket) do
     {:noreply, assign(socket, compose_open?: false)}
+  end
+
+  def handle_event("timeline_at_top", %{"at_top" => at_top}, socket) do
+    at_top? = truthy?(at_top)
+
+    socket =
+      socket
+      |> assign(:timeline_at_top?, at_top?)
+      |> maybe_flush_pending_posts(at_top?)
+
+    {:noreply, socket}
   end
 
   def handle_event("cancel_media", %{"ref" => ref}, socket) do
@@ -407,16 +422,25 @@ defmodule PleromaReduxWeb.TimelineLive do
   @impl true
   def handle_info({:post_created, post}, socket) do
     if include_post?(post, socket.assigns.timeline, socket.assigns.home_actor_ids) do
-      cursor =
-        case socket.assigns.posts_cursor do
-          nil -> post.id
-          existing -> min(existing, post.id)
-        end
+      if socket.assigns.timeline_at_top? do
+        cursor =
+          case socket.assigns.posts_cursor do
+            nil -> post.id
+            existing -> min(existing, post.id)
+          end
 
-      {:noreply,
-       socket
-       |> stream_insert(:posts, StatusVM.decorate(post, socket.assigns.current_user), at: 0)
-       |> assign(:posts_cursor, cursor)}
+        {:noreply,
+         socket
+         |> stream_insert(:posts, StatusVM.decorate(post, socket.assigns.current_user), at: 0)
+         |> assign(:posts_cursor, cursor)}
+      else
+        pending_posts =
+          [post | socket.assigns.pending_posts]
+          |> Enum.uniq_by(& &1.id)
+          |> Enum.take(50)
+
+        {:noreply, assign(socket, pending_posts: pending_posts)}
+      end
     else
       {:noreply, socket}
     end
@@ -779,6 +803,14 @@ defmodule PleromaReduxWeb.TimelineLive do
         </:aside>
 
         <section class="space-y-4">
+          <div
+            id="timeline-top-sentinel"
+            phx-hook="TimelineTopSentinel"
+            class="h-px w-px"
+            aria-hidden="true"
+          >
+          </div>
+
           <div class="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/80 p-5 shadow-lg shadow-slate-200/20 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 class="font-display text-xl text-slate-900 dark:text-slate-100">Timeline</h2>
@@ -822,6 +854,20 @@ defmodule PleromaReduxWeb.TimelineLive do
               </.link>
             </div>
           </div>
+
+          <% pending_count = length(@pending_posts) %>
+
+          <button
+            :if={pending_count > 0 and !@timeline_at_top?}
+            type="button"
+            data-role="new-posts"
+            phx-click={JS.dispatch("predux:scroll-top")}
+            class="sticky top-4 z-30 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-6 py-3 text-sm font-semibold text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/70 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+            aria-label="Scroll to new posts"
+          >
+            <.icon name="hero-arrow-up" class="size-4" />
+            {new_posts_label(pending_count)}
+          </button>
 
           <div id="timeline-posts" phx-update="stream" class="space-y-4">
             <div
@@ -985,6 +1031,49 @@ defmodule PleromaReduxWeb.TimelineLive do
     |> Notifications.list_for_user(limit: 20)
     |> length()
   end
+
+  defp truthy?(value) do
+    case value do
+      true -> true
+      1 -> true
+      "1" -> true
+      "true" -> true
+      _ -> false
+    end
+  end
+
+  defp maybe_flush_pending_posts(socket, true) do
+    pending_posts = socket.assigns.pending_posts
+
+    if pending_posts == [] do
+      assign(socket, pending_posts: [])
+    else
+      current_user = socket.assigns.current_user
+
+      {socket, cursor} =
+        Enum.reduce(Enum.reverse(pending_posts), {socket, socket.assigns.posts_cursor}, fn post,
+                                                                                        {socket, cursor} ->
+          socket = stream_insert(socket, :posts, StatusVM.decorate(post, current_user), at: 0)
+
+          cursor =
+            case cursor do
+              nil -> post.id
+              existing -> min(existing, post.id)
+            end
+
+          {socket, cursor}
+        end)
+
+      socket
+      |> assign(pending_posts: [], posts_cursor: cursor)
+    end
+  end
+
+  defp maybe_flush_pending_posts(socket, _at_top?), do: socket
+
+  defp new_posts_label(count) when is_integer(count) and count == 1, do: "1 new post"
+  defp new_posts_label(count) when is_integer(count) and count > 1, do: "#{count} new posts"
+  defp new_posts_label(_count), do: "New posts"
 
   defp refresh_post(socket, post_id) when is_integer(post_id) do
     current_user = socket.assigns.current_user

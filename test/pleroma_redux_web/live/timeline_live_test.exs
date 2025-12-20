@@ -504,4 +504,25 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
              "0"
            )
   end
+
+  test "timeline buffers new posts when the user is not at the top", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    refute has_element?(view, "button[data-role='new-posts']")
+
+    render_hook(view, "timeline_at_top", %{"at_top" => false})
+
+    assert {:ok, _post} = Pipeline.ingest(Note.build(user, "Buffered post"), local: true)
+    _ = :sys.get_state(view.pid)
+
+    refute has_element?(view, "article", "Buffered post")
+    assert has_element?(view, "button[data-role='new-posts']")
+
+    render_hook(view, "timeline_at_top", %{"at_top" => true})
+    _ = :sys.get_state(view.pid)
+
+    assert has_element?(view, "article", "Buffered post")
+    refute has_element?(view, "button[data-role='new-posts']")
+  end
 end
