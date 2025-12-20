@@ -69,6 +69,14 @@ defmodule PleromaReduxWeb.ProfileLive do
     {:noreply, MediaViewer.close(socket)}
   end
 
+  def handle_event("media_next", _params, socket) do
+    {:noreply, MediaViewer.next(socket)}
+  end
+
+  def handle_event("media_prev", _params, socket) do
+    {:noreply, MediaViewer.prev(socket)}
+  end
+
   def handle_event("follow", _params, socket) do
     with %User{} = viewer <- socket.assigns.current_user,
          %User{} = profile_user <- socket.assigns.profile_user,

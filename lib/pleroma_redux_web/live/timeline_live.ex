@@ -160,6 +160,14 @@ defmodule PleromaReduxWeb.TimelineLive do
     {:noreply, MediaViewer.close(socket)}
   end
 
+  def handle_event("media_next", _params, socket) do
+    {:noreply, MediaViewer.next(socket)}
+  end
+
+  def handle_event("media_prev", _params, socket) do
+    {:noreply, MediaViewer.prev(socket)}
+  end
+
   def handle_event("cancel_media", %{"ref" => ref}, socket) do
     {:noreply,
      socket

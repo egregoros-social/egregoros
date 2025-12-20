@@ -563,4 +563,51 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     refute has_element?(view, "[data-role='media-viewer']")
   end
+
+  test "media viewer can navigate between image attachments", %{conn: conn} do
+    assert {:ok, note} =
+             Pipeline.ingest(
+               %{
+                 "id" => "https://remote.example/objects/with-images",
+                 "type" => "Note",
+                 "attributedTo" => "https://remote.example/users/bob",
+                 "content" => "<p>Hello</p>",
+                 "attachment" => [
+                   %{
+                     "type" => "Document",
+                     "mediaType" => "image/png",
+                     "name" => "One",
+                     "url" => "https://cdn.example/one.png"
+                   },
+                   %{
+                     "type" => "Document",
+                     "mediaType" => "image/png",
+                     "name" => "Two",
+                     "url" => "https://cdn.example/two.png"
+                   }
+                 ]
+               },
+               local: false
+             )
+
+    {:ok, view, _html} = live(conn, "/?timeline=public")
+
+    view
+    |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
+    |> render_click()
+
+    assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/one.png']")
+
+    view
+    |> element("button[data-role='media-viewer-next']")
+    |> render_click()
+
+    assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/two.png']")
+
+    view
+    |> element("button[data-role='media-viewer-prev']")
+    |> render_click()
+
+    assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/one.png']")
+  end
 end
