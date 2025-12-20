@@ -44,14 +44,21 @@ defmodule PleromaRedux.Activities.Note do
     note =
       note
       |> normalize_actor()
+      |> Map.put_new("content", "")
       |> trim_content()
+
+    has_attachments? =
+      note
+      |> Map.get("attachment")
+      |> List.wrap()
+      |> Enum.any?(&is_map/1)
 
     changeset =
       %__MODULE__{}
       |> cast(note, __schema__(:fields))
-      |> validate_required([:id, :type, :actor, :content])
+      |> validate_required([:id, :type, :actor])
       |> validate_inclusion(:type, [type()])
-      |> validate_length(:content, min: 1)
+      |> validate_content(has_attachments?)
 
     case apply_action(changeset, :insert) do
       {:ok, %__MODULE__{} = validated_note} ->
@@ -90,7 +97,7 @@ defmodule PleromaRedux.Activities.Note do
     |> Map.put("id", validated_note.id)
     |> Map.put("type", validated_note.type)
     |> Map.put("actor", validated_note.actor)
-    |> Map.put("content", validated_note.content)
+    |> Map.put("content", validated_note.content || Map.get(note, "content", ""))
     |> maybe_put("to", validated_note.to)
     |> maybe_put("cc", validated_note.cc)
     |> maybe_put("published", validated_note.published)
@@ -109,6 +116,14 @@ defmodule PleromaRedux.Activities.Note do
   end
 
   defp trim_content(note), do: note
+
+  defp validate_content(%Ecto.Changeset{} = changeset, true), do: changeset
+
+  defp validate_content(%Ecto.Changeset{} = changeset, false) do
+    changeset
+    |> validate_required([:content])
+    |> validate_length(:content, min: 1)
+  end
 
   defp maybe_put(note, _key, nil), do: note
   defp maybe_put(note, key, value), do: Map.put(note, key, value)

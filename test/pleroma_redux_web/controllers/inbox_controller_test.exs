@@ -48,6 +48,64 @@ defmodule PleromaReduxWeb.InboxControllerTest do
     assert Objects.get_by_ap_id(note["id"])
   end
 
+  test "POST /users/:nickname/inbox accepts a Create with attachments and blank content", %{
+    conn: conn
+  } do
+    {:ok, _user} = Users.create_local_user("frank")
+    {public_key, private_key} = PleromaRedux.Keys.generate_rsa_keypair()
+
+    {:ok, _} =
+      Users.create_user(%{
+        nickname: "alice",
+        ap_id: "https://remote.example/users/alice",
+        inbox: "https://remote.example/users/alice/inbox",
+        outbox: "https://remote.example/users/alice/outbox",
+        public_key: public_key,
+        private_key: private_key,
+        local: false
+      })
+
+    note = %{
+      "id" => "https://remote.example/objects/1-attachment-only",
+      "type" => "Note",
+      "attributedTo" => "https://remote.example/users/alice",
+      "content" => "",
+      "attachment" => [
+        %{
+          "type" => "Document",
+          "mediaType" => "image/webp",
+          "url" => "https://cdn.remote.example/media/1.webp",
+          "name" => ""
+        }
+      ]
+    }
+
+    create = %{
+      "id" => "https://remote.example/activities/create/1-attachment-only",
+      "type" => "Create",
+      "actor" => "https://remote.example/users/alice",
+      "object" => note
+    }
+
+    conn =
+      conn
+      |> sign_request(
+        "post",
+        "/users/frank/inbox",
+        private_key,
+        "https://remote.example/users/alice#main-key"
+      )
+      |> post("/users/frank/inbox", create)
+
+    assert response(conn, 202)
+
+    object = Objects.get_by_ap_id(note["id"])
+    assert object
+    assert object.data["content"] == ""
+    assert is_list(object.data["attachment"])
+    assert Enum.at(object.data["attachment"], 0)["url"] == "https://cdn.remote.example/media/1.webp"
+  end
+
   test "POST /users/:nickname/inbox accepts signature with digest and host", %{conn: conn} do
     {:ok, _user} = Users.create_local_user("frank")
     {public_key, private_key} = PleromaRedux.Keys.generate_rsa_keypair()
