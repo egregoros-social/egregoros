@@ -130,6 +130,7 @@ Goal: default UI that is pleasant and opinionated.
 - Phoenix LiveView with a minimal layout.
 - Tailwind config + simple light/dark themes.
 - UI wired to the same API projections.
+- Detailed roadmap: see `ui_plan.md`.
 
 **Deliverables**
 - UI tests for key flows (view timeline, create post, react, follow).
