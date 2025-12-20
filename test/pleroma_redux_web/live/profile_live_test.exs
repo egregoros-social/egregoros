@@ -63,4 +63,16 @@ defmodule PleromaReduxWeb.ProfileLiveTest do
 
     assert has_element?(view, "#post-#{oldest.id}")
   end
+
+  test "profile stats link to followers and following pages", %{
+    conn: conn,
+    viewer: viewer,
+    profile_user: profile_user
+  } do
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
+
+    assert has_element?(view, "a[href='/@#{profile_user.nickname}/followers']")
+    assert has_element?(view, "a[href='/@#{profile_user.nickname}/following']")
+  end
 end

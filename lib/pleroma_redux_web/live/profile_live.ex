@@ -308,8 +308,20 @@ defmodule PleromaReduxWeb.ProfileLive do
 
                 <div class="mt-6 grid grid-cols-3 gap-3 sm:max-w-md">
                   <.stat value={@posts_count} label="Posts" />
-                  <.stat value={@followers_count} label="Followers" />
-                  <.stat value={@following_count} label="Following" />
+
+                  <.link
+                    navigate={~p"/@#{@profile_user.nickname}/followers"}
+                    class="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  >
+                    <.stat value={@followers_count} label="Followers" />
+                  </.link>
+
+                  <.link
+                    navigate={~p"/@#{@profile_user.nickname}/following"}
+                    class="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  >
+                    <.stat value={@following_count} label="Following" />
+                  </.link>
                 </div>
               </div>
             </.card>
