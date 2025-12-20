@@ -110,4 +110,3 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocketTest do
     assert inner["status"] == nil
   end
 end
-

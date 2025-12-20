@@ -65,7 +65,10 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocket do
     end
   end
 
-  def handle_info({:notification_created, %Object{} = activity}, %{current_user: %User{} = user} = state) do
+  def handle_info(
+        {:notification_created, %Object{} = activity},
+        %{current_user: %User{} = user} = state
+      ) do
     notification_json =
       activity
       |> NotificationRenderer.render_notification(user)

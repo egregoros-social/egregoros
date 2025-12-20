@@ -68,4 +68,3 @@ defmodule PleromaReduxWeb.MastodonAPI.NotificationRenderer do
 
   defp format_datetime(_), do: DateTime.utc_now() |> DateTime.to_iso8601()
 end
-

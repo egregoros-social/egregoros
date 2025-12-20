@@ -52,6 +52,7 @@ defmodule PleromaRedux.NotificationsPubSubTest do
         local: true
       )
 
-    assert_receive {:notification_created, %{type: "Like", actor: ^bob_ap_id, object: ^object_ap_id}}
+    assert_receive {:notification_created,
+                    %{type: "Like", actor: ^bob_ap_id, object: ^object_ap_id}}
   end
 end

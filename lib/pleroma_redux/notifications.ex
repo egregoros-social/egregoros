@@ -13,7 +13,11 @@ defmodule PleromaRedux.Notifications do
   end
 
   def broadcast(user_ap_id, %Object{} = activity) when is_binary(user_ap_id) do
-    Phoenix.PubSub.broadcast(PleromaRedux.PubSub, topic(user_ap_id), {:notification_created, activity})
+    Phoenix.PubSub.broadcast(
+      PleromaRedux.PubSub,
+      topic(user_ap_id),
+      {:notification_created, activity}
+    )
   end
 
   def list_for_user(user, opts \\ [])

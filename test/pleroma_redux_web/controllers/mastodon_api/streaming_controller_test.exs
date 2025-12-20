@@ -6,7 +6,11 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingControllerTest do
   defp with_websocket_headers(conn) do
     %Plug.Conn{} = conn
 
-    conn = %{conn | host: "example.com", req_headers: [{"host", "example.com"} | conn.req_headers]}
+    conn = %{
+      conn
+      | host: "example.com",
+        req_headers: [{"host", "example.com"} | conn.req_headers]
+    }
 
     conn
     |> put_req_header("connection", "Upgrade")

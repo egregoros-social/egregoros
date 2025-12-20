@@ -520,8 +520,7 @@ defmodule PleromaReduxWeb.TimelineLive do
                       data-role="compose-add-photo"
                       class="relative inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
                     >
-                      <.icon name="hero-photo" class="size-4" />
-                      Add photo
+                      <.icon name="hero-photo" class="size-4" /> Add photo
                       <.live_file_input
                         upload={@uploads.media}
                         id="media-input"

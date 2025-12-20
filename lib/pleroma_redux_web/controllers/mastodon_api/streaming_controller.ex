@@ -12,7 +12,10 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingController do
 
     with :ok <- validate_streams(streams),
          {:ok, current_user} <- maybe_require_auth(conn, streams) do
-      WebSockAdapter.upgrade(conn, StreamingSocket, %{streams: streams, current_user: current_user},
+      WebSockAdapter.upgrade(
+        conn,
+        StreamingSocket,
+        %{streams: streams, current_user: current_user},
         timeout: 120_000
       )
     else
@@ -75,4 +78,3 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingController do
     end
   end
 end
-
