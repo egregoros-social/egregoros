@@ -10,6 +10,7 @@ defmodule PleromaRedux.Application do
     children = [
       PleromaReduxWeb.Telemetry,
       PleromaRedux.Repo,
+      {Oban, Application.fetch_env!(:pleroma_redux, Oban)},
       {DNSCluster, query: Application.get_env(:pleroma_redux, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: PleromaRedux.PubSub},
       # Start a worker by calling: PleromaRedux.Worker.start_link(arg)
