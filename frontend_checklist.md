@@ -49,8 +49,8 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Streaming new posts into timeline | DONE | Live updates exist for timeline. |
 | “New posts” indicator when scrolled | TODO | Prevents disrupting reading when live updates arrive. |
 | Human‑friendly timestamps (“5m”, “2h”) | DONE | Rendered as relative time with a full timestamp on hover. |
-| Status permalink page (single post view) | TODO | Needed for sharing, thread navigation, and deep links. |
-| Thread/context view (replies chain) | TODO | Mastodon “context” equivalent in UI. |
+| Status permalink page (single post view) | PARTIAL | LiveView route `/@:nickname/:uuid` exists; needs polish (error states, canonical redirects). |
+| Thread/context view (replies chain) | PARTIAL | Renders basic ancestors + descendants on the status page; needs better nesting + reply entrypoint. |
 | Clickable actor profile from timeline | DONE | Status cards link actor → profile. |
 | Link handling (open external safely, copy link) | TODO | UI affordances for sharing/copying/opening. |
 
