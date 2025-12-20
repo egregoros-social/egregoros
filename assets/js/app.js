@@ -25,11 +25,37 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pleroma_redux"
 import topbar from "../vendor/topbar"
 
+const TimelineTopSentinel = {
+  mounted() {
+    this.lastAtTop = null
+    this.observer = new IntersectionObserver(entries => {
+      const entry = entries[0]
+      if (!entry) return
+
+      const atTop = entry.isIntersecting
+      if (this.lastAtTop === atTop) return
+
+      this.lastAtTop = atTop
+      this.pushEvent("timeline_at_top", {at_top: atTop})
+    })
+
+    this.observer.observe(this.el)
+  },
+
+  destroyed() {
+    if (this.observer) this.observer.disconnect()
+  },
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, TimelineTopSentinel},
+})
+
+window.addEventListener("predux:scroll-top", () => {
+  window.scrollTo({top: 0, behavior: "smooth"})
 })
 
 // Show progress bar on live navigation and form submits
@@ -80,4 +106,3 @@ if (process.env.NODE_ENV === "development") {
     window.liveReloader = reloader
   })
 }
-
