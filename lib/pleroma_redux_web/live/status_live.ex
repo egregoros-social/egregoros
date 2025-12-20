@@ -1,9 +1,15 @@
 defmodule PleromaReduxWeb.StatusLive do
   use PleromaReduxWeb, :live_view
 
+  alias PleromaRedux.Activities.Announce
+  alias PleromaRedux.Activities.EmojiReact
+  alias PleromaRedux.Activities.Like
+  alias PleromaRedux.Activities.Undo
   alias PleromaRedux.Notifications
   alias PleromaRedux.Objects
+  alias PleromaRedux.Pipeline
   alias PleromaRedux.Publish
+  alias PleromaRedux.Relationships
   alias PleromaRedux.User
   alias PleromaRedux.Users
   alias PleromaReduxWeb.Endpoint
@@ -64,6 +70,86 @@ defmodule PleromaReduxWeb.StatusLive do
 
   def handle_event("close_media", _params, socket) do
     {:noreply, MediaViewer.close(socket)}
+  end
+
+  def handle_event("toggle_like", %{"id" => id}, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         {post_id, ""} <- Integer.parse(to_string(id)),
+         %{} = post <- Objects.get(post_id),
+         true <- post.type == "Note" do
+      if Relationships.get_by_type_actor_object("Like", user.ap_id, post.ap_id) do
+        case Relationships.get_by_type_actor_object("Like", user.ap_id, post.ap_id) do
+          %{} = relationship ->
+            Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
+
+          _ ->
+            {:error, :not_found}
+        end
+      else
+        Pipeline.ingest(Like.build(user, post), local: true)
+      end
+
+      {:noreply, refresh_thread(socket)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to like posts.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_repost", %{"id" => id}, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         {post_id, ""} <- Integer.parse(to_string(id)),
+         %{} = post <- Objects.get(post_id),
+         true <- post.type == "Note" do
+      if Relationships.get_by_type_actor_object("Announce", user.ap_id, post.ap_id) do
+        case Relationships.get_by_type_actor_object("Announce", user.ap_id, post.ap_id) do
+          %{} = relationship ->
+            Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
+
+          _ ->
+            {:error, :not_found}
+        end
+      else
+        Pipeline.ingest(Announce.build(user, post), local: true)
+      end
+
+      {:noreply, refresh_thread(socket)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to repost.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_reaction", %{"id" => id, "emoji" => emoji}, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         {post_id, ""} <- Integer.parse(to_string(id)),
+         %{} = post <- Objects.get(post_id),
+         true <- post.type == "Note" do
+      emoji = to_string(emoji)
+      relationship_type = "EmojiReact:" <> emoji
+
+      case Relationships.get_by_type_actor_object(relationship_type, user.ap_id, post.ap_id) do
+        %{} = relationship ->
+          Pipeline.ingest(Undo.build(user, relationship.activity_ap_id), local: true)
+
+        nil ->
+          Pipeline.ingest(EmojiReact.build(user, post, emoji), local: true)
+      end
+
+      {:noreply, refresh_thread(socket)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to react.")}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("open_reply", _params, socket) do
@@ -271,6 +357,23 @@ defmodule PleromaReduxWeb.StatusLive do
     user
     |> Notifications.list_for_user(limit: 20)
     |> length()
+  end
+
+  defp refresh_thread(socket) do
+    current_user = socket.assigns.current_user
+
+    case socket.assigns.status do
+      %{object: %{type: "Note"} = note} ->
+        socket
+        |> assign(
+          status: StatusVM.decorate(note, current_user),
+          ancestors: note |> Objects.thread_ancestors() |> StatusVM.decorate_many(current_user),
+          descendants: note |> Objects.thread_descendants() |> StatusVM.decorate_many(current_user)
+        )
+
+      _ ->
+        socket
+    end
   end
 
   defp truthy?(value) do
