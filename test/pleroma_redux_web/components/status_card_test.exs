@@ -41,6 +41,75 @@ defmodule PleromaReduxWeb.StatusCardTest do
     assert html =~ ~s(data-role="reaction")
   end
 
+  test "renders video attachments with a video tag" do
+    html =
+      render_component(&StatusCard.status_card/1, %{
+        id: "post-1",
+        current_user: %{id: 1},
+        entry: %{
+          object: %{
+            id: 1,
+            inserted_at: ~U[2025-01-01 00:00:00Z],
+            local: false,
+            data: %{"content" => "<p>Hello</p>"}
+          },
+          actor: %{
+            display_name: "Alice",
+            handle: "@alice",
+            avatar_url: nil
+          },
+          attachments: [
+            %{href: "/uploads/media/1/video.mp4", description: "", media_type: "video/mp4"}
+          ],
+          liked?: false,
+          likes_count: 0,
+          reposted?: false,
+          reposts_count: 0,
+          reactions: %{}
+        }
+      })
+
+    assert html =~ "<video"
+    assert html =~ ~s(src="/uploads/media/1/video.mp4")
+    assert html =~ ~s(type="video/mp4")
+  end
+
+  test "renders non-media attachments as links" do
+    html =
+      render_component(&StatusCard.status_card/1, %{
+        id: "post-1",
+        current_user: %{id: 1},
+        entry: %{
+          object: %{
+            id: 1,
+            inserted_at: ~U[2025-01-01 00:00:00Z],
+            local: false,
+            data: %{"content" => "<p>Hello</p>"}
+          },
+          actor: %{
+            display_name: "Alice",
+            handle: "@alice",
+            avatar_url: nil
+          },
+          attachments: [
+            %{
+              href: "/uploads/media/1/file.pdf",
+              description: "PDF",
+              media_type: "application/pdf"
+            }
+          ],
+          liked?: false,
+          likes_count: 0,
+          reposted?: false,
+          reposts_count: 0,
+          reactions: %{}
+        }
+      })
+
+    assert html =~ ~s(data-kind="link")
+    assert html =~ ~s(href="/uploads/media/1/file.pdf")
+  end
+
   test "hides actions for signed-out visitors" do
     html =
       render_component(&StatusCard.status_card/1, %{

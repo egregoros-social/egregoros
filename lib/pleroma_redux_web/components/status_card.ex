@@ -72,13 +72,7 @@ defmodule PleromaReduxWeb.StatusCard do
               :for={attachment <- @entry.attachments}
               class="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm shadow-slate-200/20 dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40"
             >
-              <img
-                data-role="attachment"
-                src={attachment.href}
-                alt={attachment.description}
-                class="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                loading="lazy"
-              />
+              <.attachment_media attachment={attachment} />
             </div>
           </div>
         </div>
@@ -204,4 +198,130 @@ defmodule PleromaReduxWeb.StatusCard do
   end
 
   defp avatar_initial(_), do: "?"
+
+  attr :attachment, :map, required: true
+
+  defp attachment_media(assigns) do
+    ~H"""
+    <%= case attachment_kind(@attachment) do %>
+      <% :image -> %>
+        <img
+          data-role="attachment"
+          data-kind="image"
+          src={@attachment.href}
+          alt={@attachment.description}
+          class="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+          loading="lazy"
+        />
+      <% :video -> %>
+        <video
+          data-role="attachment"
+          data-kind="video"
+          class="h-44 w-full bg-black object-cover transition duration-300 group-hover:scale-[1.02]"
+          controls
+          preload="metadata"
+          playsinline
+          aria-label={attachment_label(@attachment, "Video attachment")}
+        >
+          <source src={@attachment.href} type={attachment_source_type(@attachment, "video/mp4")} />
+        </video>
+      <% :audio -> %>
+        <div class="flex h-44 w-full items-center px-4">
+          <audio
+            data-role="attachment"
+            data-kind="audio"
+            controls
+            class="w-full"
+            preload="metadata"
+            aria-label={attachment_label(@attachment, "Audio attachment")}
+          >
+            <source src={@attachment.href} type={attachment_source_type(@attachment, "audio/mpeg")} />
+          </audio>
+        </div>
+      <% :link -> %>
+        <a
+          data-role="attachment"
+          data-kind="link"
+          href={@attachment.href}
+          target="_blank"
+          rel="noreferrer noopener"
+          class="flex h-44 w-full items-center justify-center gap-3 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50/80 dark:text-slate-200 dark:hover:bg-white/5"
+          title={attachment_link_label(@attachment)}
+        >
+          <.icon name="hero-arrow-down-tray" class="size-5 text-slate-500 dark:text-slate-400" />
+          <span class="truncate">{attachment_link_label(@attachment)}</span>
+        </a>
+    <% end %>
+    """
+  end
+
+  defp attachment_kind(%{media_type: media_type})
+       when is_binary(media_type) and media_type != "" do
+    cond do
+      String.starts_with?(media_type, "image/") -> :image
+      String.starts_with?(media_type, "video/") -> :video
+      String.starts_with?(media_type, "audio/") -> :audio
+      true -> :link
+    end
+  end
+
+  defp attachment_kind(%{href: href}) when is_binary(href) and href != "" do
+    ext =
+      href
+      |> URI.parse()
+      |> then(fn
+        %URI{path: path} when is_binary(path) -> Path.extname(path)
+        _ -> Path.extname(href)
+      end)
+      |> String.downcase()
+
+    cond do
+      ext in ~w(.apng .avif .bmp .gif .heic .heif .jpeg .jpg .png .svg .webp) -> :image
+      ext in ~w(.m4v .mov .mp4 .ogv .webm) -> :video
+      ext in ~w(.aac .flac .m4a .mp3 .ogg .opus .wav) -> :audio
+      true -> :link
+    end
+  end
+
+  defp attachment_kind(_), do: :link
+
+  defp attachment_source_type(%{media_type: media_type}, _fallback)
+       when is_binary(media_type) and media_type != "" do
+    media_type
+  end
+
+  defp attachment_source_type(_attachment, fallback), do: fallback
+
+  defp attachment_label(%{description: description}, fallback) when is_binary(description) do
+    description = String.trim(description)
+    if description == "", do: fallback, else: description
+  end
+
+  defp attachment_label(_attachment, fallback), do: fallback
+
+  defp attachment_link_label(%{description: description} = attachment)
+       when is_binary(description) do
+    description = String.trim(description)
+    if description == "", do: attachment_filename(attachment), else: description
+  end
+
+  defp attachment_link_label(attachment), do: attachment_filename(attachment)
+
+  defp attachment_filename(%{href: href}) when is_binary(href) and href != "" do
+    case URI.parse(href) do
+      %URI{path: path} when is_binary(path) and path != "" ->
+        path
+        |> String.split("/", trim: true)
+        |> List.last()
+        |> case do
+          nil -> href
+          value -> value
+        end
+
+      _ ->
+        href
+    end
+  end
+
+  defp attachment_filename(_), do: "Attachment"
 end
