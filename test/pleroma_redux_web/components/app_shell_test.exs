@@ -20,6 +20,7 @@ defmodule PleromaReduxWeb.AppShellTest do
 
     assert html =~ ~s(id="app-shell")
     assert html =~ ~s(id="app-nav")
+    assert html =~ ~s(data-role="app-shell-search")
     assert html =~ ~s(data-role="nav-timeline")
     assert html =~ ~s(data-role="nav-search")
     assert html =~ ~s(data-role="nav-notifications")
@@ -40,6 +41,7 @@ defmodule PleromaReduxWeb.AppShellTest do
         inner_block: [%{inner_block: fn _, _ -> "Main content" end}]
       })
 
+    assert html =~ ~s(data-role="app-shell-search")
     assert html =~ ~s(data-role="nav-timeline")
     assert html =~ ~s(data-role="nav-search")
     assert html =~ ~s(data-role="nav-login")

@@ -66,72 +66,92 @@ defmodule PleromaReduxWeb.AppShell do
               </p>
             <% end %>
 
-            <div class="mt-4 space-y-2">
-              <.nav_link
-                role="nav-timeline"
-                active={@active == :timeline}
-                icon="hero-home"
-                label="Timeline"
-                navigate={timeline_href(@current_user)}
-              />
+            <div class="mt-4 space-y-3">
+              <form
+                data-role="app-shell-search"
+                action={~p"/search"}
+                method="get"
+                class="rounded-2xl border border-slate-200/80 bg-white/70 px-3 py-2 shadow-sm shadow-slate-200/20 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/50 dark:shadow-slate-900/40"
+              >
+                <div class="flex items-center gap-2">
+                  <.icon name="hero-magnifying-glass" class="size-4 text-slate-400" />
+                  <input
+                    type="search"
+                    name="q"
+                    aria-label="Search"
+                    placeholder="Search"
+                    class="w-full border-0 bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                </div>
+              </form>
 
-              <.nav_link
-                role="nav-search"
-                active={@active == :search}
-                icon="hero-magnifying-glass"
-                label="Search"
-                navigate={~p"/search"}
-              />
-
-              <%= if @current_user do %>
+              <div class="space-y-2">
                 <.nav_link
-                  role="nav-notifications"
-                  active={@active == :notifications}
-                  icon="hero-bell"
-                  label="Notifications"
-                  navigate={~p"/notifications"}
-                >
-                  <span
-                    :if={@notifications_count > 0}
-                    data-role="nav-notifications-count"
-                    class="ml-auto inline-flex items-center rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white"
+                  role="nav-timeline"
+                  active={@active == :timeline}
+                  icon="hero-home"
+                  label="Timeline"
+                  navigate={timeline_href(@current_user)}
+                />
+
+                <.nav_link
+                  role="nav-search"
+                  active={@active == :search}
+                  icon="hero-magnifying-glass"
+                  label="Search"
+                  navigate={~p"/search"}
+                />
+
+                <%= if @current_user do %>
+                  <.nav_link
+                    role="nav-notifications"
+                    active={@active == :notifications}
+                    icon="hero-bell"
+                    label="Notifications"
+                    navigate={~p"/notifications"}
                   >
-                    {@notifications_count}
-                  </span>
-                </.nav_link>
+                    <span
+                      :if={@notifications_count > 0}
+                      data-role="nav-notifications-count"
+                      class="ml-auto inline-flex items-center rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white"
+                    >
+                      {@notifications_count}
+                    </span>
+                  </.nav_link>
 
-                <.nav_link
-                  role="nav-profile"
-                  active={@active == :profile}
-                  icon="hero-user-circle"
-                  label="Profile"
-                  navigate={profile_href(@current_user)}
-                />
+                  <.nav_link
+                    role="nav-profile"
+                    active={@active == :profile}
+                    icon="hero-user-circle"
+                    label="Profile"
+                    navigate={profile_href(@current_user)}
+                  />
 
-                <.nav_link
-                  role="nav-settings"
-                  active={@active == :settings}
-                  icon="hero-cog-6-tooth"
-                  label="Settings"
-                  navigate={~p"/settings"}
-                />
-              <% else %>
-                <.nav_link
-                  role="nav-login"
-                  active={false}
-                  icon="hero-arrow-right-on-rectangle"
-                  label="Login"
-                  navigate={~p"/login"}
-                />
+                  <.nav_link
+                    role="nav-settings"
+                    active={@active == :settings}
+                    icon="hero-cog-6-tooth"
+                    label="Settings"
+                    navigate={~p"/settings"}
+                  />
+                <% else %>
+                  <.nav_link
+                    role="nav-login"
+                    active={false}
+                    icon="hero-arrow-right-on-rectangle"
+                    label="Login"
+                    navigate={~p"/login"}
+                  />
 
-                <.nav_link
-                  role="nav-register"
-                  active={false}
-                  icon="hero-user-plus"
-                  label="Register"
-                  navigate={~p"/register"}
-                />
-              <% end %>
+                  <.nav_link
+                    role="nav-register"
+                    active={false}
+                    icon="hero-user-plus"
+                    label="Register"
+                    navigate={~p"/register"}
+                  />
+                <% end %>
+              </div>
             </div>
           </.card>
         </nav>
