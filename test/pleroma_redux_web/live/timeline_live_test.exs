@@ -567,6 +567,78 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     refute has_element?(view, "[data-role='media-viewer']")
   end
 
+  test "media viewer renders video attachments", %{conn: conn} do
+    assert {:ok, note} =
+             Pipeline.ingest(
+               %{
+                 "id" => "https://remote.example/objects/with-video-viewer",
+                 "type" => "Note",
+                 "attributedTo" => "https://remote.example/users/bob",
+                 "content" => "<p>Hello</p>",
+                 "attachment" => [
+                   %{
+                     "type" => "Document",
+                     "mediaType" => "video/mp4",
+                     "name" => "Clip",
+                     "url" => "https://cdn.example/clip.mp4"
+                   }
+                 ]
+               },
+               local: false
+             )
+
+    {:ok, view, _html} = live(conn, "/?timeline=public")
+
+    refute has_element?(view, "[data-role='media-viewer']")
+
+    view
+    |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
+    |> render_click()
+
+    assert has_element?(view, "[data-role='media-viewer'] video[data-role='media-viewer-item']")
+
+    assert has_element?(
+             view,
+             "[data-role='media-viewer'] source[src='https://cdn.example/clip.mp4']"
+           )
+  end
+
+  test "media viewer renders audio attachments", %{conn: conn} do
+    assert {:ok, note} =
+             Pipeline.ingest(
+               %{
+                 "id" => "https://remote.example/objects/with-audio-viewer",
+                 "type" => "Note",
+                 "attributedTo" => "https://remote.example/users/bob",
+                 "content" => "<p>Hello</p>",
+                 "attachment" => [
+                   %{
+                     "type" => "Document",
+                     "mediaType" => "audio/ogg",
+                     "name" => "Audio",
+                     "url" => "https://cdn.example/clip.ogg"
+                   }
+                 ]
+               },
+               local: false
+             )
+
+    {:ok, view, _html} = live(conn, "/?timeline=public")
+
+    refute has_element?(view, "[data-role='media-viewer']")
+
+    view
+    |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
+    |> render_click()
+
+    assert has_element?(view, "[data-role='media-viewer'] audio[data-role='media-viewer-item']")
+
+    assert has_element?(
+             view,
+             "[data-role='media-viewer'] source[src='https://cdn.example/clip.ogg']"
+           )
+  end
+
   test "media viewer closes on escape", %{conn: conn} do
     assert {:ok, note} =
              Pipeline.ingest(

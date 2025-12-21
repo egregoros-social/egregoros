@@ -2,6 +2,7 @@ defmodule PleromaReduxWeb.MediaViewer do
   use PleromaReduxWeb, :html
 
   alias PleromaRedux.Objects
+  alias PleromaReduxWeb.Attachments
   alias PleromaReduxWeb.ViewModels.Status, as: StatusVM
 
   def open(socket, %{"id" => id, "index" => index}, current_user) do
@@ -10,7 +11,7 @@ defmodule PleromaReduxWeb.MediaViewer do
          %{} = post <- Objects.get(post_id) do
       entry = StatusVM.decorate(post, current_user)
 
-      {items, selected_index} = image_items(entry.attachments, index)
+      {items, selected_index} = media_items(entry.attachments, index)
 
       case Enum.at(items, selected_index) do
         %{href: href} when is_binary(href) and href != "" ->
@@ -113,13 +114,41 @@ defmodule PleromaReduxWeb.MediaViewer do
           <.icon name="hero-chevron-right" class="size-5" />
         </button>
 
-        <img
-          :if={@item}
-          src={@item.href}
-          alt={Map.get(@item, :description, "")}
-          class="max-h-[85vh] w-full object-contain"
-          loading="lazy"
-        />
+        <%= if @item do %>
+          <%= case Attachments.kind(@item) do %>
+            <% :video -> %>
+              <video
+                data-role="media-viewer-item"
+                controls
+                preload="metadata"
+                playsinline
+                class="max-h-[85vh] w-full bg-black"
+                aria-label={Map.get(@item, :description, "Video attachment")}
+              >
+                <source src={@item.href} type={Attachments.source_type(@item, "video/mp4")} />
+              </video>
+            <% :audio -> %>
+              <div class="flex max-h-[85vh] w-full items-center justify-center bg-black/90 px-6 py-10">
+                <audio
+                  data-role="media-viewer-item"
+                  controls
+                  preload="metadata"
+                  class="w-full"
+                  aria-label={Map.get(@item, :description, "Audio attachment")}
+                >
+                  <source src={@item.href} type={Attachments.source_type(@item, "audio/mpeg")} />
+                </audio>
+              </div>
+            <% _ -> %>
+              <img
+                data-role="media-viewer-item"
+                src={@item.href}
+                alt={Map.get(@item, :description, "")}
+                class="max-h-[85vh] w-full object-contain"
+                loading="lazy"
+              />
+          <% end %>
+        <% end %>
       </.focus_wrap>
     </div>
     """
@@ -140,16 +169,17 @@ defmodule PleromaReduxWeb.MediaViewer do
 
   defp bump_index(socket, _delta), do: socket
 
-  defp image_items(attachments, selected_index) when is_list(attachments) and is_integer(selected_index) do
-    images =
+  defp media_items(attachments, selected_index)
+       when is_list(attachments) and is_integer(selected_index) do
+    media =
       attachments
       |> Enum.with_index()
-      |> Enum.filter(fn {attachment, _index} -> image_attachment?(attachment) end)
+      |> Enum.filter(fn {attachment, _index} -> Attachments.media?(attachment) end)
 
-    items = Enum.map(images, &elem(&1, 0))
+    items = Enum.map(media, &elem(&1, 0))
 
     selected_index =
-      case Enum.find_index(images, fn {_attachment, original_index} -> original_index == selected_index end) do
+      case Enum.find_index(media, fn {_attachment, original_index} -> original_index == selected_index end) do
         nil -> 0
         index -> index
       end
@@ -157,25 +187,5 @@ defmodule PleromaReduxWeb.MediaViewer do
     {items, selected_index}
   end
 
-  defp image_items(_attachments, _selected_index), do: {[], 0}
-
-  defp image_attachment?(%{media_type: media_type})
-       when is_binary(media_type) and media_type != "" do
-    String.starts_with?(media_type, "image/")
-  end
-
-  defp image_attachment?(%{href: href}) when is_binary(href) and href != "" do
-    ext =
-      href
-      |> URI.parse()
-      |> then(fn
-        %URI{path: path} when is_binary(path) -> Path.extname(path)
-        _ -> Path.extname(href)
-      end)
-      |> String.downcase()
-
-    ext in ~w(.apng .avif .bmp .gif .heic .heif .jpeg .jpg .png .svg .webp)
-  end
-
-  defp image_attachment?(_attachment), do: false
+  defp media_items(_attachments, _selected_index), do: {[], 0}
 end

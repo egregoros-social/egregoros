@@ -532,7 +532,7 @@ defmodule PleromaReduxWeb.StatusCard do
 
   defp attachment_media(assigns) do
     ~H"""
-    <%= case attachment_kind(@attachment) do %>
+    <%= case PleromaReduxWeb.Attachments.kind(@attachment) do %>
       <% :image -> %>
         <button
           type="button"
@@ -554,19 +554,37 @@ defmodule PleromaReduxWeb.StatusCard do
           />
         </button>
       <% :video -> %>
-        <video
-          data-role="attachment"
-          data-kind="video"
-          class="h-44 w-full bg-black object-cover transition duration-300 group-hover:scale-[1.02]"
-          controls
-          preload="metadata"
-          playsinline
-          aria-label={attachment_label(@attachment, "Video attachment")}
-        >
-          <source src={@attachment.href} type={attachment_source_type(@attachment, "video/mp4")} />
-        </video>
+        <div class="group relative">
+          <video
+            data-role="attachment"
+            data-kind="video"
+            class="h-44 w-full bg-black object-cover transition duration-300 group-hover:scale-[1.02]"
+            controls
+            preload="metadata"
+            playsinline
+            aria-label={attachment_label(@attachment, "Video attachment")}
+          >
+            <source
+              src={@attachment.href}
+              type={PleromaReduxWeb.Attachments.source_type(@attachment, "video/mp4")}
+            />
+          </video>
+
+          <button
+            type="button"
+            data-role="attachment-open"
+            data-index={@index}
+            phx-click="open_media"
+            phx-value-id={@post_id}
+            phx-value-index={@index}
+            class="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            aria-label={attachment_label(@attachment, "Open video")}
+          >
+            <.icon name="hero-arrows-pointing-out" class="size-4" />
+          </button>
+        </div>
       <% :audio -> %>
-        <div class="flex h-44 w-full items-center px-4">
+        <div class="group relative flex h-44 w-full items-center px-4">
           <audio
             data-role="attachment"
             data-kind="audio"
@@ -575,8 +593,24 @@ defmodule PleromaReduxWeb.StatusCard do
             preload="metadata"
             aria-label={attachment_label(@attachment, "Audio attachment")}
           >
-            <source src={@attachment.href} type={attachment_source_type(@attachment, "audio/mpeg")} />
+            <source
+              src={@attachment.href}
+              type={PleromaReduxWeb.Attachments.source_type(@attachment, "audio/mpeg")}
+            />
           </audio>
+
+          <button
+            type="button"
+            data-role="attachment-open"
+            data-index={@index}
+            phx-click="open_media"
+            phx-value-id={@post_id}
+            phx-value-index={@index}
+            class="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            aria-label={attachment_label(@attachment, "Open audio")}
+          >
+            <.icon name="hero-arrows-pointing-out" class="size-4" />
+          </button>
         </div>
       <% :link -> %>
         <a
@@ -594,56 +628,6 @@ defmodule PleromaReduxWeb.StatusCard do
     <% end %>
     """
   end
-
-  defp attachment_kind(%{media_type: media_type} = attachment)
-       when is_binary(media_type) and media_type != "" do
-    media_kind =
-      cond do
-        String.starts_with?(media_type, "video/") -> :video
-        String.starts_with?(media_type, "audio/") -> :audio
-        String.starts_with?(media_type, "image/") -> :image
-        true -> :link
-      end
-
-    ext_kind =
-      case Map.get(attachment, :href) do
-        href when is_binary(href) and href != "" -> attachment_kind(%{href: href})
-        _ -> :link
-      end
-
-    cond do
-      media_kind == :link and ext_kind != :link -> ext_kind
-      media_kind == :image and ext_kind in [:video, :audio] -> ext_kind
-      true -> media_kind
-    end
-  end
-
-  defp attachment_kind(%{href: href}) when is_binary(href) and href != "" do
-    ext =
-      href
-      |> URI.parse()
-      |> then(fn
-        %URI{path: path} when is_binary(path) -> Path.extname(path)
-        _ -> Path.extname(href)
-      end)
-      |> String.downcase()
-
-    cond do
-      ext in ~w(.apng .avif .bmp .gif .heic .heif .jpeg .jpg .png .svg .webp) -> :image
-      ext in ~w(.m4v .mov .mp4 .ogv .webm) -> :video
-      ext in ~w(.aac .flac .m4a .mp3 .ogg .opus .wav) -> :audio
-      true -> :link
-    end
-  end
-
-  defp attachment_kind(_), do: :link
-
-  defp attachment_source_type(%{media_type: media_type}, _fallback)
-       when is_binary(media_type) and media_type != "" do
-    media_type
-  end
-
-  defp attachment_source_type(_attachment, fallback), do: fallback
 
   defp attachment_label(%{description: description}, fallback) when is_binary(description) do
     description = String.trim(description)
