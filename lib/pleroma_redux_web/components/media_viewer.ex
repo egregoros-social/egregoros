@@ -54,6 +54,7 @@ defmodule PleromaReduxWeb.MediaViewer do
   end
 
   attr :viewer, :map, required: true
+  attr :open, :boolean, default: true
 
   def media_viewer(assigns) do
     items = Map.get(assigns.viewer, :items, [])
@@ -69,17 +70,17 @@ defmodule PleromaReduxWeb.MediaViewer do
     <div
       id="media-viewer"
       data-role="media-viewer"
+      data-state={if @open, do: "open", else: "closed"}
       data-index={@index}
       data-count={@item_count}
       role="dialog"
       aria-modal="true"
-      phx-mounted={
-        JS.push_focus()
-        |> JS.focus(to: "#media-viewer [data-role='media-viewer-close']")
-      }
-      phx-remove={JS.pop_focus()}
+      aria-hidden={if @open, do: "false", else: "true"}
       phx-hook="MediaViewer"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur"
+      class={[
+        "fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur",
+        !@open && "hidden"
+      ]}
     >
       <.focus_wrap
         id="media-viewer-dialog"
@@ -130,7 +131,7 @@ defmodule PleromaReduxWeb.MediaViewer do
           <.icon name="hero-chevron-right" class="size-5" />
         </button>
 
-        <div class="relative">
+        <div data-role="media-viewer-slides" class="relative">
           <div
             :for={{item, idx} <- Enum.with_index(@items)}
             data-role="media-viewer-slide"

@@ -161,7 +161,7 @@ defmodule PleromaReduxWeb.ProfileLiveTest do
     |> element("#post-#{object.id} button[data-role='attachment-open'][data-index='0']")
     |> render_click()
 
-    assert has_element?(view, "#media-viewer[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='open']")
 
     assert has_element?(
              view,
@@ -190,7 +190,7 @@ defmodule PleromaReduxWeb.ProfileLiveTest do
     |> element("#media-viewer [data-role='media-viewer-close']")
     |> render_click()
 
-    refute has_element?(view, "#media-viewer[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='closed']")
   end
 
   test "profile allows deleting your own posts", %{conn: conn, viewer: viewer} do

@@ -286,7 +286,7 @@ defmodule PleromaReduxWeb.StatusLiveTest do
     |> element("#post-#{object.id} button[data-role='attachment-open'][data-index='0']")
     |> render_click()
 
-    assert has_element?(view, "#media-viewer[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='open']")
 
     assert has_element?(
              view,
@@ -313,7 +313,7 @@ defmodule PleromaReduxWeb.StatusLiveTest do
 
     _html = render_keydown(view, "media_keydown", %{"key" => "Escape"})
 
-    refute has_element?(view, "#media-viewer[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='closed']")
   end
 
   test "signed-in users can open and close the reply composer and changes persist", %{

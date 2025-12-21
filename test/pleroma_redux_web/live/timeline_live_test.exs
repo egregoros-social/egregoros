@@ -648,15 +648,18 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     {:ok, view, _html} = live(conn, "/?timeline=public")
 
-    refute has_element?(view, "[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='closed']")
 
     view
     |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
     |> render_click()
 
-    assert has_element?(view, "[data-role='media-viewer']")
-    assert has_element?(view, "#media-viewer")
-    assert has_element?(view, "#media-viewer-dialog[phx-hook='Phoenix.FocusWrap']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='open']")
+
+    assert has_element?(
+             view,
+             "#media-viewer[data-state='open'] #media-viewer-dialog[phx-hook='Phoenix.FocusWrap']"
+           )
 
     assert has_element?(
              view,
@@ -667,7 +670,7 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     |> element("button[data-role='media-viewer-close']")
     |> render_click()
 
-    refute has_element?(view, "[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='closed']")
   end
 
   test "media viewer renders video attachments", %{conn: conn} do
@@ -692,7 +695,7 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     {:ok, view, _html} = live(conn, "/?timeline=public")
 
-    refute has_element?(view, "[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='closed']")
 
     view
     |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
@@ -731,7 +734,7 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     {:ok, view, _html} = live(conn, "/?timeline=public")
 
-    refute has_element?(view, "[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='closed']")
 
     view
     |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
@@ -774,11 +777,11 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
     |> render_click()
 
-    assert has_element?(view, "[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='open']")
 
     _html = render_keydown(view, "media_keydown", %{"key" => "Escape"})
 
-    refute has_element?(view, "[data-role='media-viewer']")
+    assert has_element?(view, "#media-viewer[data-role='media-viewer'][data-state='closed']")
   end
 
   test "media viewer can navigate between image attachments", %{conn: conn} do

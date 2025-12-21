@@ -1103,7 +1103,10 @@ defmodule PleromaReduxWeb.TimelineLive do
         </button>
       </AppShell.app_shell>
 
-      <MediaViewer.media_viewer :if={@media_viewer} viewer={@media_viewer} />
+      <MediaViewer.media_viewer
+        viewer={@media_viewer || %{items: [], index: 0}}
+        open={@media_viewer != nil}
+      />
     </Layouts.app>
     """
   end

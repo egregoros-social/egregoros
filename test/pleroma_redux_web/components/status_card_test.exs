@@ -171,7 +171,9 @@ defmodule PleromaReduxWeb.StatusCardTest do
       })
 
     assert html =~ ~s(data-role="attachment-open")
-    assert html =~ ~s(phx-click="open_media")
+    assert html =~ ~s(predux:media-open)
+    assert html =~ ~s(open_media)
+    assert html =~ ~s(#media-viewer)
     assert html =~ ~s(phx-value-id="1")
     assert html =~ ~s(phx-value-index="0")
   end
