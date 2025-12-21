@@ -54,6 +54,44 @@ defmodule PleromaRedux.HTMLTest do
       assert scrubbed =~ "noreferrer"
     end
 
+    test "does not duplicate required rel values (case-insensitive)" do
+      html = "<a href=\"https://example.com\" rel=\"NOFOLLOW noopener\">x</a>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert [_, rel] = Regex.run(~r/rel="([^"]+)"/, scrubbed)
+
+      tokens =
+        rel
+        |> String.split(~r/\s+/, trim: true)
+        |> Enum.map(&String.downcase/1)
+
+      assert Enum.uniq(tokens) == tokens
+      assert "nofollow" in tokens
+      assert "noopener" in tokens
+      assert "noreferrer" in tokens
+    end
+
+    test "preserves allowed attributes on links" do
+      html = "<a href=\"https://example.com\" class=\"mention\" title=\"hello\">x</a>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ ~s(class="mention")
+      assert scrubbed =~ ~s(title="hello")
+    end
+
+    test "only allows safe target values on links" do
+      html = "<a href=\"https://example.com\" target=\"_blank\">x</a>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ ~s(target="_blank")
+
+      scrubbed = HTML.sanitize("<a href=\"https://example.com\" target=\"evil\">x</a>")
+      refute scrubbed =~ ~s(target="evil")
+    end
+
     test "removes disallowed tags like iframe" do
       html = "<p>ok</p><iframe src=\"https://evil.example/\"></iframe>"
 
