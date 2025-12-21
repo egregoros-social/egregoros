@@ -173,10 +173,13 @@ const ComposeCharCounter = {
     if (!this.submitButton || !this.submitButton.isConnected) return
 
     const contentBlank = !String(this.el.value || "").trim()
-    const hasMedia = form.querySelector("[data-role='media-entry']") !== null
-    const hasUploadError = form.querySelector("[data-role='upload-error']") !== null
+    const hasMedia = form.querySelector("[data-role='media-entry'], [data-role='reply-media-entry']") !== null
+    const hasUploadError =
+      form.querySelector("[data-role='upload-error'], [data-role='reply-upload-error']") !== null
 
-    const uploadPending = Array.from(form.querySelectorAll("[data-role='media-progress']")).some(node => {
+    const uploadPending = Array.from(
+      form.querySelectorAll("[data-role='media-progress'], [data-role='reply-media-progress']")
+    ).some(node => {
       const pct = parseInt(node.textContent || "0", 10)
       return Number.isFinite(pct) && pct < 100
     })

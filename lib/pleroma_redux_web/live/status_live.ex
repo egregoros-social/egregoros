@@ -13,6 +13,8 @@ defmodule PleromaReduxWeb.StatusLive do
   alias PleromaReduxWeb.ProfilePaths
   alias PleromaReduxWeb.ViewModels.Status, as: StatusVM
 
+  @reply_max_chars 5000
+
   @impl true
   def mount(%{"nickname" => nickname, "uuid" => uuid} = params, session, socket) do
     current_user =
@@ -360,6 +362,10 @@ defmodule PleromaReduxWeb.StatusLive do
                   type="textarea"
                   label="Your reply"
                   placeholder="Write a reply…"
+                  data-role="compose-content"
+                  data-max-chars={reply_max_chars()}
+                  phx-hook="ComposeCharCounter"
+                  phx-debounce="blur"
                   class="min-h-28"
                 />
 
@@ -483,11 +489,24 @@ defmodule PleromaReduxWeb.StatusLive do
                   </p>
                 </section>
 
-                <div class="flex items-center justify-end gap-3">
+                <div class="flex items-center justify-between gap-3">
+                  <span
+                    data-role="compose-char-counter"
+                    class={[
+                      "tabular-nums text-sm font-semibold",
+                      reply_remaining_chars(@reply_form) < 0 && "text-rose-600 dark:text-rose-400",
+                      reply_remaining_chars(@reply_form) >= 0 && "text-slate-500 dark:text-slate-400"
+                    ]}
+                  >
+                    {reply_remaining_chars(@reply_form)}
+                  </span>
+
                   <button
                     type="submit"
+                    data-role="compose-submit"
                     phx-disable-with="Posting…"
-                    class="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                    disabled={reply_submit_disabled?(@reply_form, @uploads.reply_media)}
+                    class="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white dark:disabled:hover:bg-slate-100"
                   >
                     <.icon name="hero-paper-airplane" class="size-5" /> Post reply
                   </button>
@@ -719,6 +738,36 @@ defmodule PleromaReduxWeb.StatusLive do
   end
 
   defp thread_indent(_depth), do: 0
+
+  defp reply_max_chars, do: @reply_max_chars
+
+  defp reply_remaining_chars(%Phoenix.HTML.Form{} = form) do
+    @reply_max_chars - String.length(reply_content_value(form))
+  end
+
+  defp reply_remaining_chars(_form), do: @reply_max_chars
+
+  defp reply_submit_disabled?(form, upload) do
+    over_limit = reply_remaining_chars(form) < 0
+    content_blank = String.trim(reply_content_value(form)) == ""
+    entries = upload_entries(upload)
+    no_attachments = entries == []
+    attachments_pending = Enum.any?(entries, &(!&1.done?))
+    has_errors = upload_has_errors?(upload)
+
+    over_limit or (content_blank and no_attachments) or attachments_pending or has_errors
+  end
+
+  defp reply_content_value(%Phoenix.HTML.Form{} = form) do
+    (form.params || %{})
+    |> Map.get("content", "")
+    |> to_string()
+  end
+
+  defp reply_content_value(_form), do: ""
+
+  defp upload_entries(%Phoenix.LiveView.UploadConfig{} = upload), do: upload.entries
+  defp upload_entries(_upload), do: []
 
   defp truthy?(value) do
     case value do

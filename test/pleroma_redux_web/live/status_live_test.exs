@@ -147,6 +147,29 @@ defmodule PleromaReduxWeb.StatusLiveTest do
     assert reply.data["inReplyTo"] == remote_parent.ap_id
   end
 
+  test "reply character counter counts down while typing", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
+    uuid = uuid_from_ap_id(parent.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
+
+    assert has_element?(
+             view,
+             "textarea[data-role='compose-content'][phx-hook='ComposeCharCounter'][data-max-chars='5000']"
+           )
+
+    assert has_element?(view, "[data-role='compose-char-counter']", "5000")
+    assert has_element?(view, "button[data-role='compose-submit'][disabled]")
+
+    view
+    |> form("#reply-form", reply: %{content: "hello"})
+    |> render_change()
+
+    assert has_element?(view, "[data-role='compose-char-counter']", "4995")
+    refute has_element?(view, "button[data-role='compose-submit'][disabled]")
+  end
+
   test "replying rejects content longer than 5000 characters", %{conn: conn, user: user} do
     assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
     uuid = uuid_from_ap_id(parent.ap_id)
