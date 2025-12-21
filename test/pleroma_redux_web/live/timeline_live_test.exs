@@ -660,7 +660,7 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     assert has_element?(
              view,
-             "[data-role='media-viewer'] img[src='https://cdn.example/image.png']"
+             "[data-role='media-viewer-slide'][data-state='active'] img[src='https://cdn.example/image.png']"
            )
 
     view
@@ -698,11 +698,14 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
     |> render_click()
 
-    assert has_element?(view, "[data-role='media-viewer'] video[data-role='media-viewer-item']")
+    assert has_element?(
+             view,
+             "[data-role='media-viewer-slide'][data-state='active'] video[data-role='media-viewer-item']"
+           )
 
     assert has_element?(
              view,
-             "[data-role='media-viewer'] source[src='https://cdn.example/clip.mp4']"
+             "[data-role='media-viewer-slide'][data-state='active'] source[src='https://cdn.example/clip.mp4']"
            )
   end
 
@@ -734,11 +737,14 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
     |> render_click()
 
-    assert has_element?(view, "[data-role='media-viewer'] audio[data-role='media-viewer-item']")
+    assert has_element?(
+             view,
+             "[data-role='media-viewer-slide'][data-state='active'] audio[data-role='media-viewer-item']"
+           )
 
     assert has_element?(
              view,
-             "[data-role='media-viewer'] source[src='https://cdn.example/clip.ogg']"
+             "[data-role='media-viewer-slide'][data-state='active'] source[src='https://cdn.example/clip.ogg']"
            )
   end
 
@@ -807,14 +813,23 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     |> element("#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
     |> render_click()
 
-    assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/one.png']")
+    assert has_element?(
+             view,
+             "[data-role='media-viewer-slide'][data-state='active'] img[src='https://cdn.example/one.png']"
+           )
 
     _html = render_keydown(view, "media_keydown", %{"key" => "ArrowRight"})
 
-    assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/two.png']")
+    assert has_element?(
+             view,
+             "[data-role='media-viewer-slide'][data-state='active'] img[src='https://cdn.example/two.png']"
+           )
 
     _html = render_keydown(view, "media_keydown", %{"key" => "ArrowLeft"})
 
-    assert has_element?(view, "[data-role='media-viewer'] img[src='https://cdn.example/one.png']")
+    assert has_element?(
+             view,
+             "[data-role='media-viewer-slide'][data-state='active'] img[src='https://cdn.example/one.png']"
+           )
   end
 end

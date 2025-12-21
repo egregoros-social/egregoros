@@ -56,17 +56,21 @@ defmodule PleromaReduxWeb.MediaViewer do
   attr :viewer, :map, required: true
 
   def media_viewer(assigns) do
+    items = Map.get(assigns.viewer, :items, [])
+    index = Map.get(assigns.viewer, :index, 0)
+
     assigns =
       assigns
-      |> assign_new(:item, fn ->
-        Enum.at(Map.get(assigns.viewer, :items, []), Map.get(assigns.viewer, :index, 0))
-      end)
-      |> assign_new(:item_count, fn -> assigns.viewer |> Map.get(:items, []) |> length() end)
+      |> assign(:items, items)
+      |> assign(:index, index)
+      |> assign(:item_count, length(items))
 
     ~H"""
     <div
       id="media-viewer"
       data-role="media-viewer"
+      data-index={@index}
+      data-count={@item_count}
       role="dialog"
       aria-modal="true"
       phx-mounted={
@@ -74,19 +78,25 @@ defmodule PleromaReduxWeb.MediaViewer do
         |> JS.focus(to: "#media-viewer [data-role='media-viewer-close']")
       }
       phx-remove={JS.pop_focus()}
-      phx-window-keydown="media_keydown"
+      phx-hook="MediaViewer"
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur"
     >
       <.focus_wrap
         id="media-viewer-dialog"
-        phx-click-away="close_media"
+        phx-click-away={
+          JS.dispatch("predux:media-close", to: "#media-viewer")
+          |> JS.push("close_media")
+        }
         class="relative w-full max-w-4xl overflow-hidden rounded-3xl bg-black shadow-2xl"
       >
         <button
           :if={@item_count > 1}
           type="button"
           data-role="media-viewer-prev"
-          phx-click="media_prev"
+          phx-click={
+            JS.dispatch("predux:media-prev", to: "#media-viewer")
+            |> JS.push("media_prev")
+          }
           class="absolute left-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
           aria-label="Previous media"
         >
@@ -96,7 +106,10 @@ defmodule PleromaReduxWeb.MediaViewer do
         <button
           type="button"
           data-role="media-viewer-close"
-          phx-click="close_media"
+          phx-click={
+            JS.dispatch("predux:media-close", to: "#media-viewer")
+            |> JS.push("close_media")
+          }
           class="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
           aria-label="Close media viewer"
         >
@@ -107,48 +120,63 @@ defmodule PleromaReduxWeb.MediaViewer do
           :if={@item_count > 1}
           type="button"
           data-role="media-viewer-next"
-          phx-click="media_next"
+          phx-click={
+            JS.dispatch("predux:media-next", to: "#media-viewer")
+            |> JS.push("media_next")
+          }
           class="absolute right-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
           aria-label="Next media"
         >
           <.icon name="hero-chevron-right" class="size-5" />
         </button>
 
-        <%= if @item do %>
-          <%= case Attachments.kind(@item) do %>
-            <% :video -> %>
-              <video
-                data-role="media-viewer-item"
-                controls
-                preload="metadata"
-                playsinline
-                class="max-h-[85vh] w-full bg-black"
-                aria-label={Map.get(@item, :description, "Video attachment")}
-              >
-                <source src={@item.href} type={Attachments.source_type(@item, "video/mp4")} />
-              </video>
-            <% :audio -> %>
-              <div class="flex max-h-[85vh] w-full items-center justify-center bg-black/90 px-6 py-10">
-                <audio
+        <div class="relative">
+          <div
+            :for={{item, idx} <- Enum.with_index(@items)}
+            data-role="media-viewer-slide"
+            data-index={idx}
+            data-state={if idx == @index, do: "active", else: "inactive"}
+            aria-hidden={if idx == @index, do: "false", else: "true"}
+            class={[
+              "w-full",
+              idx != @index && "hidden"
+            ]}
+          >
+            <%= case Attachments.kind(item) do %>
+              <% :video -> %>
+                <video
                   data-role="media-viewer-item"
                   controls
                   preload="metadata"
-                  class="w-full"
-                  aria-label={Map.get(@item, :description, "Audio attachment")}
+                  playsinline
+                  class="max-h-[85vh] w-full bg-black"
+                  aria-label={Map.get(item, :description, "Video attachment")}
                 >
-                  <source src={@item.href} type={Attachments.source_type(@item, "audio/mpeg")} />
-                </audio>
-              </div>
-            <% _ -> %>
-              <img
-                data-role="media-viewer-item"
-                src={@item.href}
-                alt={Map.get(@item, :description, "")}
-                class="max-h-[85vh] w-full object-contain"
-                loading="lazy"
-              />
-          <% end %>
-        <% end %>
+                  <source src={item.href} type={Attachments.source_type(item, "video/mp4")} />
+                </video>
+              <% :audio -> %>
+                <div class="flex max-h-[85vh] w-full items-center justify-center bg-black/90 px-6 py-10">
+                  <audio
+                    data-role="media-viewer-item"
+                    controls
+                    preload="metadata"
+                    class="w-full"
+                    aria-label={Map.get(item, :description, "Audio attachment")}
+                  >
+                    <source src={item.href} type={Attachments.source_type(item, "audio/mpeg")} />
+                  </audio>
+                </div>
+              <% _ -> %>
+                <img
+                  data-role="media-viewer-item"
+                  src={item.href}
+                  alt={Map.get(item, :description, "")}
+                  class="max-h-[85vh] w-full object-contain"
+                  loading="lazy"
+                />
+            <% end %>
+          </div>
+        </div>
       </.focus_wrap>
     </div>
     """

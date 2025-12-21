@@ -87,11 +87,110 @@ const TimelineBottomSentinel = {
   },
 }
 
+const MediaViewer = {
+  mounted() {
+    this.index = this.readIndex()
+
+    this.onNext = () => this.bump(1)
+    this.onPrev = () => this.bump(-1)
+    this.onClose = () => this.close()
+
+    this.el.addEventListener("predux:media-next", this.onNext)
+    this.el.addEventListener("predux:media-prev", this.onPrev)
+    this.el.addEventListener("predux:media-close", this.onClose)
+
+    this.onKeydown = e => {
+      if (!this.el.isConnected) return
+      if (e.defaultPrevented) return
+
+      const target = e.target
+      if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) {
+        return
+      }
+
+      if (e.key === "Escape" || e.key === "Esc") {
+        this.close()
+        this.pushEvent("close_media", {})
+        return
+      }
+
+      if (e.key === "ArrowRight") {
+        this.bump(1)
+        this.pushEvent("media_next", {})
+        e.preventDefault()
+        return
+      }
+
+      if (e.key === "ArrowLeft") {
+        this.bump(-1)
+        this.pushEvent("media_prev", {})
+        e.preventDefault()
+      }
+    }
+
+    window.addEventListener("keydown", this.onKeydown)
+    this.applyIndex(this.index)
+  },
+
+  updated() {
+    this.applyIndex(this.index)
+  },
+
+  destroyed() {
+    this.el.removeEventListener("predux:media-next", this.onNext)
+    this.el.removeEventListener("predux:media-prev", this.onPrev)
+    this.el.removeEventListener("predux:media-close", this.onClose)
+    window.removeEventListener("keydown", this.onKeydown)
+  },
+
+  readIndex() {
+    const index = parseInt(this.el.dataset.index || "0", 10)
+    return Number.isFinite(index) ? index : 0
+  },
+
+  slides() {
+    return Array.from(this.el.querySelectorAll("[data-role='media-viewer-slide']"))
+  },
+
+  bump(delta) {
+    const slides = this.slides()
+    if (slides.length < 2) return
+
+    const count = slides.length
+    const next = (this.index + delta + count) % count
+    this.index = next
+    this.el.dataset.index = String(next)
+
+    this.applyIndex(next)
+  },
+
+  applyIndex(index) {
+    const slides = this.slides()
+    if (slides.length === 0) return
+
+    const normalized = ((index % slides.length) + slides.length) % slides.length
+    this.index = normalized
+    this.el.dataset.index = String(normalized)
+
+    slides.forEach(slide => {
+      const slideIndex = parseInt(slide.dataset.index || "0", 10)
+      const isActive = slideIndex === normalized
+      slide.dataset.state = isActive ? "active" : "inactive"
+      slide.classList.toggle("hidden", !isActive)
+      slide.setAttribute("aria-hidden", isActive ? "false" : "true")
+    })
+  },
+
+  close() {
+    this.el.classList.add("hidden")
+  },
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, TimelineTopSentinel, TimelineBottomSentinel},
+  hooks: {...colocatedHooks, TimelineTopSentinel, TimelineBottomSentinel, MediaViewer},
 })
 
 window.addEventListener("predux:scroll-top", () => {

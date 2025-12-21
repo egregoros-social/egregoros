@@ -162,19 +162,29 @@ defmodule PleromaReduxWeb.ProfileLiveTest do
     |> render_click()
 
     assert has_element?(view, "#media-viewer[data-role='media-viewer']")
-    assert render(view) =~ "/uploads/first.png"
+
+    assert has_element?(
+             view,
+             "[data-role='media-viewer-slide'][data-state='active'] img[src*='/uploads/first.png']"
+           )
 
     view
     |> element("#media-viewer [data-role='media-viewer-next']")
     |> render_click()
 
-    assert render(view) =~ "/uploads/second.png"
+    assert has_element?(
+             view,
+             "[data-role='media-viewer-slide'][data-state='active'] img[src*='/uploads/second.png']"
+           )
 
     view
     |> element("#media-viewer [data-role='media-viewer-prev']")
     |> render_click()
 
-    assert render(view) =~ "/uploads/first.png"
+    assert has_element?(
+             view,
+             "[data-role='media-viewer-slide'][data-state='active'] img[src*='/uploads/first.png']"
+           )
 
     view
     |> element("#media-viewer [data-role='media-viewer-close']")
