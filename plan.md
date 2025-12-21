@@ -185,13 +185,13 @@ Goal: move from ad‑hoc `normalize/validate` pattern matching toward **Pleroma�
 
 ### Current state (Pleroma‑Redux)
 - Each activity module implements `normalize/1` and `validate/1` using pattern matching and guards.
-- Compatibility ingestion tests exist using real fixture payloads from `pleroma-old/test/fixtures` (`test/pleroma_redux/compat/pleroma_old_fixtures_test.exs`).
+- Compatibility ingestion tests exist using real fixture payloads from `test/fixtures` (vendored from upstream Pleroma) (`test/pleroma_redux/compat/upstream_fixtures_test.exs`).
 - Normalization is duplicated across modules (e.g. inline `"actor": {"id": ...}` handling).
 
 ### Reference (Pleroma‑old)
-- Central validator dispatch: `pleroma-old/lib/pleroma/web/activity_pub/object_validator.ex`
-- Per‑type embedded schema validators: `pleroma-old/lib/pleroma/web/activity_pub/object_validators/*_validator.ex`
-- Shared Ecto types + fixes: `pleroma-old/lib/pleroma/ecto_type/activity_pub/object_validators/*`
+- Central validator dispatch: `../pleroma/lib/pleroma/web/activity_pub/object_validator.ex`
+- Per‑type embedded schema validators: `../pleroma/lib/pleroma/web/activity_pub/object_validators/*_validator.ex`
+- Shared Ecto types + fixes: `../pleroma/lib/pleroma/ecto_type/activity_pub/object_validators/*`
 
 ### Target design (Redux)
 - Keep activity ownership: **each activity module remains the only file you edit** to add/modify that activity.
@@ -242,7 +242,7 @@ Goal: move from ad‑hoc `normalize/validate` pattern matching toward **Pleroma�
    - Implement schema support for `object` being either an ID or an embedded object (validator types or explicit validations).
    - Preserve embedded objects in `data` when needed for recursive ingestion.
    - Tests:
-     - Extend fixture coverage by pulling more cases from `pleroma-old/test/fixtures` (especially nested Undo/Accept/Announce variants).
+     - Extend fixture coverage by pulling more cases from upstream Pleroma into `test/fixtures` (especially nested Undo/Accept/Announce variants).
 
 6) **Migrate Like + EmojiReact**
    - Normalize recipients, validate content rules for EmojiReact.

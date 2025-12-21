@@ -1,8 +1,8 @@
 # Agent Guidelines
 
 - Always work in a TDD manner: write the failing test first, then implement to pass.
-- Reference the existing implementation in `pleroma-old` for guidance.
-- Prefer test fixtures from `pleroma-old` when adding or updating tests.
+- Reference the upstream Pleroma implementation in `../pleroma` for guidance.
+- Prefer test fixtures from `test/fixtures` (vendored from upstream Pleroma) when adding or updating tests.
 - For missing future behavior (auth, federation lookups, etc.), define a behaviour boundary and use Mox in tests to assert the contract is called instead of hard-coding permissive behavior.
 
 This is a web application written using the Phoenix web framework.

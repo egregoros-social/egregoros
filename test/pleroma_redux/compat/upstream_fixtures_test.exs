@@ -1,4 +1,4 @@
-defmodule PleromaRedux.PleromaOldFixturesTest do
+defmodule PleromaRedux.Compat.UpstreamFixturesTest do
   use PleromaRedux.DataCase, async: true
 
   alias PleromaRedux.Objects
