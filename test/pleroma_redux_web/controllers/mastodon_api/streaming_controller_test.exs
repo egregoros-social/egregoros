@@ -24,6 +24,16 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingControllerTest do
     assert response(conn, 400)
   end
 
+  test "GET /api/v1/streaming rejects missing stream", %{conn: conn} do
+    conn = get(conn, "/api/v1/streaming")
+    assert response(conn, 400) == "Missing stream"
+  end
+
+  test "GET /api/v1/streaming treats blank streams as missing", %{conn: conn} do
+    conn = get(conn, "/api/v1/streaming?stream=%20")
+    assert response(conn, 400) == "Missing stream"
+  end
+
   test "GET /api/v1/streaming requires auth for user stream", %{conn: conn} do
     PleromaRedux.Auth.Mock
     |> expect(:current_user, fn _conn -> {:error, :unauthorized} end)
@@ -34,6 +44,15 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingControllerTest do
 
   test "GET /api/v1/streaming upgrades for public stream", %{conn: conn} do
     conn = conn |> with_websocket_headers() |> get("/api/v1/streaming?stream=public")
+    assert conn.state == :upgraded
+  end
+
+  test "GET /api/v1/streaming upgrades for a normalized stream list", %{conn: conn} do
+    conn =
+      conn
+      |> with_websocket_headers()
+      |> get("/api/v1/streaming?stream[]=public&stream[]=%20&stream[]=public")
+
     assert conn.state == :upgraded
   end
 
