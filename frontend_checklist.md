@@ -66,7 +66,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Content warning / spoiler text | DONE | Composer “Content warning” field exists. |
 | Mark media as sensitive | DONE | Composer “Mark media as sensitive” toggle exists. |
 | Visibility selector (public/unlisted/followers/direct) | DONE | Composer visibility select exists. |
-| Reply composer (in‑reply‑to) | PARTIAL | Reply composer exists on the status permalink page; needs inline reply flows + full media support. |
+| Reply composer (in‑reply‑to) | PARTIAL | Status permalink page supports replying with attachments + alt text; still needs full parity with main composer (options, polish, etc.). |
 | Quote post | TODO | Optional; not in vanilla Mastodon but common. |
 | Drafts | TODO | Often requested; can be lightweight (local storage). |
 | Polls | TODO | Mastodon‑style polls (optional). |

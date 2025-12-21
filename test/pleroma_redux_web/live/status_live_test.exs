@@ -95,6 +95,45 @@ defmodule PleromaReduxWeb.StatusLiveTest do
     assert reply.data["inReplyTo"] == parent.ap_id
   end
 
+  test "signed-in users can attach media when replying", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
+    uuid = uuid_from_ap_id(parent.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
+
+    fixture_path = Path.expand("pleroma-old/test/fixtures/DSCN0010.png", File.cwd!())
+    content = File.read!(fixture_path)
+
+    upload =
+      file_input(view, "#reply-form", :reply_media, [
+        %{
+          last_modified: 1_694_171_879_000,
+          name: "photo.png",
+          content: content,
+          size: byte_size(content),
+          type: "image/png"
+        }
+      ])
+
+    expect(PleromaRedux.MediaStorage.Mock, :store_media, fn passed_user, passed_upload ->
+      assert passed_user.id == user.id
+      assert passed_upload.filename == "photo.png"
+      assert passed_upload.content_type == "image/png"
+      {:ok, "/uploads/media/#{passed_user.id}/photo.png"}
+    end)
+
+    assert render_upload(upload, "photo.png") =~ "100%"
+
+    view
+    |> form("#reply-form", reply: %{content: "Reply with media"})
+    |> render_submit()
+
+    [reply] = Objects.list_replies_to(parent.ap_id, limit: 1)
+
+    assert has_element?(view, "#post-#{reply.id} img[data-role='attachment']")
+  end
+
   test "signed-in users can like posts from the status page", %{conn: conn, user: user} do
     assert {:ok, note} = Pipeline.ingest(Note.build(user, "Like me"), local: true)
     uuid = uuid_from_ap_id(note.ap_id)
