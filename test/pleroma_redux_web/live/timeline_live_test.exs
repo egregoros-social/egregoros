@@ -234,6 +234,43 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     refute has_element?(view, "#post-#{note.id} button[data-role='reaction']")
   end
 
+  test "reply buttons dispatch reply modal events without navigation", %{conn: conn, user: user} do
+    assert {:ok, _} = Pipeline.ingest(Note.build(user, "Reply target"), local: true)
+    [note] = Objects.list_notes()
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "#reply-modal[data-role='reply-modal'][data-state='closed']")
+    assert has_element?(view, "#post-#{note.id} button[data-role='reply']")
+
+    html =
+      view
+      |> element("#post-#{note.id} button[data-role='reply']")
+      |> render()
+
+    assert html =~ "predux:reply-open"
+    refute html =~ "?reply=true"
+  end
+
+  test "signed-in users can reply from the timeline", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    view
+    |> element("#post-#{parent.id} button[data-role='reply']")
+    |> render_click()
+
+    view
+    |> form("#reply-modal-form", reply: %{content: "A reply"})
+    |> render_submit()
+
+    [reply] = Objects.list_replies_to(parent.ap_id, limit: 1)
+    assert reply.data["inReplyTo"] == parent.ap_id
+  end
+
   test "timeline can load more posts", %{conn: conn, user: user} do
     for idx <- 1..25 do
       assert {:ok, _} = Pipeline.ingest(Note.build(user, "Post #{idx}"), local: true)
@@ -415,14 +452,14 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")
 
-    assert has_element?(view, "[data-role='compose-editor']")
-    assert has_element?(view, "[data-role='compose-toolbar']")
-    assert has_element?(view, "[data-role='compose-add-media'][aria-label='Add media']")
-    assert has_element?(view, "[data-role='compose-add-media'] input[type='file']")
+    assert has_element?(view, "#timeline-form [data-role='compose-editor']")
+    assert has_element?(view, "#timeline-form [data-role='compose-toolbar']")
+    assert has_element?(view, "#timeline-form [data-role='compose-add-media'][aria-label='Add media']")
+    assert has_element?(view, "#timeline-form [data-role='compose-add-media'] input[type='file']")
 
     html =
       view
-      |> element("[data-role='compose-add-media']")
+      |> element("#timeline-form [data-role='compose-add-media']")
       |> render()
 
     assert html =~ "type=\"file\""

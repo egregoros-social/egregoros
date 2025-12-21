@@ -12,6 +12,7 @@ defmodule PleromaReduxWeb.StatusCard do
   attr :id, :string, required: true
   attr :entry, :map, required: true
   attr :current_user, :any, default: nil
+  attr :reply_mode, :atom, default: :navigate
 
   def status_card(assigns) do
     ~H"""
@@ -137,14 +138,30 @@ defmodule PleromaReduxWeb.StatusCard do
       <% end %>
 
       <div :if={@current_user} class="mt-5 flex flex-wrap items-center gap-3">
-        <%= if is_binary(reply_path = status_reply_path(@entry)) do %>
-          <.link
-            navigate={reply_path}
+        <%= if @reply_mode == :modal do %>
+          <button
+            type="button"
             data-role="reply"
+            phx-click={
+              JS.dispatch("predux:reply-open", to: "#reply-modal")
+              |> JS.push("open_reply_modal")
+            }
+            phx-value-in_reply_to={@entry.object.ap_id}
+            phx-value-actor_handle={@entry.actor.handle}
             class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
           >
             <.icon name="hero-chat-bubble-left-right" class="size-4" /> Reply
-          </.link>
+          </button>
+        <% else %>
+          <%= if is_binary(reply_path = status_reply_path(@entry)) do %>
+            <.link
+              navigate={reply_path}
+              data-role="reply"
+              class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+            >
+              <.icon name="hero-chat-bubble-left-right" class="size-4" /> Reply
+            </.link>
+          <% end %>
         <% end %>
 
         <button

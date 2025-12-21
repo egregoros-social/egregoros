@@ -14,8 +14,6 @@ defmodule PleromaReduxWeb.TimelineLive do
   alias PleromaReduxWeb.ViewModels.Status, as: StatusVM
 
   @page_size 20
-  @compose_max_chars 5000
-
   @impl true
   def mount(params, session, socket) do
     if connected?(socket) do
@@ -31,6 +29,7 @@ defmodule PleromaReduxWeb.TimelineLive do
     timeline = timeline_from_params(params, current_user)
 
     form = Phoenix.Component.to_form(default_post_params(), as: :post)
+    reply_form = Phoenix.Component.to_form(default_post_params(), as: :reply)
 
     posts = list_timeline_posts(timeline, current_user, limit: @page_size)
 
@@ -43,6 +42,12 @@ defmodule PleromaReduxWeb.TimelineLive do
         compose_open?: false,
         compose_options_open?: false,
         compose_cw_open?: false,
+        reply_to_ap_id: nil,
+        reply_to_handle: nil,
+        reply_form: reply_form,
+        reply_media_alt: %{},
+        reply_options_open?: false,
+        reply_cw_open?: false,
         error: nil,
         pending_posts: [],
         timeline_at_top?: true,
@@ -54,6 +59,29 @@ defmodule PleromaReduxWeb.TimelineLive do
       )
       |> stream(:posts, StatusVM.decorate_many(posts, current_user), dom_id: &post_dom_id/1)
       |> allow_upload(:media,
+        accept: ~w(
+          .png
+          .jpg
+          .jpeg
+          .webp
+          .gif
+          .heic
+          .heif
+          .mp4
+          .webm
+          .mov
+          .m4a
+          .mp3
+          .ogg
+          .opus
+          .wav
+          .aac
+        ),
+        max_entries: 4,
+        max_file_size: 10_000_000,
+        auto_upload: true
+      )
+      |> allow_upload(:reply_media,
         accept: ~w(
           .png
           .jpg
@@ -272,6 +300,219 @@ defmodule PleromaReduxWeb.TimelineLive do
                      )}
                 end
             end
+        end
+    end
+  end
+
+  def handle_event("open_reply_modal", %{"in_reply_to" => in_reply_to} = params, socket) do
+    in_reply_to = in_reply_to |> to_string() |> String.trim()
+    actor_handle = params |> Map.get("actor_handle", "") |> to_string() |> String.trim()
+
+    socket =
+      socket
+      |> cancel_all_uploads(:reply_media)
+      |> assign(
+        reply_to_ap_id: in_reply_to,
+        reply_to_handle: actor_handle,
+        reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
+        reply_media_alt: %{},
+        reply_options_open?: false,
+        reply_cw_open?: false
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event("open_reply_modal", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("close_reply_modal", _params, socket) do
+    socket =
+      socket
+      |> cancel_all_uploads(:reply_media)
+      |> assign(
+        reply_to_ap_id: nil,
+        reply_to_handle: nil,
+        reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
+        reply_media_alt: %{},
+        reply_options_open?: false,
+        reply_cw_open?: false
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event("toggle_reply_cw", _params, socket) do
+    {:noreply, assign(socket, reply_cw_open?: !socket.assigns.reply_cw_open?)}
+  end
+
+  def handle_event("reply_change", %{"reply" => %{} = reply_params}, socket) do
+    reply_params = Map.merge(default_post_params(), reply_params)
+    media_alt = Map.get(reply_params, "media_alt", %{})
+
+    reply_options_open? = truthy?(Map.get(reply_params, "ui_options_open"))
+
+    reply_cw_open? =
+      socket.assigns.reply_cw_open? ||
+        reply_params |> Map.get("spoiler_text", "") |> to_string() |> String.trim() != ""
+
+    {:noreply,
+     assign(socket,
+       reply_form: Phoenix.Component.to_form(reply_params, as: :reply),
+       reply_media_alt: media_alt,
+       reply_options_open?: reply_options_open?,
+       reply_cw_open?: reply_cw_open?
+     )}
+  end
+
+  def handle_event("cancel_reply_media", %{"ref" => ref}, socket) do
+    {:noreply,
+     socket
+     |> cancel_upload(:reply_media, ref)
+     |> assign(:reply_media_alt, Map.delete(socket.assigns.reply_media_alt, ref))}
+  end
+
+  def handle_event("create_reply", %{"reply" => %{} = reply_params}, socket) do
+    case socket.assigns.current_user do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to reply.")}
+
+      user ->
+        in_reply_to = socket.assigns.reply_to_ap_id
+
+        if is_binary(in_reply_to) and String.trim(in_reply_to) != "" do
+          reply_params = Map.merge(default_post_params(), reply_params)
+          content = reply_params |> Map.get("content", "") |> to_string()
+          media_alt = Map.get(reply_params, "media_alt", %{})
+          visibility = Map.get(reply_params, "visibility", "public")
+          spoiler_text = Map.get(reply_params, "spoiler_text")
+          sensitive = Map.get(reply_params, "sensitive")
+          language = Map.get(reply_params, "language")
+
+          reply_options_open? = truthy?(Map.get(reply_params, "ui_options_open"))
+
+          reply_cw_open? =
+            socket.assigns.reply_cw_open? ||
+              reply_params |> Map.get("spoiler_text", "") |> to_string() |> String.trim() != ""
+
+          upload = socket.assigns.uploads.reply_media
+
+          cond do
+            Enum.any?(upload.entries, &(!&1.done?)) ->
+              {:noreply,
+               socket
+               |> put_flash(:error, "Wait for attachments to finish uploading.")
+               |> assign(
+                 reply_form: Phoenix.Component.to_form(reply_params, as: :reply),
+                 reply_media_alt: media_alt,
+                 reply_options_open?: reply_options_open?,
+                 reply_cw_open?: reply_cw_open?
+               )}
+
+            upload.errors != [] or Enum.any?(upload.entries, &(!&1.valid?)) ->
+              {:noreply,
+               socket
+               |> put_flash(:error, "Remove invalid attachments before posting.")
+               |> assign(
+                 reply_form: Phoenix.Component.to_form(reply_params, as: :reply),
+                 reply_media_alt: media_alt,
+                 reply_options_open?: reply_options_open?,
+                 reply_cw_open?: reply_cw_open?
+               )}
+
+            true ->
+              attachments =
+                consume_uploaded_entries(socket, :reply_media, fn %{path: path}, entry ->
+                  upload = %Plug.Upload{
+                    path: path,
+                    filename: entry.client_name,
+                    content_type: entry.client_type
+                  }
+
+                  description = media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
+
+                  with {:ok, url_path} <- MediaStorage.store_media(user, upload),
+                       {:ok, object} <-
+                         Media.create_media_object(user, upload, url_path, description: description) do
+                    {:ok, object.data}
+                  else
+                    {:error, reason} -> {:ok, {:error, reason}}
+                  end
+                end)
+
+              case Enum.find(attachments, &match?({:error, _}, &1)) do
+                {:error, _reason} ->
+                  {:noreply,
+                   socket
+                   |> put_flash(:error, "Could not upload attachment.")
+                   |> assign(
+                     reply_form: Phoenix.Component.to_form(reply_params, as: :reply),
+                     reply_media_alt: media_alt,
+                     reply_options_open?: reply_options_open?,
+                     reply_cw_open?: reply_cw_open?
+                   )}
+
+                nil ->
+                  case Publish.post_note(user, content,
+                         in_reply_to: in_reply_to,
+                         attachments: attachments,
+                         visibility: visibility,
+                         spoiler_text: spoiler_text,
+                         sensitive: sensitive,
+                         language: language
+                       ) do
+                    {:ok, _reply} ->
+                      {:noreply,
+                       socket
+                       |> put_flash(:info, "Reply posted.")
+                       |> assign(
+                         reply_to_ap_id: nil,
+                         reply_to_handle: nil,
+                         reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
+                         reply_media_alt: %{},
+                         reply_options_open?: false,
+                         reply_cw_open?: false
+                       )
+                       |> push_event("reply_modal_close", %{})}
+
+                    {:error, :too_long} ->
+                      {:noreply,
+                       socket
+                       |> put_flash(:error, "Reply is too long.")
+                       |> assign(
+                         reply_form: Phoenix.Component.to_form(reply_params, as: :reply),
+                         reply_media_alt: media_alt,
+                         reply_options_open?: reply_options_open?,
+                         reply_cw_open?: reply_cw_open?
+                       )}
+
+                    {:error, :empty} ->
+                      {:noreply,
+                       socket
+                       |> put_flash(:error, "Reply can't be empty.")
+                       |> assign(
+                         reply_form: Phoenix.Component.to_form(reply_params, as: :reply),
+                         reply_media_alt: media_alt,
+                         reply_options_open?: reply_options_open?,
+                         reply_cw_open?: reply_cw_open?
+                       )}
+
+                    _ ->
+                      {:noreply,
+                       socket
+                       |> put_flash(:error, "Could not post reply.")
+                       |> assign(
+                         reply_form: Phoenix.Component.to_form(reply_params, as: :reply),
+                         reply_media_alt: media_alt,
+                         reply_options_open?: reply_options_open?,
+                         reply_cw_open?: reply_cw_open?
+                       )}
+                  end
+              end
+          end
+        else
+          {:noreply, put_flash(socket, :error, "Select a post to reply to.")}
         end
     end
   end
@@ -571,6 +812,7 @@ defmodule PleromaReduxWeb.TimelineLive do
               id={id}
               entry={entry}
               current_user={@current_user}
+              reply_mode={:modal}
             />
           </div>
 
@@ -626,6 +868,16 @@ defmodule PleromaReduxWeb.TimelineLive do
         </button>
       </AppShell.app_shell>
 
+      <ReplyModal.reply_modal
+        :if={@current_user}
+        form={@reply_form}
+        upload={@uploads.reply_media}
+        media_alt={@reply_media_alt}
+        reply_to_handle={@reply_to_handle}
+        options_open?={@reply_options_open?}
+        cw_open?={@reply_cw_open?}
+      />
+
       <MediaViewer.media_viewer
         viewer={%{items: [], index: 0}}
         open={false}
@@ -653,16 +905,6 @@ defmodule PleromaReduxWeb.TimelineLive do
     |> JS.add_class("hidden", to: "#compose-overlay")
     |> JS.add_class("hidden", to: "#compose-mobile-header")
     |> JS.remove_class("hidden", to: "#compose-open-button")
-  end
-
-  defp toggle_compose_options_js(js \\ %JS{}) do
-    js
-    |> JS.toggle_class("hidden", to: "#compose-options")
-    |> JS.toggle_attribute({"value", "true", "false"}, to: "#compose-options-state")
-  end
-
-  defp toggle_compose_cw_js(js \\ %JS{}) do
-    JS.toggle_class(js, "hidden", to: "#compose-cw")
   end
 
   defp list_timeline_posts(:home, %User{} = user, opts) when is_list(opts) do
@@ -717,65 +959,24 @@ defmodule PleromaReduxWeb.TimelineLive do
     }
   end
 
-  defp remaining_chars(%Phoenix.HTML.Form{} = form) do
-    @compose_max_chars - String.length(content_value(form))
-  end
-
-  defp remaining_chars(_form), do: @compose_max_chars
-
-  defp compose_max_chars, do: @compose_max_chars
-
-  defp compose_submit_disabled?(form, upload) do
-    over_limit = remaining_chars(form) < 0
-    content_blank = String.trim(content_value(form)) == ""
-    entries = upload_entries(upload)
-    no_attachments = entries == []
-    attachments_pending = Enum.any?(entries, &(!&1.done?))
-
-    over_limit or (content_blank and no_attachments) or attachments_pending
-  end
-
-  defp content_value(%Phoenix.HTML.Form{} = form) do
-    (form.params || %{})
-    |> Map.get("content", "")
-    |> to_string()
-  end
-
-  defp content_value(_form), do: ""
-
-  defp upload_entries(%Phoenix.LiveView.UploadConfig{} = upload), do: upload.entries
-  defp upload_entries(_upload), do: []
-
-  defp visibility_label(visibility) when is_binary(visibility) do
-    case String.trim(visibility) do
-      "public" -> "Public"
-      "unlisted" -> "Unlisted"
-      "private" -> "Private"
-      "direct" -> "Direct"
-      _ -> "Public"
-    end
-  end
-
-  defp visibility_label(_visibility), do: "Public"
-
-  defp language_label(language) when is_binary(language) do
-    language = String.trim(language)
-    if language == "", do: "Auto", else: language
-  end
-
-  defp language_label(_language), do: "Auto"
-
-  defp upload_error_text(:too_large), do: "File is too large."
-  defp upload_error_text(:not_accepted), do: "Unsupported file type."
-  defp upload_error_text(:too_many_files), do: "Too many files selected."
-  defp upload_error_text(_), do: "Upload failed."
-
   defp notifications_count(nil), do: 0
 
   defp notifications_count(%User{} = user) do
     user
     |> Notifications.list_for_user(limit: 20)
     |> length()
+  end
+
+  defp cancel_all_uploads(socket, upload_name) when is_atom(upload_name) do
+    case socket.assigns.uploads |> Map.get(upload_name) do
+      %{entries: entries} when is_list(entries) ->
+        Enum.reduce(entries, socket, fn entry, socket ->
+          cancel_upload(socket, upload_name, entry.ref)
+        end)
+
+      _ ->
+        socket
+    end
   end
 
   defp truthy?(value) do
