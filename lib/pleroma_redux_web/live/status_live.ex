@@ -604,11 +604,6 @@ defmodule PleromaReduxWeb.StatusLive do
     |> length()
   end
 
-  defp upload_error_text(:too_large), do: "File is too large."
-  defp upload_error_text(:not_accepted), do: "Unsupported file type."
-  defp upload_error_text(:too_many_files), do: "Too many files selected."
-  defp upload_error_text(_), do: "Upload failed."
-
   defp upload_has_errors?(%{errors: errors, entries: entries} = upload)
        when is_list(errors) and is_list(entries) do
     upload.errors != [] or
