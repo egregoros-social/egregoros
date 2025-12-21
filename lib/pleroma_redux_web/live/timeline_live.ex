@@ -758,6 +758,7 @@ defmodule PleromaReduxWeb.TimelineLive do
                       </span>
 
                       <.button
+                        data-role="compose-submit"
                         type="submit"
                         phx-disable-with="Posting..."
                         disabled={compose_submit_disabled?(@form, @uploads.media)}
