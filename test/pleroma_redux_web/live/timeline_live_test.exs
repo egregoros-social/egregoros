@@ -205,6 +205,21 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     refute html =~ "<script"
   end
 
+  test "signed-out users do not see interaction buttons in the public timeline", %{
+    conn: conn,
+    user: user
+  } do
+    assert {:ok, _} = Pipeline.ingest(Note.build(user, "Public post"), local: true)
+    [note] = Objects.list_notes()
+
+    {:ok, view, _html} = live(conn, "/?timeline=public")
+
+    assert has_element?(view, "#post-#{note.id}")
+    refute has_element?(view, "#post-#{note.id} button[data-role='like']")
+    refute has_element?(view, "#post-#{note.id} button[data-role='repost']")
+    refute has_element?(view, "#post-#{note.id} button[data-role='reaction']")
+  end
+
   test "timeline can load more posts", %{conn: conn, user: user} do
     for idx <- 1..25 do
       assert {:ok, _} = Pipeline.ingest(Note.build(user, "Post #{idx}"), local: true)
