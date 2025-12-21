@@ -16,4 +16,3 @@ defmodule PleromaReduxWeb.SearchLiveTest do
     refute has_element?(view, "[data-role='search-result-handle']", "@alice")
   end
 end
-

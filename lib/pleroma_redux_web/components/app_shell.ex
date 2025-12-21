@@ -8,7 +8,10 @@ defmodule PleromaReduxWeb.AppShell do
   attr :main_id, :string, default: "app-main"
   attr :aside_id, :string, default: "app-aside"
 
-  attr :active, :atom, values: [:timeline, :search, :notifications, :profile, :settings], required: true
+  attr :active, :atom,
+    values: [:timeline, :search, :notifications, :profile, :settings],
+    required: true
+
   attr :current_user, :any, default: nil
   attr :notifications_count, :integer, default: 0
 
