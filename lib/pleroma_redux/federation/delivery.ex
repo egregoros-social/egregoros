@@ -20,12 +20,13 @@ defmodule PleromaRedux.Federation.Delivery do
     body = Jason.encode!(activity)
 
     with {:ok, signed} <- HTTPSignature.sign_request(user, "post", inbox_url, body),
-         {:ok, %{status: status} = response} <- HTTP.post(inbox_url, body, headers(signed)),
-         true <- status in 200..299 do
-      {:ok, response}
+         {:ok, %{status: status} = response} <- HTTP.post(inbox_url, body, headers(signed)) do
+      if status in 200..299 do
+        {:ok, response}
+      else
+        {:error, {:http_error, status, response}}
+      end
     else
-      false -> {:error, :http_error}
-      {:ok, %{status: status} = response} -> {:error, {:http_error, status, response}}
       {:error, _} = error -> error
     end
   end
