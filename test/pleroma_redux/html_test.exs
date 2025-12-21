@@ -101,6 +101,69 @@ defmodule PleromaRedux.HTMLTest do
       refute scrubbed =~ "<iframe"
     end
 
+    test "removes html comments" do
+      html = "<p>ok</p><!-- secret --><p>more</p>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "<p>ok</p>"
+      assert scrubbed =~ "<p>more</p>"
+      refute scrubbed =~ "<!--"
+      refute scrubbed =~ "secret"
+    end
+
+    test "allows basic formatting tags" do
+      html = "<p>hello <strong>bold</strong> <em>em</em> <u>u</u> <s>s</s></p>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "<strong>bold</strong>"
+      assert scrubbed =~ "<em>em</em>"
+      assert scrubbed =~ "<u>u</u>"
+      assert scrubbed =~ "<s>s</s>"
+    end
+
+    test "allows code blocks with classes" do
+      html =
+        "<pre class=\"highlight\"><code class=\"language-elixir\">IO.puts(1)</code></pre>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "<pre"
+      assert scrubbed =~ ~s(class="highlight")
+      assert scrubbed =~ "<code"
+      assert scrubbed =~ ~s(class="language-elixir")
+      assert scrubbed =~ "IO.puts"
+    end
+
+    test "allows lists with classes" do
+      html = "<ul class=\"list\"><li class=\"item\">one</li><li>two</li></ul>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "<ul"
+      assert scrubbed =~ ~s(class="list")
+      assert scrubbed =~ "<li"
+      assert scrubbed =~ ~s(class="item")
+      assert scrubbed =~ ">one<"
+      assert scrubbed =~ ">two<"
+    end
+
+    test "allows span and blockquote classes and strips event handlers" do
+      html =
+        "<blockquote class=\"quote\"><span class=\"mention\" onclick=\"alert(1)\">@alice</span></blockquote>"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "<blockquote"
+      assert scrubbed =~ ~s(class="quote")
+      assert scrubbed =~ "<span"
+      assert scrubbed =~ ~s(class="mention")
+      assert scrubbed =~ "@alice"
+      refute scrubbed =~ "onclick="
+      refute scrubbed =~ "alert(1)"
+    end
+
     test "allows img tags with http(s) src" do
       html = "<p>ok</p><img src=\"https://cdn.example/emoji.png\" alt=\":blob:\" class=\"emoji\">"
 
@@ -108,6 +171,16 @@ defmodule PleromaRedux.HTMLTest do
 
       assert scrubbed =~ "<img"
       assert scrubbed =~ "src=\"https://cdn.example/emoji.png\""
+    end
+
+    test "preserves allowed img dimension attributes" do
+      html = "<img src=\"https://cdn.example/x.png\" width=\"100\" height=\"50\">"
+
+      scrubbed = HTML.sanitize(html)
+
+      assert scrubbed =~ "<img"
+      assert scrubbed =~ ~s(width="100")
+      assert scrubbed =~ ~s(height="50")
     end
 
     test "removes event handler attributes from img tags" do
