@@ -5,6 +5,8 @@ defmodule PleromaReduxWeb.StatusCard do
   alias PleromaReduxWeb.URL
   alias PleromaReduxWeb.ViewModels.Status, as: StatusVM
 
+  @content_collapse_threshold 500
+
   attr :id, :string, required: true
   attr :entry, :map, required: true
   attr :current_user, :any, default: nil
@@ -227,13 +229,54 @@ defmodule PleromaReduxWeb.StatusCard do
   defp status_body(assigns) do
     ~H"""
     <% sensitive_media = sensitive_media?(@entry.object) %>
+    <% collapsible_content = long_content?(@entry.object) %>
+    <% content_id = "post-content-#{@entry.object.id}" %>
+    <% fade_id = "#{content_id}-fade" %>
+    <% toggle_more_id = "#{content_id}-more" %>
+    <% toggle_less_id = "#{content_id}-less" %>
+    <% toggle_icon_id = "#{content_id}-icon" %>
 
     <div
+      id={content_id}
       data-role="post-content"
-      class="mt-3 text-base leading-relaxed text-slate-900 dark:text-slate-100"
+      class={[
+        "mt-3 text-base leading-relaxed text-slate-900 dark:text-slate-100",
+        collapsible_content && "relative max-h-64 overflow-hidden"
+      ]}
     >
       {post_content_html(@entry.object)}
+
+      <div
+        :if={collapsible_content}
+        id={fade_id}
+        class="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-white/95 to-transparent dark:from-slate-900/85"
+        aria-hidden="true"
+      >
+      </div>
     </div>
+
+    <button
+      :if={collapsible_content}
+      type="button"
+      data-role="post-content-toggle"
+      aria-controls={content_id}
+      aria-expanded="false"
+      phx-click={
+        JS.toggle_class("max-h-64 overflow-hidden", to: "##{content_id}")
+        |> JS.toggle_class("hidden", to: "##{fade_id}")
+        |> JS.toggle_class("hidden", to: "##{toggle_more_id}")
+        |> JS.toggle_class("hidden", to: "##{toggle_less_id}")
+        |> JS.toggle_class("rotate-180", to: "##{toggle_icon_id}")
+        |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+      }
+      class="mt-2 inline-flex items-center gap-2 rounded-full bg-slate-900/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:bg-slate-900/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+    >
+      <span id={toggle_more_id}>Show more</span>
+      <span id={toggle_less_id} class="hidden">Show less</span>
+      <span id={toggle_icon_id} class="inline-flex">
+        <.icon name="hero-chevron-down" class="size-4 transition" />
+      </span>
+    </button>
 
     <div
       :if={sensitive_media and @entry.attachments != []}
@@ -284,6 +327,42 @@ defmodule PleromaReduxWeb.StatusCard do
     </div>
     """
   end
+
+  defp long_content?(%{data: %{} = data} = object) do
+    raw =
+      data
+      |> Map.get("content", "")
+      |> to_string()
+      |> String.trim()
+
+    text =
+      cond do
+        raw == "" ->
+          ""
+
+        Map.get(object, :local) ->
+          raw
+
+        looks_like_html?(raw) ->
+          case FastSanitize.strip_tags(raw) do
+            {:ok, stripped} -> stripped
+            _ -> raw
+          end
+
+        true ->
+          raw
+      end
+
+    String.length(String.trim(text)) > @content_collapse_threshold
+  end
+
+  defp long_content?(_object), do: false
+
+  defp looks_like_html?(content) when is_binary(content) do
+    String.contains?(content, "<") and String.contains?(content, ">")
+  end
+
+  defp looks_like_html?(_content), do: false
 
   defp sensitive_media?(%{data: %{} = data}) do
     data
