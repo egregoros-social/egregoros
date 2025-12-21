@@ -64,7 +64,7 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     refute has_element?(view, "#following-panel")
   end
 
-  test "compose character counter counts down while typing", %{conn: conn, user: user} do
+  test "compose character counter updates after compose_change", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")
 
