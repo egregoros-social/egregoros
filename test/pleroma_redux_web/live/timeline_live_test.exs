@@ -139,6 +139,20 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     refute has_element?(view, "form#timeline-form button[type='submit'][disabled]")
   end
 
+  test "compose renders an emoji picker without requiring a server roundtrip", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "[data-role='compose-emoji-picker']")
+
+    assert has_element?(
+             view,
+             "[data-role='compose-emoji-option'][data-emoji='😀']"
+           )
+
+    refute has_element?(view, "[data-role='compose-emoji'][disabled]")
+  end
+
   test "post cards show actor handle", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")
