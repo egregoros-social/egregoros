@@ -150,6 +150,25 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     assert has_element?(view, "#post-#{oldest.id}")
   end
 
+  test "timeline exposes an infinite scroll sentinel for loading more posts", %{conn: conn, user: user} do
+    for idx <- 1..25 do
+      assert {:ok, _} = Pipeline.ingest(Note.build(user, "Post #{idx}"), local: true)
+    end
+
+    notes = Objects.list_notes(25)
+    oldest = List.last(notes)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "#timeline-bottom-sentinel[phx-hook='TimelineBottomSentinel']")
+    refute has_element?(view, "#post-#{oldest.id}")
+
+    render_hook(view, "load_more", %{})
+
+    assert has_element?(view, "#post-#{oldest.id}")
+  end
+
   test "liking a post creates a Like activity", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")

@@ -45,7 +45,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Public timeline view | DONE | `/` with timeline selector. |
 | Home timeline view | DONE | Requires account; toggles exist. |
 | Load more / pagination | DONE | “Load more” exists; consider infinite scroll later. |
-| Infinite scroll | TODO | Replace/augment “Load more”. |
+| Infinite scroll | DONE | Timeline auto-loads more posts when reaching bottom (keeps “Load more” button for accessibility). |
 | Streaming new posts into timeline | DONE | Live updates exist for timeline. |
 | “New posts” indicator when scrolled | DONE | Timeline buffers incoming posts while scrolled down and shows a “new posts” button. |
 | Human‑friendly timestamps (“5m”, “2h”) | DONE | Rendered as relative time with a full timestamp on hover. |

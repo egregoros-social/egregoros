@@ -909,6 +909,15 @@ defmodule PleromaReduxWeb.TimelineLive do
               <.icon name="hero-chevron-down" class="size-4" /> Load more
             </.button>
           </div>
+
+          <div
+            :if={!@posts_end?}
+            id="timeline-bottom-sentinel"
+            phx-hook="TimelineBottomSentinel"
+            class="h-px w-full"
+            aria-hidden="true"
+          >
+          </div>
         </section>
 
         <div
