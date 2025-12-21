@@ -21,6 +21,7 @@ defmodule PleromaReduxWeb.AppShellTest do
     assert html =~ ~s(id="app-shell")
     assert html =~ ~s(id="app-nav")
     assert html =~ ~s(data-role="nav-timeline")
+    assert html =~ ~s(data-role="nav-search")
     assert html =~ ~s(data-role="nav-notifications")
     assert html =~ ~s(data-role="nav-profile")
     assert html =~ ~s(data-role="nav-notifications-count")
@@ -40,6 +41,7 @@ defmodule PleromaReduxWeb.AppShellTest do
       })
 
     assert html =~ ~s(data-role="nav-timeline")
+    assert html =~ ~s(data-role="nav-search")
     assert html =~ ~s(data-role="nav-login")
     assert html =~ ~s(data-role="nav-register")
   end

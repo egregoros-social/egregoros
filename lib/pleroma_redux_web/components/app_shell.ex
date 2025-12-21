@@ -8,7 +8,7 @@ defmodule PleromaReduxWeb.AppShell do
   attr :main_id, :string, default: "app-main"
   attr :aside_id, :string, default: "app-aside"
 
-  attr :active, :atom, values: [:timeline, :notifications, :profile, :settings], required: true
+  attr :active, :atom, values: [:timeline, :search, :notifications, :profile, :settings], required: true
   attr :current_user, :any, default: nil
   attr :notifications_count, :integer, default: 0
 
@@ -70,6 +70,14 @@ defmodule PleromaReduxWeb.AppShell do
                 icon="hero-home"
                 label="Timeline"
                 navigate={timeline_href(@current_user)}
+              />
+
+              <.nav_link
+                role="nav-search"
+                active={@active == :search}
+                icon="hero-magnifying-glass"
+                label="Search"
+                navigate={~p"/search"}
               />
 
               <%= if @current_user do %>
@@ -158,6 +166,14 @@ defmodule PleromaReduxWeb.AppShell do
             icon="hero-home"
             label="Timeline"
             navigate={timeline_href(@current_user)}
+          />
+
+          <.bottom_nav_link
+            role="nav-search"
+            active={@active == :search}
+            icon="hero-magnifying-glass"
+            label="Search"
+            navigate={~p"/search"}
           />
 
           <%= if @current_user do %>
