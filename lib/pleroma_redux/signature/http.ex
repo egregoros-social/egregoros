@@ -141,8 +141,17 @@ defmodule PleromaRedux.Signature.HTTP do
 
     case Users.get_by_ap_id(ap_id) do
       %{} = user ->
-        [entry] = :public_key.pem_decode(user.public_key)
-        {:ok, :public_key.pem_entry_decode(entry)}
+        case :public_key.pem_decode(user.public_key) do
+          [entry] ->
+            try do
+              {:ok, :public_key.pem_entry_decode(entry)}
+            rescue
+              _ -> {:error, :unknown_key}
+            end
+
+          _ ->
+            {:error, :unknown_key}
+        end
 
       _ ->
         fetch_public_key_for_actor(ap_id)

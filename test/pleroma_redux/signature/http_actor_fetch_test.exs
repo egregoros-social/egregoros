@@ -85,4 +85,35 @@ defmodule PleromaRedux.Signature.HTTPActorFetchTest do
 
     assert {:error, :unsafe_url} = PleromaRedux.Signature.verify_request(conn)
   end
+
+  test "verify_request rejects invalid stored public keys without crashing" do
+    actor_url = "https://remote.example/users/alice"
+
+    {:ok, _user} =
+      Users.create_user(%{
+        nickname: "alice",
+        ap_id: actor_url,
+        inbox: actor_url <> "/inbox",
+        outbox: actor_url <> "/outbox",
+        public_key: "not-a-pem",
+        private_key: nil,
+        local: false
+      })
+
+    date = :httpd_util.rfc1123_date() |> List.to_string()
+
+    header =
+      "Signature " <>
+        "keyId=\"#{actor_url}#main-key\"," <>
+        "algorithm=\"rsa-sha256\"," <>
+        "headers=\"(request-target) date\"," <>
+        "signature=\"AA==\""
+
+    conn =
+      Plug.Test.conn(:post, "/users/frank/inbox", "")
+      |> Plug.Conn.put_req_header("date", date)
+      |> Plug.Conn.put_req_header("authorization", header)
+
+    assert {:error, :unknown_key} = PleromaRedux.Signature.verify_request(conn)
+  end
 end
