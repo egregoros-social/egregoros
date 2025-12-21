@@ -1,8 +1,8 @@
 defmodule PleromaReduxWeb.SettingsControllerTest do
   use PleromaReduxWeb.ConnCase, async: true
 
-  alias PleromaRedux.Users
   alias PleromaRedux.TestSupport.Fixtures
+  alias PleromaRedux.Users
 
   test "GET /settings redirects when not logged in", %{conn: conn} do
     conn = get(conn, "/settings")
@@ -11,32 +11,31 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
 
   test "GET /settings renders settings for logged-in user", %{conn: conn} do
     {:ok, user} =
-      apply(Users, :register_local_user, [
-        %{
-          nickname: "alice",
-          email: "alice@example.com",
-          password: "very secure password"
-        }
-      ])
+      Users.register_local_user(%{
+        nickname: "alice",
+        email: "alice@example.com",
+        password: "very secure password"
+      })
 
     conn =
       conn
       |> Plug.Test.init_test_session(%{user_id: user.id})
       |> get("/settings")
 
-    assert html_response(conn, 200) =~ "Settings"
-    assert html_response(conn, 200) =~ "alice@example.com"
+    html = html_response(conn, 200)
+    assert html =~ "Settings"
+    assert html =~ "alice@example.com"
+    assert html =~ ~s(data-role="app-shell")
+    assert html =~ ~s(data-role="nav-settings")
   end
 
   test "POST /settings/profile updates name, bio, and avatar upload", %{conn: conn} do
     {:ok, user} =
-      apply(Users, :register_local_user, [
-        %{
-          nickname: "alice",
-          email: "alice@example.com",
-          password: "very secure password"
-        }
-      ])
+      Users.register_local_user(%{
+        nickname: "alice",
+        email: "alice@example.com",
+        password: "very secure password"
+      })
 
     fixture_path = Fixtures.path!("DSCN0010.png")
 
@@ -78,13 +77,11 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
     conn: conn
   } do
     {:ok, user} =
-      apply(Users, :register_local_user, [
-        %{
-          nickname: "alice",
-          email: "alice@example.com",
-          password: "very secure password"
-        }
-      ])
+      Users.register_local_user(%{
+        nickname: "alice",
+        email: "alice@example.com",
+        password: "very secure password"
+      })
 
     conn =
       conn
@@ -109,13 +106,11 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
 
   test "POST /settings/password updates the password and allows logging in again", %{conn: conn} do
     {:ok, user} =
-      apply(Users, :register_local_user, [
-        %{
-          nickname: "alice",
-          email: "alice@example.com",
-          password: "very secure password"
-        }
-      ])
+      Users.register_local_user(%{
+        nickname: "alice",
+        email: "alice@example.com",
+        password: "very secure password"
+      })
 
     conn =
       conn

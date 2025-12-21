@@ -2,6 +2,7 @@ defmodule PleromaReduxWeb.SettingsController do
   use PleromaReduxWeb, :controller
 
   alias PleromaRedux.AvatarStorage
+  alias PleromaRedux.Notifications
   alias PleromaRedux.User
   alias PleromaRedux.Users
 
@@ -28,6 +29,7 @@ defmodule PleromaReduxWeb.SettingsController do
           profile_form: profile_form,
           account_form: Phoenix.Component.to_form(%{"email" => user.email || ""}, as: :account),
           password_form: password_form,
+          notifications_count: notifications_count(user),
           error: nil
         )
 
@@ -146,4 +148,10 @@ defmodule PleromaReduxWeb.SettingsController do
   end
 
   defp maybe_store_avatar(_user, _params), do: {:ok, nil}
+
+  defp notifications_count(%User{} = user) do
+    user
+    |> Notifications.list_for_user(limit: 20)
+    |> length()
+  end
 end
