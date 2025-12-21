@@ -538,6 +538,9 @@ defmodule PleromaReduxWeb.TimelineLive do
                     <.input
                       type="textarea"
                       field={@form[:content]}
+                      data-role="compose-content"
+                      data-max-chars={compose_max_chars()}
+                      phx-hook="ComposeCharCounter"
                       placeholder="What's on your mind?"
                       rows="6"
                       phx-debounce="blur"
@@ -1009,6 +1012,8 @@ defmodule PleromaReduxWeb.TimelineLive do
   end
 
   defp remaining_chars(_form), do: @compose_max_chars
+
+  defp compose_max_chars, do: @compose_max_chars
 
   defp visibility_label(visibility) when is_binary(visibility) do
     case String.trim(visibility) do

@@ -64,6 +64,24 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     refute has_element?(view, "#following-panel")
   end
 
+  test "compose character counter counts down while typing", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(
+             view,
+             "textarea[data-role='compose-content'][phx-hook='ComposeCharCounter'][data-max-chars='5000']"
+           )
+
+    assert has_element?(view, "[data-role='compose-char-counter']", "5000")
+
+    view
+    |> form("#timeline-form", post: %{content: "hello"})
+    |> render_change()
+
+    assert has_element?(view, "[data-role='compose-char-counter']", "4995")
+  end
+
   test "post cards show actor handle", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")

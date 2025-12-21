@@ -87,6 +87,75 @@ const TimelineBottomSentinel = {
   },
 }
 
+const ComposeCharCounter = {
+  mounted() {
+    this.maxChars = this.readMaxChars()
+    this.counter = this.findCounter()
+    this.segmenter = this.buildSegmenter()
+
+    this.onInput = () => this.update()
+    this.el.addEventListener("input", this.onInput)
+    this.update()
+  },
+
+  updated() {
+    this.update()
+  },
+
+  destroyed() {
+    this.el.removeEventListener("input", this.onInput)
+  },
+
+  readMaxChars() {
+    const raw = this.el.dataset.maxChars
+    const parsed = parseInt(raw || "0", 10)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+    return 0
+  },
+
+  buildSegmenter() {
+    if (!window.Intl || !Intl.Segmenter) return null
+    try {
+      return new Intl.Segmenter(undefined, {granularity: "grapheme"})
+    } catch (_error) {
+      return null
+    }
+  },
+
+  countChars(text) {
+    if (!text) return 0
+
+    if (this.segmenter) {
+      let count = 0
+      for (const _segment of this.segmenter.segment(text)) count++
+      return count
+    }
+
+    return Array.from(text).length
+  },
+
+  findCounter() {
+    const form = this.el.closest("form")
+    if (!form) return null
+    return form.querySelector("[data-role='compose-char-counter']")
+  },
+
+  update() {
+    if (!this.counter || !this.counter.isConnected) this.counter = this.findCounter()
+    if (!this.counter || !this.counter.isConnected) return
+    if (!this.maxChars) return
+
+    const remaining = this.maxChars - this.countChars(this.el.value || "")
+    this.counter.textContent = String(remaining)
+
+    const overLimit = remaining < 0
+    this.counter.classList.toggle("text-rose-600", overLimit)
+    this.counter.classList.toggle("dark:text-rose-400", overLimit)
+    this.counter.classList.toggle("text-slate-500", !overLimit)
+    this.counter.classList.toggle("dark:text-slate-400", !overLimit)
+  },
+}
+
 const MediaViewer = {
   mounted() {
     this.index = this.readIndex()
@@ -362,7 +431,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, TimelineTopSentinel, TimelineBottomSentinel, MediaViewer},
+  hooks: {...colocatedHooks, TimelineTopSentinel, TimelineBottomSentinel, ComposeCharCounter, MediaViewer},
 })
 
 window.addEventListener("predux:scroll-top", () => {
