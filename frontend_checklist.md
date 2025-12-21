@@ -50,7 +50,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Streaming new posts into timeline | DONE | Live updates exist for timeline. |
 | “New posts” indicator when scrolled | DONE | Timeline buffers incoming posts while scrolled down and shows a “new posts” button. |
 | Human‑friendly timestamps (“5m”, “2h”) | DONE | Rendered as relative time with a full timestamp on hover. |
-| Status permalink page (single post view) | PARTIAL | LiveView route `/@:nickname/:uuid` exists; actions (like/repost/reaction/reply) are wired, but needs polish (error states, canonical redirects). |
+| Status permalink page (single post view) | PARTIAL | LiveView route `/@:nickname/:uuid` exists; actions (like/repost/reaction/reply) are wired; canonical redirects are implemented, but page still needs polish (error states, richer thread UI). |
 | Thread/context view (replies chain) | PARTIAL | Status page renders ancestors + descendants with basic indentation for nested replies; still needs richer threading UI and reply polish. |
 | Clickable actor profile from timeline | DONE | Status cards link actor → profile. |
 | Link handling (open external safely, copy link) | PARTIAL | Status menu supports “Copy link” + “Open link”; needs richer share affordances. |
@@ -80,10 +80,10 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Local text rendering | DONE | Local posts render as text. |
 | Content warning / spoiler rendering | DONE | Status cards render CW as a toggle and hide body + media behind it. |
 | Linkify mentions/hashtags for local content | PARTIAL | `@user`, `@user@host`, and `#tags` linkified in local text; remote tags still depend on incoming HTML. |
-| Emoji reactions UI | DONE | Limited emoji set; improve UX (picker/custom emoji). |
+| Emoji reactions UI | DONE | Reaction picker exists and renders all emojis present; still missing custom emoji (server-provided) + search. |
 | Like / unlike | DONE | |
 | Repost / unrepost | DONE | |
-| Reply action | PARTIAL | Reply links to the status page (local permalinks); remote reply UX still TODO. |
+| Reply action | DONE | Reply works for both local + remote posts via the status permalink page. |
 | Bookmark action | TODO | |
 | Delete own post | DONE | Available from the status “…” menu for local posts owned by the current user (with confirm step). |
 | Edit own post | TODO | (Optional; Mastodon doesn’t support editing by default.) |
