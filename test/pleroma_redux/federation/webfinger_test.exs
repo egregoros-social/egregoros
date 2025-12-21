@@ -1,6 +1,8 @@
 defmodule PleromaRedux.Federation.WebFingerTest do
   use PleromaRedux.DataCase, async: true
 
+  import Mox
+
   alias PleromaRedux.Federation.WebFinger
 
   test "lookup returns the actor url for a valid acct handle" do
@@ -66,5 +68,13 @@ defmodule PleromaRedux.Federation.WebFingerTest do
 
     assert {:error, :not_found} = WebFinger.lookup("@alice@remote.example")
   end
-end
 
+  test "lookup rejects unsafe domains without fetching" do
+    stub(PleromaRedux.HTTP.Mock, :get, fn _url, _headers ->
+      flunk("unexpected HTTP fetch for unsafe webfinger domain")
+    end)
+
+    assert {:error, :unsafe_url} = WebFinger.lookup("@alice@127.0.0.1")
+    assert {:error, :unsafe_url} = WebFinger.lookup("@alice@localhost")
+  end
+end

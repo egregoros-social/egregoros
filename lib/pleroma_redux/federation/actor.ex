@@ -8,7 +8,7 @@ defmodule PleromaRedux.Federation.Actor do
          {:ok, %{status: status, body: body}} when status in 200..299 <-
            HTTP.get(actor_url, headers()),
          {:ok, actor} <- decode_json(body),
-         {:ok, attrs} <- to_user_attrs(actor),
+         {:ok, attrs} <- to_user_attrs(actor, actor_url),
          {:ok, user} <- Users.upsert_user(attrs) do
       {:ok, user}
     else
@@ -35,8 +35,23 @@ defmodule PleromaRedux.Federation.Actor do
 
   defp decode_json(_), do: {:error, :invalid_json}
 
-  defp to_user_attrs(%{"id" => id, "inbox" => inbox} = actor)
+  defp to_user_attrs(%{"id" => id, "inbox" => inbox} = actor, actor_url)
+       when is_binary(id) and is_binary(inbox) and is_binary(actor_url) do
+    if id != actor_url do
+      {:error, :actor_id_mismatch}
+    else
+      to_user_attrs(actor, id, inbox)
+    end
+  end
+
+  defp to_user_attrs(%{"id" => id, "inbox" => inbox} = actor, _actor_url)
        when is_binary(id) and is_binary(inbox) do
+    to_user_attrs(actor, id, inbox)
+  end
+
+  defp to_user_attrs(_actor, _actor_url), do: {:error, :invalid_actor}
+
+  defp to_user_attrs(%{} = actor, id, inbox) when is_binary(id) and is_binary(inbox) do
     public_key = get_in(actor, ["publicKey", "publicKeyPem"])
 
     if not is_binary(public_key) or public_key == "" do
@@ -64,24 +79,25 @@ defmodule PleromaRedux.Federation.Actor do
           _ -> id <> "/outbox"
         end
 
-      {:ok,
-       %{
-         nickname: nickname,
-         domain: domain,
-         ap_id: id,
-         inbox: inbox,
-         outbox: outbox,
-         public_key: public_key,
-         private_key: nil,
-         local: false,
-         name: Map.get(actor, "name"),
-         bio: Map.get(actor, "summary"),
-         avatar_url: icon_url(actor)
-       }}
+      with :ok <- SafeURL.validate_http_url(inbox),
+           :ok <- SafeURL.validate_http_url(outbox) do
+        {:ok,
+         %{
+           nickname: nickname,
+           domain: domain,
+           ap_id: id,
+           inbox: inbox,
+           outbox: outbox,
+           public_key: public_key,
+           private_key: nil,
+           local: false,
+           name: Map.get(actor, "name"),
+           bio: Map.get(actor, "summary"),
+           avatar_url: icon_url(actor)
+         }}
+      end
     end
   end
-
-  defp to_user_attrs(_), do: {:error, :invalid_actor}
 
   defp fallback_nickname(nil), do: "unknown"
 

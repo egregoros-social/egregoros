@@ -1,6 +1,8 @@
 defmodule PleromaRedux.Federation.ActorTest do
   use PleromaRedux.DataCase, async: true
 
+  import Mox
+
   alias PleromaRedux.Federation.Actor
   alias PleromaRedux.Keys
   alias PleromaRedux.Users
@@ -102,5 +104,60 @@ defmodule PleromaRedux.Federation.ActorTest do
 
     assert {:error, :actor_fetch_failed} = Actor.fetch_and_store(actor_url)
   end
-end
 
+  test "fetch_and_store rejects actors whose id does not match the fetched url" do
+    actor_url = "https://remote.example/users/alice"
+    {public_key, _private_key} = Keys.generate_rsa_keypair()
+
+    expect(PleromaRedux.HTTP.Mock, :get, fn _url, _headers ->
+      {:ok,
+       %{
+         status: 200,
+         body: %{
+           "id" => "https://evil.example/users/alice",
+           "type" => "Person",
+           "preferredUsername" => "alice",
+           "inbox" => actor_url <> "/inbox",
+           "outbox" => actor_url <> "/outbox",
+           "publicKey" => %{
+             "id" => actor_url <> "#main-key",
+             "owner" => actor_url,
+             "publicKeyPem" => public_key
+           }
+         },
+         headers: []
+       }}
+    end)
+
+    assert {:error, :actor_id_mismatch} = Actor.fetch_and_store(actor_url)
+    refute Users.get_by_ap_id(actor_url)
+  end
+
+  test "fetch_and_store rejects actors with unsafe inbox urls" do
+    actor_url = "https://remote.example/users/alice"
+    {public_key, _private_key} = Keys.generate_rsa_keypair()
+
+    expect(PleromaRedux.HTTP.Mock, :get, fn _url, _headers ->
+      {:ok,
+       %{
+         status: 200,
+         body: %{
+           "id" => actor_url,
+           "type" => "Person",
+           "preferredUsername" => "alice",
+           "inbox" => "http://127.0.0.1/inbox",
+           "outbox" => actor_url <> "/outbox",
+           "publicKey" => %{
+             "id" => actor_url <> "#main-key",
+             "owner" => actor_url,
+             "publicKeyPem" => public_key
+           }
+         },
+         headers: []
+       }}
+    end)
+
+    assert {:error, :unsafe_url} = Actor.fetch_and_store(actor_url)
+    refute Users.get_by_ap_id(actor_url)
+  end
+end

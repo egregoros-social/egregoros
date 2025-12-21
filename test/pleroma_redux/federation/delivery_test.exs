@@ -57,4 +57,26 @@ defmodule PleromaRedux.Federation.DeliveryTest do
                "activity" => activity
              })
   end
+
+  test "deliver rejects unsafe inbox urls" do
+    {:ok, user} = Users.create_local_user("alice")
+
+    inbox = "http://127.0.0.1/users/bob/inbox"
+
+    activity = %{
+      "id" => "https://local.example/activities/follow/1",
+      "type" => "Follow",
+      "actor" => user.ap_id,
+      "object" => "https://remote.example/users/bob"
+    }
+
+    stub(PleromaRedux.HTTP.Mock, :post, fn _url, _body, _headers ->
+      flunk("unexpected delivery for unsafe inbox url")
+    end)
+
+    assert {:error, :unsafe_url} = Delivery.deliver(user, inbox, activity)
+    refute_enqueued(worker: DeliverActivity)
+
+    assert {:error, :unsafe_url} = Delivery.deliver_now(user, inbox, activity)
+  end
 end

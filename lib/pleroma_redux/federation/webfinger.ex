@@ -1,11 +1,13 @@
 defmodule PleromaRedux.Federation.WebFinger do
   alias PleromaRedux.HTTP
+  alias PleromaRedux.SafeURL
 
   def lookup(handle) when is_binary(handle) do
     with {:ok, username, domain} <- parse_handle(handle),
          url <-
            "https://" <>
              domain <> "/.well-known/webfinger?resource=acct:" <> username <> "@" <> domain,
+         :ok <- SafeURL.validate_http_url(url),
          {:ok, %{status: status, body: body}} when status in 200..299 <- HTTP.get(url, headers()),
          {:ok, jrd} <- decode_json(body),
          {:ok, actor_url} <- find_actor_url(jrd) do
