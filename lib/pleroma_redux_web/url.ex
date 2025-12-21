@@ -37,7 +37,8 @@ defmodule PleromaReduxWeb.URL do
 
   defp base_url?(base) when is_binary(base) do
     case URI.parse(base) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+      %URI{scheme: scheme, host: host}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
         true
 
       _ ->
