@@ -8,7 +8,8 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 - **TODO**: not implemented in the web UI
 
 ## Current UI entry points (for reference)
-- `/` (LiveView) timeline + compose + follow tooling
+- `/` (LiveView) timeline + compose
+- `/search` (LiveView) account search + remote follow by handle
 - `/notifications` (LiveView) notifications list
 - `/@:nickname` (LiveView) profile view
 - `/login`, `/register`, `/settings`, `/oauth/authorize` (controllers/templates)
@@ -123,8 +124,8 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 ### Search & discovery
 | Feature | Status | Notes |
 |---|---:|---|
-| Search box (global) | TODO | Accounts + statuses + hashtags. |
-| Account lookup by `@user@host` | TODO | Separate from “follow by handle” workflow. |
+| Search box (global) | PARTIAL | `/search` supports account search; still missing statuses + hashtags. |
+| Account lookup by `@user@host` | PARTIAL | `/search` supports following remote accounts by handle; still missing a standalone “lookup” flow. |
 | Hashtag pages | PARTIAL | Tag timeline exists (`/tags/:tag`) using content search; supports like/repost/reaction + load-more pagination; still needs tag extraction from `tag` fields. |
 | Explore / trending | TODO | |
 | User directory | TODO | |
