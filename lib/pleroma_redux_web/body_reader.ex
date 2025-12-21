@@ -6,7 +6,8 @@ defmodule PleromaReduxWeb.BodyReader do
   def read_body(conn, opts) do
     case Conn.read_body(conn, opts) do
       {:ok, body, conn} ->
-        {:ok, body, Conn.assign(conn, :raw_body, body)}
+        existing = Map.get(conn.assigns, :raw_body, "")
+        {:ok, body, Conn.assign(conn, :raw_body, existing <> body)}
 
       {:more, body, conn} ->
         existing = Map.get(conn.assigns, :raw_body, "")
