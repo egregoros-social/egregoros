@@ -76,6 +76,74 @@ defmodule PleromaReduxWeb.ProfileLiveTest do
     assert has_element?(view, "a[href='/@#{profile_user.nickname}/following']")
   end
 
+  test "profile posts support copying permalinks", %{
+    conn: conn,
+    viewer: viewer,
+    profile_user: profile_user
+  } do
+    assert {:ok, note} = Pipeline.ingest(Note.build(profile_user, "Copy this"), local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
+
+    view
+    |> element("#post-#{note.id} button[data-role='copy-link']")
+    |> render_click()
+
+    assert render(view) =~ "Copied link to clipboard."
+  end
+
+  test "profile posts can open the media viewer", %{
+    conn: conn,
+    viewer: viewer,
+    profile_user: profile_user
+  } do
+    note =
+      Note.build(profile_user, "With images")
+      |> Map.put("attachment", [
+        %{
+          "mediaType" => "image/png",
+          "name" => "first",
+          "url" => [%{"href" => "/uploads/first.png", "mediaType" => "image/png"}]
+        },
+        %{
+          "mediaType" => "image/png",
+          "name" => "second",
+          "url" => [%{"href" => "/uploads/second.png", "mediaType" => "image/png"}]
+        }
+      ])
+
+    assert {:ok, object} = Pipeline.ingest(note, local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
+
+    view
+    |> element("#post-#{object.id} button[data-role='attachment-open'][data-index='0']")
+    |> render_click()
+
+    assert has_element?(view, "#media-viewer[data-role='media-viewer']")
+    assert render(view) =~ "/uploads/first.png"
+
+    view
+    |> element("#media-viewer [data-role='media-viewer-next']")
+    |> render_click()
+
+    assert render(view) =~ "/uploads/second.png"
+
+    view
+    |> element("#media-viewer [data-role='media-viewer-prev']")
+    |> render_click()
+
+    assert render(view) =~ "/uploads/first.png"
+
+    view
+    |> element("#media-viewer [data-role='media-viewer-close']")
+    |> render_click()
+
+    refute has_element?(view, "#media-viewer[data-role='media-viewer']")
+  end
+
   test "remote profiles are addressed by nickname@domain and do not hijack local routes", %{
     conn: conn,
     viewer: viewer
