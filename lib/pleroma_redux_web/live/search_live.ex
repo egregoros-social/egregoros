@@ -1,7 +1,9 @@
 defmodule PleromaReduxWeb.SearchLive do
   use PleromaReduxWeb, :live_view
 
+  alias PleromaRedux.Federation
   alias PleromaRedux.Notifications
+  alias PleromaRedux.Relationships
   alias PleromaRedux.User
   alias PleromaRedux.Users
   alias PleromaReduxWeb.ProfilePaths
@@ -44,6 +46,25 @@ defmodule PleromaReduxWeb.SearchLive do
      else
        push_patch(socket, to: ~p"/search?#{%{q: q}}")
      end}
+  end
+
+  def handle_event("follow_remote", _params, socket) do
+    with %User{} = user <- socket.assigns.current_user,
+         handle when is_binary(handle) and handle != "" <- socket.assigns.remote_handle,
+         {:ok, remote_user} <- Federation.follow_remote(user, handle) do
+      socket =
+        socket
+        |> put_flash(:info, "Following #{ActorVM.handle(remote_user, remote_user.ap_id)}.")
+        |> apply_params(%{"q" => socket.assigns.query})
+
+      {:noreply, socket}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Login to follow remote accounts.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Could not follow remote account.")}
+    end
   end
 
   @impl true
@@ -92,6 +113,60 @@ defmodule PleromaReduxWeb.SearchLive do
           </.card>
 
           <div data-role="search-results" class="space-y-3">
+            <.card
+              :if={@remote_handle != nil and @current_user == nil}
+              data_role="remote-follow"
+              class="p-6"
+            >
+              <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Follow a remote account
+              </p>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Login to follow <span class="font-semibold">{@remote_handle}</span>.
+              </p>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <.button navigate={~p"/login"} size="sm">Login</.button>
+                <.button navigate={~p"/register"} variant="secondary" size="sm">Register</.button>
+              </div>
+            </.card>
+
+            <.card
+              :if={@remote_handle != nil and @current_user != nil and !@remote_following?}
+              data_role="remote-follow"
+              class="p-6"
+            >
+              <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Follow a remote account
+              </p>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Follow <span class="font-semibold">{@remote_handle}</span> via ActivityPub.
+              </p>
+              <div class="mt-4">
+                <.button
+                  type="button"
+                  data-role="remote-follow-button"
+                  phx-click="follow_remote"
+                  phx-disable-with="Following..."
+                  size="sm"
+                >
+                  Follow
+                </.button>
+              </div>
+            </.card>
+
+            <.card
+              :if={@remote_handle != nil and @current_user != nil and @remote_following?}
+              data_role="remote-follow"
+              class="p-6"
+            >
+              <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Remote follow
+              </p>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                You are following <span class="font-semibold">{@remote_handle}</span>.
+              </p>
+            </.card>
+
             <.card :if={@query != "" and @results == []} class="p-6">
               <p class="text-sm text-slate-600 dark:text-slate-300">
                 No matching accounts found.
@@ -138,18 +213,45 @@ defmodule PleromaReduxWeb.SearchLive do
   defp apply_params(socket, %{} = params) do
     q = params |> Map.get("q", "") |> to_string() |> String.trim()
 
+    {search_query, remote_handle} = parse_query(q)
+
     results =
-      if q == "" do
+      if search_query == "" do
         []
       else
-        Users.search(q, limit: @page_size)
+        Users.search(search_query, limit: @page_size)
+      end
+
+    remote_following? =
+      with %User{} = user <- socket.assigns[:current_user],
+           handle when is_binary(handle) <- remote_handle,
+           %User{} = target <- Users.get_by_handle(handle),
+           %{} <- Relationships.get_by_type_actor_object("Follow", user.ap_id, target.ap_id) do
+        true
+      else
+        _ -> false
       end
 
     assign(socket,
       query: q,
+      remote_handle: remote_handle,
+      remote_following?: remote_following?,
       results: results,
       search_form: Phoenix.Component.to_form(%{"q" => q}, as: :search)
     )
+  end
+
+  defp parse_query(query) when is_binary(query) do
+    query = String.trim(query)
+    trimmed = String.trim_leading(query, "@")
+
+    case String.split(trimmed, "@", parts: 2) do
+      [nickname, domain] when nickname != "" and domain != "" ->
+        {nickname, nickname <> "@" <> domain}
+
+      _ ->
+        {query, nil}
+    end
   end
 
   defp notifications_count(nil), do: 0
