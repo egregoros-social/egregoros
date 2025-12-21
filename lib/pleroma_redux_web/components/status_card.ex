@@ -443,12 +443,25 @@ defmodule PleromaReduxWeb.StatusCard do
         URL.absolute(path)
 
       is_binary(ap_id) and ap_id != "" ->
-        ap_id
+        if safe_http_url?(ap_id), do: ap_id, else: nil
 
       true ->
         nil
     end
   end
+
+  defp safe_http_url?(url) when is_binary(url) do
+    case URI.parse(String.trim(url)) do
+      %URI{scheme: scheme, host: host}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp safe_http_url?(_url), do: false
 
   attr :entry, :map, required: true
 

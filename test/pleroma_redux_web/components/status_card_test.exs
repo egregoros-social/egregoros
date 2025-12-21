@@ -501,4 +501,36 @@ defmodule PleromaReduxWeb.StatusCardTest do
     assert html =~ ~r/id="post-content-1"[^>]*class="[^"]*max-h-64/
     assert html =~ ~r/id="post-content-1"[^>]*class="[^"]*overflow-hidden/
   end
+
+  test "does not expose unsafe remote ids as share urls" do
+    html =
+      render_component(&StatusCard.status_card/1, %{
+        id: "post-1",
+        current_user: %{id: 1},
+        entry: %{
+          object: %{
+            id: 1,
+            ap_id: "javascript:alert(1)",
+            inserted_at: ~U[2025-01-01 00:00:00Z],
+            local: false,
+            data: %{"content" => "<p>Hello</p>"}
+          },
+          actor: %{
+            display_name: "Alice",
+            handle: "@alice@remote.example",
+            avatar_url: nil
+          },
+          attachments: [],
+          liked?: false,
+          likes_count: 0,
+          reposted?: false,
+          reposts_count: 0,
+          reactions: %{}
+        }
+      })
+
+    assert html =~ ~s(data-role="status-menu")
+    refute html =~ ~s(data-role="copy-link")
+    refute html =~ ~s(data-role="open-link")
+  end
 end
