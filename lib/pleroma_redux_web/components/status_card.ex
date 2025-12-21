@@ -219,6 +219,40 @@ defmodule PleromaReduxWeb.StatusCard do
               <span class="text-xs font-normal">{reaction.count}</span>
             </button>
           <% end %>
+
+          <details id={"reaction-picker-#{@entry.object.id}"} data-role="reaction-picker" class="relative">
+            <summary class="list-none [&::-webkit-details-marker]:hidden">
+              <span class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 bg-white/70 text-slate-500 transition hover:-translate-y-0.5 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-300 dark:hover:bg-slate-950 dark:hover:text-white">
+                <.icon name="hero-face-smile" class="size-5" />
+                <span class="sr-only">Add reaction</span>
+              </span>
+            </summary>
+
+            <div
+              class="absolute left-0 top-12 z-40 w-64 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-xl shadow-slate-900/10 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/80 dark:shadow-slate-900/40"
+              phx-click-away={JS.remove_attribute("open", to: "#reaction-picker-#{@entry.object.id}")}
+            >
+              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                React
+              </p>
+
+              <div class="mt-4 grid grid-cols-8 gap-2">
+                <button
+                  :for={emoji <- reaction_picker_emojis()}
+                  type="button"
+                  data-role="reaction-picker-option"
+                  data-emoji={emoji}
+                  phx-click={
+                    JS.push("toggle_reaction", value: %{id: @entry.object.id, emoji: emoji})
+                    |> JS.remove_attribute("open", to: "#reaction-picker-#{@entry.object.id}")
+                  }
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-xl transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:bg-white/10"
+                >
+                  {emoji}
+                </button>
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </article>
@@ -238,6 +272,10 @@ defmodule PleromaReduxWeb.StatusCard do
   end
 
   defp reaction_order(_reactions), do: StatusVM.reaction_emojis()
+
+  defp reaction_picker_emojis do
+    ["😀", "😂", "😍", "😮", "😢", "😡", "🔥", "👍", "❤️", "🎉", "🙏", "🤔", "🥳", "😎", "💯", "✨"]
+  end
 
   attr :entry, :map, required: true
 

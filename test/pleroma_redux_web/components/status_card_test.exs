@@ -74,6 +74,37 @@ defmodule PleromaReduxWeb.StatusCardTest do
     assert html =~ ~s(data-emoji="😀")
   end
 
+  test "renders a reaction picker for adding more emoji reactions" do
+    html =
+      render_component(&StatusCard.status_card/1, %{
+        id: "post-1",
+        current_user: %{id: 1},
+        entry: %{
+          object: %{
+            id: 1,
+            inserted_at: ~U[2025-01-01 00:00:00Z],
+            local: true,
+            data: %{"content" => "Hello world"}
+          },
+          actor: %{
+            display_name: "Alice",
+            handle: "@alice",
+            avatar_url: nil
+          },
+          attachments: [],
+          liked?: false,
+          likes_count: 0,
+          reposted?: false,
+          reposts_count: 0,
+          reactions: %{"🔥" => %{count: 0, reacted?: false}}
+        }
+      })
+
+    assert html =~ ~s(data-role="reaction-picker")
+    assert html =~ ~s(data-role="reaction-picker-option")
+    assert html =~ ~s(data-emoji="😀")
+  end
+
   test "renders video attachments with a video tag" do
     html =
       render_component(&StatusCard.status_card/1, %{
