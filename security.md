@@ -26,6 +26,7 @@ This file tracks known security gaps and their remediation status.
   - [x] Reject unsafe WebFinger targets before fetching (`lookup/1`).
   - [x] Reject unsafe actor `inbox`/`outbox` before storing.
   - [x] Reject unsafe inbox URLs before enqueueing/sending deliveries.
+- [x] **Avoid signature verification crashes**: reject invalid stored public keys (bad PEM) without raising (prevents trivial DoS).
 
 ## Medium priority (authz)
 - [x] **Enforce OAuth scopes** for Mastodon API endpoints (coarse `read`/`write`/`follow`).
