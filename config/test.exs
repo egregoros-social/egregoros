@@ -46,6 +46,7 @@ config :pleroma_redux, PleromaRedux.HTTP, PleromaRedux.HTTP.Mock
 config :pleroma_redux, PleromaRedux.DNS, PleromaRedux.DNS.Mock
 config :pleroma_redux, PleromaRedux.AuthZ, PleromaRedux.AuthZ.Mock
 config :pleroma_redux, PleromaRedux.AvatarStorage, PleromaRedux.AvatarStorage.Mock
+config :pleroma_redux, PleromaRedux.BannerStorage, PleromaRedux.BannerStorage.Mock
 config :pleroma_redux, PleromaRedux.MediaStorage, PleromaRedux.MediaStorage.Mock
 
 config :pleroma_redux, :password_iterations, 1_000

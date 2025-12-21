@@ -110,7 +110,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Blocks / mutes | TODO | UI + clear state indicators. |
 | Relationship badges (follows you, mutuals) | TODO | Optional but useful. |
 | Profile fields (custom metadata) | TODO | Common on Mastodon/Pleroma. |
-| Profile header image | TODO | |
+| Profile header image | DONE | Local users can upload a header image in Settings; profile renders it when `banner_url` is present. |
 
 ### Notifications
 | Feature | Status | Notes |

@@ -269,6 +269,16 @@ defmodule PleromaReduxWeb.ProfileLive do
                 data-role="profile-banner"
                 class="relative h-32 bg-gradient-to-r from-slate-900 via-slate-800 to-rose-700 dark:from-slate-950 dark:via-slate-900 dark:to-rose-600 sm:h-36"
               >
+                <img
+                  :if={is_binary(@profile_user.banner_url) and @profile_user.banner_url != ""}
+                  data-role="profile-banner-image"
+                  src={URL.absolute(@profile_user.banner_url, @profile_user.ap_id)}
+                  alt=""
+                  class="absolute inset-0 h-full w-full object-cover"
+                  loading="lazy"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent">
+                </div>
                 <div class="pointer-events-none absolute inset-0 opacity-70 mix-blend-overlay">
                   <div class="absolute -left-14 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl">
                   </div>

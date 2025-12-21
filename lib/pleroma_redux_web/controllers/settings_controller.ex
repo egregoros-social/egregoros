@@ -2,6 +2,7 @@ defmodule PleromaReduxWeb.SettingsController do
   use PleromaReduxWeb, :controller
 
   alias PleromaRedux.AvatarStorage
+  alias PleromaRedux.BannerStorage
   alias PleromaRedux.Notifications
   alias PleromaRedux.User
   alias PleromaRedux.Users
@@ -14,7 +15,8 @@ defmodule PleromaReduxWeb.SettingsController do
             %{
               "name" => user.name || "",
               "bio" => user.bio || "",
-              "avatar" => nil
+              "avatar" => nil,
+              "banner" => nil
             },
             as: :profile
           )
@@ -43,7 +45,8 @@ defmodule PleromaReduxWeb.SettingsController do
   def update_profile(conn, %{"profile" => %{} = params}) do
     with %User{} = user <- conn.assigns.current_user,
          {:ok, avatar_url} <- maybe_store_avatar(user, params),
-         {:ok, _user} <- Users.update_profile(user, profile_attrs(params, avatar_url)) do
+         {:ok, banner_url} <- maybe_store_banner(user, params),
+         {:ok, _user} <- Users.update_profile(user, profile_attrs(params, avatar_url, banner_url)) do
       conn
       |> put_flash(:info, "Profile updated.")
       |> redirect(to: ~p"/settings")
@@ -137,6 +140,12 @@ defmodule PleromaReduxWeb.SettingsController do
     |> maybe_put("avatar_url", avatar_url)
   end
 
+  defp profile_attrs(params, avatar_url, banner_url) when is_map(params) do
+    params
+    |> profile_attrs(avatar_url)
+    |> maybe_put("banner_url", banner_url)
+  end
+
   defp maybe_put(attrs, _key, nil), do: attrs
 
   defp maybe_put(attrs, key, value) when is_binary(key) do
@@ -148,6 +157,12 @@ defmodule PleromaReduxWeb.SettingsController do
   end
 
   defp maybe_store_avatar(_user, _params), do: {:ok, nil}
+
+  defp maybe_store_banner(user, %{"banner" => %Plug.Upload{} = upload}) do
+    BannerStorage.store_banner(user, upload)
+  end
+
+  defp maybe_store_banner(_user, _params), do: {:ok, nil}
 
   defp notifications_count(%User{} = user) do
     user

@@ -3,7 +3,7 @@ defmodule PleromaRedux.User do
 
   import Ecto.Changeset
 
-  @fields ~w(nickname domain ap_id inbox outbox public_key private_key local email password_hash name bio avatar_url)a
+  @fields ~w(nickname domain ap_id inbox outbox public_key private_key local email password_hash name bio avatar_url banner_url)a
   @required_fields ~w(nickname ap_id inbox outbox public_key local)a
 
   schema "users" do
@@ -20,6 +20,7 @@ defmodule PleromaRedux.User do
     field :name, :string
     field :bio, :string
     field :avatar_url, :string
+    field :banner_url, :string
 
     timestamps(type: :utc_datetime_usec)
   end

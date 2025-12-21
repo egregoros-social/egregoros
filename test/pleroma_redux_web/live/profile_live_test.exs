@@ -90,6 +90,25 @@ defmodule PleromaReduxWeb.ProfileLiveTest do
     assert has_element?(view, "[data-role='profile-handle']", "@#{profile_user.nickname}")
   end
 
+  test "profile banner renders header image when present", %{
+    conn: conn,
+    viewer: viewer,
+    profile_user: profile_user
+  } do
+    {:ok, profile_user} =
+      Users.update_profile(
+        profile_user,
+        %{
+          banner_url: "/uploads/banners/#{profile_user.id}/banner.png"
+        }
+      )
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
+
+    assert has_element?(view, "[data-role='profile-banner'] img[src*='/uploads/banners/']")
+  end
+
   test "profile avatar resolves remote relative urls against the actor host", %{
     conn: conn,
     viewer: viewer

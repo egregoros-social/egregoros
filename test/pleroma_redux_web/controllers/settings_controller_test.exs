@@ -29,7 +29,7 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
     assert html =~ ~s(data-role="nav-settings")
   end
 
-  test "POST /settings/profile updates name, bio, and avatar upload", %{conn: conn} do
+  test "POST /settings/profile updates name, bio, avatar, and header image uploads", %{conn: conn} do
     {:ok, user} =
       Users.register_local_user(%{
         nickname: "alice",
@@ -45,12 +45,26 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
       content_type: "image/png"
     }
 
+    banner_upload = %Plug.Upload{
+      path: fixture_path,
+      filename: "banner.png",
+      content_type: "image/png"
+    }
+
     expect(PleromaRedux.AvatarStorage.Mock, :store_avatar, fn passed_user, passed_upload ->
       assert passed_user.id == user.id
       assert passed_upload.filename == "avatar.png"
       assert passed_upload.content_type == "image/png"
 
       {:ok, "/uploads/avatars/#{passed_user.id}/avatar.png"}
+    end)
+
+    expect(PleromaRedux.BannerStorage.Mock, :store_banner, fn passed_user, passed_upload ->
+      assert passed_user.id == user.id
+      assert passed_upload.filename == "banner.png"
+      assert passed_upload.content_type == "image/png"
+
+      {:ok, "/uploads/banners/#{passed_user.id}/banner.png"}
     end)
 
     conn =
@@ -60,7 +74,8 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
         "profile" => %{
           "name" => "Alice Example",
           "bio" => "Hello from Redux",
-          "avatar" => upload
+          "avatar" => upload,
+          "banner" => banner_upload
         }
       })
 
@@ -71,6 +86,7 @@ defmodule PleromaReduxWeb.SettingsControllerTest do
     assert updated.name == "Alice Example"
     assert updated.bio == "Hello from Redux"
     assert updated.avatar_url == "/uploads/avatars/#{user.id}/avatar.png"
+    assert updated.banner_url == "/uploads/banners/#{user.id}/banner.png"
   end
 
   test "POST /settings/account updates email and allows logging in with the new email", %{
