@@ -490,16 +490,22 @@ defmodule PleromaReduxWeb.StatusLive do
                 </section>
 
                 <div class="flex items-center justify-between gap-3">
-                  <span
-                    data-role="compose-char-counter"
-                    class={[
-                      "tabular-nums text-sm font-semibold",
-                      reply_remaining_chars(@reply_form) < 0 && "text-rose-600 dark:text-rose-400",
-                      reply_remaining_chars(@reply_form) >= 0 && "text-slate-500 dark:text-slate-400"
-                    ]}
-                  >
-                    {reply_remaining_chars(@reply_form)}
-                  </span>
+                  <div class="flex items-center gap-3">
+                    <.compose_emoji_picker id="reply-emoji-picker" />
+
+                    <span
+                      data-role="compose-char-counter"
+                      class={[
+                        "tabular-nums text-sm font-semibold",
+                        reply_remaining_chars(@reply_form) < 0 &&
+                          "text-rose-600 dark:text-rose-400",
+                        reply_remaining_chars(@reply_form) >= 0 &&
+                          "text-slate-500 dark:text-slate-400"
+                      ]}
+                    >
+                      {reply_remaining_chars(@reply_form)}
+                    </span>
+                  </div>
 
                   <button
                     type="submit"

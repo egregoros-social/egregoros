@@ -157,6 +157,64 @@ defmodule PleromaReduxWeb.CoreComponents do
   end
 
   @doc """
+  Renders an emoji picker for composer-like forms.
+
+  This component is purely client-side via the `EmojiPicker` LiveView hook.
+  """
+  attr :emojis, :list,
+    default: ["😀", "😍", "🔥", "👍", "❤️", "🎉", "😮", "😢"],
+    doc: "emoji options to render"
+
+  attr :id, :string, default: nil, doc: "optional DOM id"
+  attr :class, :any, default: nil, doc: "additional classes for the picker wrapper"
+
+  def compose_emoji_picker(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      class={["relative", @class]}
+      data-role="compose-emoji-picker"
+      phx-hook="EmojiPicker"
+    >
+      <button
+        type="button"
+        data-role="compose-emoji"
+        aria-label="Emoji picker"
+        aria-expanded="false"
+        class="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+      >
+        <.icon name="hero-face-smile" class="size-5" />
+      </button>
+
+      <div
+        data-role="compose-emoji-menu"
+        data-state="closed"
+        class={[
+          "absolute left-0 top-full z-30 mt-3 hidden w-64 rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/80 dark:shadow-slate-900/40",
+          "focus-within:ring-2 focus-within:ring-slate-300 dark:focus-within:ring-slate-600"
+        ]}
+      >
+        <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+          Emoji
+        </p>
+
+        <div class="mt-4 grid grid-cols-8 gap-2">
+          <button
+            :for={emoji <- @emojis}
+            type="button"
+            data-role="compose-emoji-option"
+            data-emoji={emoji}
+            class="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-xl transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:bg-white/10"
+          >
+            {emoji}
+          </button>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   Renders a surface container (card/panel) with consistent styling.
   """
   attr :rest, :global

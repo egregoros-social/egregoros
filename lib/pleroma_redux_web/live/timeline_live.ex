@@ -712,47 +712,7 @@ defmodule PleromaReduxWeb.TimelineLive do
                         <.icon name="hero-adjustments-horizontal" class="size-5" />
                       </button>
 
-                      <div
-                        id="compose-emoji-picker"
-                        data-role="compose-emoji-picker"
-                        phx-hook="EmojiPicker"
-                        class="relative"
-                      >
-                        <button
-                          type="button"
-                          data-role="compose-emoji"
-                          aria-label="Emoji picker"
-                          aria-expanded="false"
-                          class="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-                        >
-                          <.icon name="hero-face-smile" class="size-5" />
-                        </button>
-
-                        <div
-                          data-role="compose-emoji-menu"
-                          data-state="closed"
-                          class={[
-                            "absolute left-0 top-full z-30 mt-3 hidden w-64 rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/80 dark:shadow-slate-900/40",
-                            "focus-within:ring-2 focus-within:ring-slate-300 dark:focus-within:ring-slate-600"
-                          ]}
-                        >
-                          <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
-                            Emoji
-                          </p>
-
-                          <div class="mt-4 grid grid-cols-8 gap-2">
-                            <button
-                              :for={emoji <- ["😀", "😍", "🔥", "👍", "❤️", "🎉", "😮", "😢"]}
-                              type="button"
-                              data-role="compose-emoji-option"
-                              data-emoji={emoji}
-                              class="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-xl transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:bg-white/10"
-                            >
-                              {emoji}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                      <.compose_emoji_picker id="compose-emoji-picker" />
                     </div>
 
                     <div class="flex items-center gap-3">

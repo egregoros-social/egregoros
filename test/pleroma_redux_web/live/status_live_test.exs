@@ -170,6 +170,21 @@ defmodule PleromaReduxWeb.StatusLiveTest do
     refute has_element?(view, "button[data-role='compose-submit'][disabled]")
   end
 
+  test "reply composer renders an emoji picker", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
+    uuid = uuid_from_ap_id(parent.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
+
+    assert has_element?(view, "#reply-form [data-role='compose-emoji-picker']")
+
+    assert has_element?(
+             view,
+             "#reply-form [data-role='compose-emoji-option'][data-emoji='😀']"
+           )
+  end
+
   test "replying rejects content longer than 5000 characters", %{conn: conn, user: user} do
     assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
     uuid = uuid_from_ap_id(parent.ap_id)
