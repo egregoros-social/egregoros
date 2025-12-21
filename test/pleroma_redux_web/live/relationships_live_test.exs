@@ -45,7 +45,16 @@ defmodule PleromaReduxWeb.RelationshipsLiveTest do
           local: false
         })
 
-      assert {:ok, _follow} = Pipeline.ingest(Follow.build(user.ap_id, bob.ap_id), local: false)
+      follow = %{
+        "id" => "https://remote.example/activities/follow/#{idx}",
+        "type" => "Follow",
+        "actor" => user.ap_id,
+        "object" => bob.ap_id,
+        "to" => [bob.ap_id],
+        "published" => DateTime.utc_now() |> DateTime.to_iso8601()
+      }
+
+      assert {:ok, _follow} = Pipeline.ingest(follow, local: false)
     end
 
     excluded_relationship =

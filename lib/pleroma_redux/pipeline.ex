@@ -1,8 +1,10 @@
 defmodule PleromaRedux.Pipeline do
   alias PleromaRedux.ActivityRegistry
+  alias PleromaReduxWeb.Endpoint
 
   def ingest(activity, opts \\ []) when is_map(activity) do
-    with {:ok, module} <- ActivityRegistry.fetch(activity) do
+    with :ok <- validate_namespace(activity, opts),
+         {:ok, module} <- ActivityRegistry.fetch(activity) do
       ingest_with(module, activity, opts)
     end
   end
@@ -30,6 +32,41 @@ defmodule PleromaRedux.Pipeline do
       end
     else
       {:error, :invalid}
+    end
+  end
+
+  defp validate_namespace(activity, opts) when is_map(activity) and is_list(opts) do
+    if Keyword.get(opts, :local, true) do
+      :ok
+    else
+      case extract_id(activity) do
+        id when is_binary(id) and id != "" ->
+          if local_ap_id?(id), do: {:error, :local_id}, else: :ok
+
+        _ ->
+          :ok
+      end
+    end
+  end
+
+  defp validate_namespace(_activity, _opts), do: :ok
+
+  defp extract_id(%{"id" => id}) when is_binary(id), do: id
+  defp extract_id(%{id: id}) when is_binary(id), do: id
+  defp extract_id(_activity), do: nil
+
+  defp local_ap_id?(id) when is_binary(id) do
+    local_host =
+      Endpoint.url()
+      |> URI.parse()
+      |> Map.get(:host)
+
+    case URI.parse(id) do
+      %URI{host: host} when is_binary(local_host) and local_host != "" and host == local_host ->
+        true
+
+      _ ->
+        false
     end
   end
 end

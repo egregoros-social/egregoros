@@ -1,6 +1,7 @@
 defmodule PleromaReduxWeb.ObjectControllerTest do
   use PleromaReduxWeb.ConnCase, async: true
 
+  alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Users
   alias PleromaReduxWeb.Endpoint
@@ -33,6 +34,23 @@ defmodule PleromaReduxWeb.ObjectControllerTest do
 
   test "GET /objects/:uuid returns 404 when missing", %{conn: conn} do
     uuid = Ecto.UUID.generate()
+    conn = get(conn, "/objects/#{uuid}")
+    assert response(conn, 404)
+  end
+
+  test "GET /objects/:uuid does not serve remote objects with local ids", %{conn: conn} do
+    uuid = Ecto.UUID.generate()
+    ap_id = Endpoint.url() <> "/objects/" <> uuid
+
+    assert {:ok, _object} =
+             Objects.create_object(%{
+               ap_id: ap_id,
+               type: "Note",
+               actor: "https://remote.example/users/mallory",
+               local: false,
+               data: %{"id" => ap_id, "type" => "Note", "actor" => "https://remote.example/users/mallory"}
+             })
+
     conn = get(conn, "/objects/#{uuid}")
     assert response(conn, 404)
   end

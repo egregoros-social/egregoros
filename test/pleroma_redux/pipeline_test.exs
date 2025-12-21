@@ -3,6 +3,7 @@ defmodule PleromaRedux.PipelineTest do
 
   alias PleromaRedux.Object
   alias PleromaRedux.Pipeline
+  alias PleromaReduxWeb.Endpoint
 
   @note %{
     "id" => "https://example.com/objects/1",
@@ -117,5 +118,16 @@ defmodule PleromaRedux.PipelineTest do
   test "ingest rejects empty content" do
     assert {:error, :invalid} =
              Pipeline.ingest(Map.put(@note, "content", "  "), local: true)
+  end
+
+  test "ingest rejects remote objects that claim a local id" do
+    uuid = Ecto.UUID.generate()
+
+    note =
+      @note
+      |> Map.put("id", Endpoint.url() <> "/objects/" <> uuid)
+      |> Map.put("attributedTo", "https://example.com/users/alice")
+
+    assert {:error, :local_id} = Pipeline.ingest(note, local: false)
   end
 end
