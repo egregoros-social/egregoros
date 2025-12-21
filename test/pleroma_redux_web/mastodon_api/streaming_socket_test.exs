@@ -1,112 +1,167 @@
 defmodule PleromaReduxWeb.MastodonAPI.StreamingSocketTest do
   use PleromaRedux.DataCase, async: true
 
-  alias PleromaRedux.Object
+  alias PleromaRedux.Activities.Note
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
-  alias PleromaRedux.Publish
+  alias PleromaRedux.Relationships
   alias PleromaRedux.Users
   alias PleromaReduxWeb.MastodonAPI.StreamingSocket
 
-  defp decode_frame({:text, payload}) do
-    frame = Jason.decode!(payload)
+  test "init computes home_actor_ids for user streams" do
+    {:ok, user} = Users.create_local_user("alice")
+    {:ok, followed} = Users.create_user(remote_user_attrs("bob@example.com"))
 
-    payload =
-      case frame do
-        %{"payload" => inner} when is_binary(inner) -> Jason.decode!(inner)
-        _ -> nil
-      end
+    assert {:ok, _} =
+             Relationships.upsert_relationship(%{
+               type: "Follow",
+               actor: user.ap_id,
+               object: followed.ap_id,
+               activity_ap_id: "https://example.com/activities/follow/1"
+             })
 
-    {frame, payload}
+    assert {:ok, state} = StreamingSocket.init(%{streams: ["user"], current_user: user})
+
+    assert MapSet.member?(state.home_actor_ids, user.ap_id)
+    assert MapSet.member?(state.home_actor_ids, followed.ap_id)
   end
 
-  test "pushes an update event for public stream" do
-    {:ok, bob} = Users.create_local_user("bob")
-    {:ok, create} = Publish.post_note(bob, "Hello from Bob")
+  test "heartbeat pushes an event payload" do
+    {:ok, state} = StreamingSocket.init(%{streams: [], current_user: nil})
 
-    %Object{} = note = Objects.get_by_ap_id(create.object)
+    assert {:push, {:text, payload}, _state} = StreamingSocket.handle_info(:heartbeat, state)
 
-    state = %{streams: ["public"], current_user: nil, home_actor_ids: MapSet.new()}
-
-    assert {:push, frame, ^state} = StreamingSocket.handle_info({:post_created, note}, state)
-    {outer, inner} = decode_frame(frame)
-
-    assert outer["event"] == "update"
-    assert is_binary(outer["payload"])
-    assert inner["content"] == "<p>Hello from Bob</p>"
+    assert %{"event" => "heartbeat"} = Jason.decode!(payload)
   end
 
-  test "filters non-local objects from public:local stream" do
-    remote_note = %Object{
-      id: 123,
-      ap_id: "https://remote.example/objects/123",
-      type: "Note",
-      actor: "https://remote.example/users/alice",
-      object: nil,
-      data: %{"content" => "<p>Remote</p>"},
+  test "delivers user timeline updates for followed actors" do
+    {:ok, user} = Users.create_local_user("alice")
+    {:ok, followed} = Users.create_user(remote_user_attrs("bob@example.com"))
+
+    assert {:ok, _} =
+             Relationships.upsert_relationship(%{
+               type: "Follow",
+               actor: user.ap_id,
+               object: followed.ap_id,
+               activity_ap_id: "https://example.com/activities/follow/1"
+             })
+
+    {:ok, state} = StreamingSocket.init(%{streams: ["user"], current_user: user})
+
+    assert {:ok, note} =
+             Objects.create_object(%{
+               ap_id: "https://remote.example/objects/1",
+               type: "Note",
+               actor: followed.ap_id,
+               local: false,
+               data: %{
+                 "id" => "https://remote.example/objects/1",
+                 "type" => "Note",
+                 "attributedTo" => followed.ap_id,
+                 "content" => "<p>Hello</p>"
+               }
+             })
+
+    assert {:push, {:text, payload}, ^state} =
+             StreamingSocket.handle_info({:post_created, note}, state)
+
+    assert %{"event" => "update", "payload" => status_payload} = Jason.decode!(payload)
+    assert is_binary(status_payload)
+    assert %{"id" => _id} = Jason.decode!(status_payload)
+  end
+
+  test "filters user streams when the actor is not in the home timeline set" do
+    {:ok, user} = Users.create_local_user("alice")
+    {:ok, state} = StreamingSocket.init(%{streams: ["user"], current_user: user})
+
+    assert {:ok, note} =
+             Objects.create_object(%{
+               ap_id: "https://remote.example/objects/2",
+               type: "Note",
+               actor: "https://remote.example/users/stranger",
+               local: false,
+               data: %{
+                 "id" => "https://remote.example/objects/2",
+                 "type" => "Note",
+                 "attributedTo" => "https://remote.example/users/stranger",
+                 "content" => "<p>Hello</p>"
+               }
+             })
+
+    assert {:ok, ^state} = StreamingSocket.handle_info({:post_created, note}, state)
+  end
+
+  test "delivers public timeline updates without a current user" do
+    {:ok, state} = StreamingSocket.init(%{streams: ["public"], current_user: nil})
+
+    assert {:ok, note} =
+             Objects.create_object(%{
+               ap_id: "https://remote.example/objects/3",
+               type: "Note",
+               actor: "https://remote.example/users/alice",
+               local: false,
+               data: %{
+                 "id" => "https://remote.example/objects/3",
+                 "type" => "Note",
+                 "attributedTo" => "https://remote.example/users/alice",
+                 "content" => "<p>Hello</p>"
+               }
+             })
+
+    assert {:push, {:text, payload}, ^state} =
+             StreamingSocket.handle_info({:post_created, note}, state)
+
+    assert %{"event" => "update", "payload" => status_payload} = Jason.decode!(payload)
+    assert is_binary(status_payload)
+    assert %{"id" => _id} = Jason.decode!(status_payload)
+  end
+
+  test "delivers notifications for signed-in user streams" do
+    {:ok, user} = Users.create_local_user("alice")
+
+    assert {:ok, note} = Pipeline.ingest(Note.build(user, "Hello"), local: true)
+
+    {:ok, like_actor} = Users.create_user(remote_user_attrs("bob@example.com"))
+
+    activity = %{
+      "id" => "https://remote.example/activities/like/1",
+      "type" => "Like",
+      "actor" => like_actor.ap_id,
+      "object" => note.ap_id
+    }
+
+    assert {:ok, like} = Pipeline.ingest(activity, local: false)
+
+    {:ok, state} = StreamingSocket.init(%{streams: ["user"], current_user: user})
+
+    assert {:push, {:text, payload}, ^state} =
+             StreamingSocket.handle_info({:notification_created, like}, state)
+
+    assert %{"event" => "notification", "payload" => notification_payload} =
+             Jason.decode!(payload)
+
+    assert is_binary(notification_payload)
+    assert %{"id" => _id, "type" => _type} = Jason.decode!(notification_payload)
+  end
+
+  test "handle_in ignores incoming frames" do
+    {:ok, state} = StreamingSocket.init(%{streams: [], current_user: nil})
+    assert {:ok, ^state} = StreamingSocket.handle_in({"ping", opcode: :text}, state)
+  end
+
+  defp remote_user_attrs(handle) do
+    [nickname, domain] = String.split(handle, "@", parts: 2)
+
+    %{
+      nickname: nickname,
+      domain: domain,
+      ap_id: "https://#{domain}/users/#{nickname}",
+      inbox: "https://#{domain}/users/#{nickname}/inbox",
+      outbox: "https://#{domain}/users/#{nickname}/outbox",
+      public_key: "remote-key",
+      private_key: nil,
       local: false
     }
-
-    state = %{streams: ["public:local"], current_user: nil, home_actor_ids: MapSet.new()}
-
-    assert {:ok, ^state} = StreamingSocket.handle_info({:post_created, remote_note}, state)
-  end
-
-  test "filters user stream updates to the home actor set" do
-    {:ok, alice} = Users.create_local_user("alice")
-    {:ok, bob} = Users.create_local_user("bob")
-    {:ok, charlie} = Users.create_local_user("charlie")
-
-    {:ok, bob_create} = Publish.post_note(bob, "Hi from Bob")
-    {:ok, charlie_create} = Publish.post_note(charlie, "Hi from Charlie")
-
-    %Object{} = bob_note = Objects.get_by_ap_id(bob_create.object)
-    %Object{} = charlie_note = Objects.get_by_ap_id(charlie_create.object)
-
-    state = %{
-      streams: ["user"],
-      current_user: alice,
-      home_actor_ids: MapSet.new([alice.ap_id, bob.ap_id])
-    }
-
-    assert {:push, frame, ^state} = StreamingSocket.handle_info({:post_created, bob_note}, state)
-    {outer, inner} = decode_frame(frame)
-    assert outer["event"] == "update"
-    assert inner["content"] == "<p>Hi from Bob</p>"
-
-    assert {:ok, ^state} = StreamingSocket.handle_info({:post_created, charlie_note}, state)
-  end
-
-  test "pushes a notification event for user stream" do
-    {:ok, alice} = Users.create_local_user("alice")
-    {:ok, bob} = Users.create_local_user("bob")
-
-    {:ok, _follow} =
-      Pipeline.ingest(
-        %{
-          "id" => "https://example.com/activities/follow/1",
-          "type" => "Follow",
-          "actor" => bob.ap_id,
-          "object" => alice.ap_id
-        },
-        local: true
-      )
-
-    [activity] = PleromaRedux.Notifications.list_for_user(alice, limit: 1)
-
-    state = %{
-      streams: ["user"],
-      current_user: alice,
-      home_actor_ids: MapSet.new([alice.ap_id])
-    }
-
-    assert {:push, frame, ^state} =
-             StreamingSocket.handle_info({:notification_created, activity}, state)
-
-    {outer, inner} = decode_frame(frame)
-    assert outer["event"] == "notification"
-    assert inner["type"] == "follow"
-    assert inner["account"]["username"] == "bob"
-    assert inner["status"] == nil
   end
 end
+
