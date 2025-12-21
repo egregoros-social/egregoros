@@ -195,7 +195,7 @@ defmodule PleromaReduxWeb.StatusCard do
         </button>
 
         <div class="flex flex-wrap items-center gap-2">
-          <%= for emoji <- StatusVM.reaction_emojis() do %>
+          <%= for emoji <- reaction_order(@entry.reactions) do %>
             <% reaction = Map.get(@entry.reactions, emoji, %{count: 0, reacted?: false}) %>
 
             <button
@@ -224,6 +224,20 @@ defmodule PleromaReduxWeb.StatusCard do
     </article>
     """
   end
+
+  defp reaction_order(reactions) when is_map(reactions) do
+    defaults = StatusVM.reaction_emojis()
+
+    extras =
+      reactions
+      |> Map.keys()
+      |> Enum.reject(&(&1 in defaults))
+      |> Enum.sort()
+
+    defaults ++ extras
+  end
+
+  defp reaction_order(_reactions), do: StatusVM.reaction_emojis()
 
   attr :entry, :map, required: true
 

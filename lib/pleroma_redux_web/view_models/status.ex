@@ -53,12 +53,30 @@ defmodule PleromaReduxWeb.ViewModels.Status do
   end
 
   defp reactions_for_object(%{ap_id: ap_id}, current_user) when is_binary(ap_id) do
-    for emoji <- @reaction_emojis, into: %{} do
+    counts =
+      ap_id
+      |> Relationships.emoji_reaction_counts()
+      |> Enum.reduce(%{}, fn {type, count}, acc ->
+        emoji = String.replace_prefix(type, "EmojiReact:", "")
+
+        if emoji == "" do
+          acc
+        else
+          Map.put(acc, emoji, count)
+        end
+      end)
+
+    emojis =
+      @reaction_emojis
+      |> Kernel.++(Map.keys(counts))
+      |> Enum.uniq()
+
+    for emoji <- emojis, into: %{} do
       relationship_type = "EmojiReact:" <> emoji
 
       {emoji,
        %{
-         count: Relationships.count_by_type_object(relationship_type, ap_id),
+         count: Map.get(counts, emoji, 0),
          reacted?: reacted_by_user?(ap_id, current_user, relationship_type)
        }}
     end
