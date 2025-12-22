@@ -9,7 +9,16 @@ defmodule PleromaReduxWeb.AppShell do
   attr :aside_id, :string, default: "app-aside"
 
   attr :active, :atom,
-    values: [:timeline, :search, :notifications, :profile, :settings, :login, :register],
+    values: [
+      :timeline,
+      :search,
+      :notifications,
+      :bookmarks,
+      :profile,
+      :settings,
+      :login,
+      :register
+    ],
     required: true
 
   attr :current_user, :any, default: nil
@@ -120,6 +129,14 @@ defmodule PleromaReduxWeb.AppShell do
                   </.nav_link>
 
                   <.nav_link
+                    role="nav-bookmarks"
+                    active={@active == :bookmarks}
+                    icon="hero-bookmark"
+                    label="Bookmarks"
+                    navigate={~p"/bookmarks"}
+                  />
+
+                  <.nav_link
                     role="nav-profile"
                     active={@active == :profile}
                     icon="hero-user-circle"
@@ -207,6 +224,14 @@ defmodule PleromaReduxWeb.AppShell do
               label="Notifications"
               navigate={~p"/notifications"}
               badge={@notifications_count}
+            />
+
+            <.bottom_nav_link
+              role="nav-bookmarks"
+              active={@active == :bookmarks}
+              icon="hero-bookmark"
+              label="Bookmarks"
+              navigate={~p"/bookmarks"}
             />
 
             <.bottom_nav_link
