@@ -2,8 +2,11 @@ defmodule PleromaReduxWeb.SearchLiveTest do
   use PleromaReduxWeb.ConnCase, async: true
 
   import Mox
-  import Phoenix.LiveViewTest
+import Phoenix.LiveViewTest
 
+  alias PleromaRedux.Activities.Note
+  alias PleromaRedux.Objects
+  alias PleromaRedux.Pipeline
   alias PleromaRedux.Users
 
   test "searching by query lists matching accounts", %{conn: conn} do
@@ -15,6 +18,57 @@ defmodule PleromaReduxWeb.SearchLiveTest do
     assert has_element?(view, "[data-role='search-results']")
     assert has_element?(view, "[data-role='search-result-handle']", "@bob")
     refute has_element?(view, "[data-role='search-result-handle']", "@alice")
+  end
+
+  test "searching by query lists matching posts", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+    assert {:ok, _} = Pipeline.ingest(Note.build(user, "Hello from search"), local: true)
+    assert {:ok, _} = Pipeline.ingest(Note.build(user, "No match here"), local: true)
+
+    {:ok, view, _html} = live(conn, "/search?q=hello")
+
+    assert has_element?(view, "[data-role='search-post-results']")
+    assert has_element?(view, "[data-role='status-card']", "Hello from search")
+    refute has_element?(view, "[data-role='status-card']", "No match here")
+  end
+
+  test "reply buttons dispatch reply modal events without navigation", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+    assert {:ok, _} = Pipeline.ingest(Note.build(user, "Reply target"), local: true)
+    [note] = Objects.list_notes()
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/search?q=reply")
+
+    assert has_element?(view, "#reply-modal[data-role='reply-modal'][data-state='closed']")
+    assert has_element?(view, "#search-post-#{note.id} button[data-role='reply']")
+
+    html =
+      view
+      |> element("#search-post-#{note.id} button[data-role='reply']")
+      |> render()
+
+    assert html =~ "predux:reply-open"
+    refute html =~ "?reply=true"
+  end
+
+  test "signed-in users can reply from search results", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/search?q=parent")
+
+    view
+    |> element("#search-post-#{parent.id} button[data-role='reply']")
+    |> render_click()
+
+    view
+    |> form("#reply-modal-form", reply: %{content: "A reply"})
+    |> render_submit()
+
+    [reply] = Objects.list_replies_to(parent.ap_id, limit: 1)
+    assert reply.data["inReplyTo"] == parent.ap_id
   end
 
   test "logged-in users can follow remote accounts by handle", %{conn: conn} do
