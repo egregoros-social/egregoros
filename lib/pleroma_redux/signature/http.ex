@@ -57,16 +57,16 @@ defmodule PleromaRedux.Signature.HTTP do
       signature_string = signature_string(request_target, headers, headers_param)
       signature = :public_key.sign(signature_string, :sha256, private_key) |> Base.encode64()
 
-      signature_header =
-        "Signature " <>
-          "keyId=\"#{user.ap_id}#main-key\"," <>
+      signature_params =
+        "keyId=\"#{user.ap_id}#main-key\"," <>
           "algorithm=\"rsa-sha256\"," <>
           "headers=\"#{Enum.join(headers_param, " ")}\"," <>
           "signature=\"#{signature}\""
 
       {:ok,
        %{
-         signature: signature_header,
+         signature: signature_params,
+         authorization: "Signature " <> signature_params,
          date: date,
          digest: digest,
          content_length: content_length,

@@ -36,4 +36,17 @@ defmodule PleromaRedux.Signature.HTTPTest do
     assert {:ok, signer_ap_id} = HTTP.verify_request(conn)
     assert signer_ap_id == user.ap_id
   end
+
+  test "sign_request returns Signature params and Authorization value" do
+    {:ok, user} = Users.create_local_user("alice")
+
+    {:ok, signed} =
+      HTTP.sign_request(user, "get", "https://remote.example/objects/1", "",
+        ["(request-target)", "host", "date"]
+      )
+
+    assert is_binary(signed.signature)
+    refute String.starts_with?(signed.signature, "Signature ")
+    assert signed.authorization == "Signature " <> signed.signature
+  end
 end
