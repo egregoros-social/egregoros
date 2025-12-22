@@ -142,7 +142,29 @@ defmodule PleromaRedux.Federation.ActorTest do
     actor_url = "https://remote.example/users/toast"
     {public_key, _private_key} = Keys.generate_rsa_keypair()
 
-    expect(PleromaRedux.HTTP.Mock, :get, fn _url, _headers ->
+    expect(PleromaRedux.HTTP.Mock, :get, fn _url, headers ->
+      refute List.keyfind(headers, "signature", 0)
+      refute List.keyfind(headers, "authorization", 0)
+
+      {:ok,
+       %{
+         status: 200,
+         body: %{
+           "id" => actor_url,
+           "publicKey" => %{
+             "id" => actor_url <> "#main-key",
+             "owner" => actor_url,
+             "publicKeyPem" => public_key
+           }
+         },
+         headers: []
+       }}
+    end)
+
+    expect(PleromaRedux.HTTP.Mock, :get, fn _url, headers ->
+      assert List.keyfind(headers, "signature", 0)
+      assert List.keyfind(headers, "authorization", 0)
+
       {:ok,
        %{
          status: 200,
@@ -160,6 +182,45 @@ defmodule PleromaRedux.Federation.ActorTest do
 
     assert {:ok, user} = Actor.fetch_and_store(actor_url)
     assert user.ap_id == actor_url
+    assert user.inbox == actor_url <> "/inbox"
+    assert user.outbox == actor_url <> "/outbox"
+  end
+
+  test "fetch_and_store retries with signed fetch on 401 responses" do
+    actor_url = "https://remote.example/users/toast"
+    {public_key, _private_key} = Keys.generate_rsa_keypair()
+
+    expect(PleromaRedux.HTTP.Mock, :get, fn _url, headers ->
+      refute List.keyfind(headers, "signature", 0)
+      {:ok, %{status: 401, body: "", headers: []}}
+    end)
+
+    expect(PleromaRedux.HTTP.Mock, :get, fn _url, headers ->
+      assert List.keyfind(headers, "signature", 0)
+      assert List.keyfind(headers, "authorization", 0)
+
+      {:ok,
+       %{
+         status: 200,
+         body: %{
+           "id" => actor_url,
+           "type" => "Person",
+           "preferredUsername" => "toast",
+           "inbox" => actor_url <> "/inbox",
+           "outbox" => actor_url <> "/outbox",
+           "publicKey" => %{
+             "id" => actor_url <> "#main-key",
+             "owner" => actor_url,
+             "publicKeyPem" => public_key
+           }
+         },
+         headers: []
+       }}
+    end)
+
+    assert {:ok, user} = Actor.fetch_and_store(actor_url)
+    assert user.ap_id == actor_url
+    assert user.nickname == "toast"
     assert user.inbox == actor_url <> "/inbox"
     assert user.outbox == actor_url <> "/outbox"
   end

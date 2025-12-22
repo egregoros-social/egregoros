@@ -1,13 +1,12 @@
 defmodule PleromaRedux.Federation.Actor do
   alias PleromaRedux.HTTP
+  alias PleromaRedux.Federation.SignedFetch
   alias PleromaRedux.SafeURL
   alias PleromaRedux.Users
 
   def fetch_and_store(actor_url) when is_binary(actor_url) do
     with :ok <- SafeURL.validate_http_url(actor_url),
-         {:ok, %{status: status, body: body}} when status in 200..299 <-
-           HTTP.get(actor_url, headers()),
-         {:ok, actor} <- decode_json(body),
+         {:ok, actor} <- fetch_actor(actor_url),
          {:ok, attrs} <- to_user_attrs(actor, actor_url),
          {:ok, user} <- Users.upsert_user(attrs) do
       {:ok, user}
@@ -16,6 +15,55 @@ defmodule PleromaRedux.Federation.Actor do
       _ -> {:error, :actor_fetch_failed}
     end
   end
+
+  defp fetch_actor(actor_url) when is_binary(actor_url) do
+    case HTTP.get(actor_url, headers()) do
+      {:ok, %{status: status, body: body}} when status in 200..299 ->
+        with {:ok, actor} <- decode_json(body) do
+          actor =
+            if sparse_actor?(actor) do
+              case fetch_actor_signed(actor_url) do
+                {:ok, signed_actor} -> signed_actor
+                _ -> actor
+              end
+            else
+              actor
+            end
+
+          {:ok, actor}
+        end
+
+      {:ok, %{status: status}} when status in [401, 403] ->
+        fetch_actor_signed(actor_url)
+
+      {:ok, _response} ->
+        {:error, :actor_fetch_failed}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp fetch_actor_signed(actor_url) when is_binary(actor_url) do
+    with {:ok, %{status: status, body: body}} when status in 200..299 <-
+           SignedFetch.get(actor_url, accept: "application/activity+json, application/ld+json"),
+         {:ok, actor} <- decode_json(body) do
+      {:ok, actor}
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :actor_fetch_failed}
+    end
+  end
+
+  defp sparse_actor?(actor) when is_map(actor) do
+    allowed_keys = MapSet.new(["@context", "id", "publicKey"])
+
+    actor
+    |> Map.keys()
+    |> Enum.all?(&MapSet.member?(allowed_keys, &1))
+  end
+
+  defp sparse_actor?(_), do: false
 
   defp headers do
     [
