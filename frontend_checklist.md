@@ -169,7 +169,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Feature | Status | Notes |
 |---|---:|---|
 | Lists (Mastodon lists) | TODO | Might be important for power users. |
-| Bookmarks / favourites pages | TODO | |
+| Bookmarks / favourites pages | PARTIAL | Bookmarks page exists (`/bookmarks`); favourites page still missing. |
 | Filters (mute words, hide boosts, etc.) | TODO | |
 | Analytics / insights | TODO | |
 | Admin/mod UI in web | TODO | |
