@@ -124,7 +124,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 ### Search & discovery
 | Feature | Status | Notes |
 |---|---:|---|
-| Search box (global) | PARTIAL | `/search` supports accounts + status search; still missing hashtag search UI beyond tag pages. |
+| Search box (global) | PARTIAL | `/search` supports accounts + status search; searching `#tag` shows a tag quick link; still missing richer tag discovery (suggestions/trending). |
 | Account lookup by `@user@host` | PARTIAL | `/search` supports following remote accounts by handle; still missing a standalone “lookup” flow. |
 | Hashtag pages | PARTIAL | Tag timeline exists (`/tags/:tag`) using content search; supports like/repost/reaction + load-more pagination; still needs tag extraction from `tag` fields. |
 | Explore / trending | TODO | |
