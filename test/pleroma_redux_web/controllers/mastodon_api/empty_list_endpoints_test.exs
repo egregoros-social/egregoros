@@ -15,7 +15,8 @@ defmodule PleromaReduxWeb.MastodonAPI.EmptyListEndpointsTest do
       "/api/v1/favourites",
       "/api/v1/blocks",
       "/api/v1/mutes",
-      "/api/v1/follow_requests"
+      "/api/v1/follow_requests",
+      "/api/v1/followed_tags"
     ]
 
     PleromaRedux.Auth.Mock

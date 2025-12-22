@@ -69,6 +69,17 @@ defmodule PleromaReduxWeb.Router do
     get "/.well-known/webfinger", WebFingerController, :webfinger
     get "/.well-known/nodeinfo", NodeinfoController, :nodeinfo_index
     get "/nodeinfo/2.0.json", NodeinfoController, :nodeinfo
+    get "/nodeinfo/2.0", NodeinfoController, :nodeinfo
+  end
+
+  scope "/api/v1", PleromaReduxWeb.MastodonAPI do
+    pipe_through [:api, :api_auth]
+
+    get "/followed_tags", EmptyListController, :index
+    get "/push/subscription", PushSubscriptionController, :show
+    post "/push/subscription", PushSubscriptionController, :create
+    put "/push/subscription", PushSubscriptionController, :update
+    delete "/push/subscription", PushSubscriptionController, :delete
   end
 
   scope "/api/v1", PleromaReduxWeb.MastodonAPI do

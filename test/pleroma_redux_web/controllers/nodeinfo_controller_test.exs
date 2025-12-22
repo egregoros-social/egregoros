@@ -17,4 +17,13 @@ defmodule PleromaReduxWeb.NodeinfoControllerTest do
     assert body["software"]["name"] == "pleroma_redux"
     assert "activitypub" in body["protocols"]
   end
+
+  test "GET /nodeinfo/2.0 returns minimal payload", %{conn: conn} do
+    conn = get(conn, "/nodeinfo/2.0")
+    body = json_response(conn, 200)
+
+    assert body["version"] == "2.0"
+    assert body["software"]["name"] == "pleroma_redux"
+    assert "activitypub" in body["protocols"]
+  end
 end
