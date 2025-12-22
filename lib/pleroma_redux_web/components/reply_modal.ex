@@ -93,4 +93,3 @@ defmodule PleromaReduxWeb.ReplyModal do
     |> JS.push(close_event)
   end
 end
-

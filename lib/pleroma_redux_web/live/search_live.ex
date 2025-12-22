@@ -232,7 +232,8 @@ defmodule PleromaReduxWeb.SearchLive do
                     content_type: entry.client_type
                   }
 
-                  description = media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
+                  description =
+                    media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
 
                   with {:ok, url_path} <- MediaStorage.store_media(user, upload),
                        {:ok, object} <-
@@ -273,7 +274,8 @@ defmodule PleromaReduxWeb.SearchLive do
                        |> assign(
                          reply_to_ap_id: nil,
                          reply_to_handle: nil,
-                         reply_form: Phoenix.Component.to_form(default_reply_params(), as: :reply),
+                         reply_form:
+                           Phoenix.Component.to_form(default_reply_params(), as: :reply),
                          reply_media_alt: %{},
                          reply_options_open?: false,
                          reply_cw_open?: false
@@ -358,7 +360,9 @@ defmodule PleromaReduxWeb.SearchLive do
          {:ok, _delete} <- Interactions.delete_post(user, post_id) do
       {:noreply,
        socket
-       |> assign(post_results: Enum.reject(socket.assigns.post_results, &(&1.object.id == post_id)))
+       |> assign(
+         post_results: Enum.reject(socket.assigns.post_results, &(&1.object.id == post_id))
+       )
        |> put_flash(:info, "Deleted post.")}
     else
       _ -> {:noreply, put_flash(socket, :error, "Could not delete post.")}
@@ -496,16 +500,16 @@ defmodule PleromaReduxWeb.SearchLive do
                     data-role="search-result-handle"
                     class="truncate text-xs text-slate-500 dark:text-slate-400"
                   >
-                  {ActorVM.handle(user, user.ap_id)}
-                </p>
-              </div>
-            </.link>
-          </.card>
+                    {ActorVM.handle(user, user.ap_id)}
+                  </p>
+                </div>
+              </.link>
+            </.card>
           </div>
 
           <section
-            data-role="search-post-results"
             :if={@query != ""}
+            data-role="search-post-results"
             class="space-y-3"
           >
             <.card class="p-6">

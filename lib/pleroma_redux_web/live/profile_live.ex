@@ -55,22 +55,22 @@ defmodule PleromaReduxWeb.ProfileLive do
      socket
      |> assign(
        current_user: current_user,
-        profile_user: profile_user,
-        profile_handle: profile_handle,
-        notifications_count: notifications_count(current_user),
-        follow_relationship: follow_relationship,
-        reply_to_ap_id: nil,
-        reply_to_handle: nil,
-        reply_form: reply_form,
-        reply_media_alt: %{},
-        reply_options_open?: false,
-        reply_cw_open?: false,
-        posts_count: count_posts(profile_user),
-        followers_count: count_followers(profile_user),
-        following_count: count_following(profile_user),
-        posts_cursor: posts_cursor(posts),
-        posts_end?: length(posts) < @page_size
-      )
+       profile_user: profile_user,
+       profile_handle: profile_handle,
+       notifications_count: notifications_count(current_user),
+       follow_relationship: follow_relationship,
+       reply_to_ap_id: nil,
+       reply_to_handle: nil,
+       reply_form: reply_form,
+       reply_media_alt: %{},
+       reply_options_open?: false,
+       reply_cw_open?: false,
+       posts_count: count_posts(profile_user),
+       followers_count: count_followers(profile_user),
+       following_count: count_following(profile_user),
+       posts_cursor: posts_cursor(posts),
+       posts_end?: length(posts) < @page_size
+     )
      |> stream(:posts, StatusVM.decorate_many(posts, current_user), dom_id: &post_dom_id/1)
      |> allow_upload(:reply_media,
        accept: ~w(
@@ -228,11 +228,14 @@ defmodule PleromaReduxWeb.ProfileLive do
                     content_type: entry.client_type
                   }
 
-                  description = media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
+                  description =
+                    media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
 
                   with {:ok, url_path} <- MediaStorage.store_media(user, upload),
                        {:ok, object} <-
-                         Media.create_media_object(user, upload, url_path, description: description) do
+                         Media.create_media_object(user, upload, url_path,
+                           description: description
+                         ) do
                     {:ok, object.data}
                   else
                     {:error, reason} -> {:ok, {:error, reason}}
@@ -267,7 +270,8 @@ defmodule PleromaReduxWeb.ProfileLive do
                        |> assign(
                          reply_to_ap_id: nil,
                          reply_to_handle: nil,
-                         reply_form: Phoenix.Component.to_form(default_reply_params(), as: :reply),
+                         reply_form:
+                           Phoenix.Component.to_form(default_reply_params(), as: :reply),
                          reply_media_alt: %{},
                          reply_options_open?: false,
                          reply_cw_open?: false

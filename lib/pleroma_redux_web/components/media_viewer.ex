@@ -34,17 +34,13 @@ defmodule PleromaReduxWeb.MediaViewer do
     >
       <.focus_wrap
         id="media-viewer-dialog"
-        phx-click-away={
-          JS.dispatch("predux:media-close", to: "#media-viewer")
-        }
+        phx-click-away={JS.dispatch("predux:media-close", to: "#media-viewer")}
         class="relative w-full max-w-4xl overflow-hidden rounded-3xl bg-black shadow-2xl"
       >
         <button
           type="button"
           data-role="media-viewer-prev"
-          phx-click={
-            JS.dispatch("predux:media-prev", to: "#media-viewer")
-          }
+          phx-click={JS.dispatch("predux:media-prev", to: "#media-viewer")}
           class={[
             "absolute left-4 top-1/2 z-20 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
             @item_count < 2 && "hidden"
@@ -57,9 +53,7 @@ defmodule PleromaReduxWeb.MediaViewer do
         <button
           type="button"
           data-role="media-viewer-close"
-          phx-click={
-            JS.dispatch("predux:media-close", to: "#media-viewer")
-          }
+          phx-click={JS.dispatch("predux:media-close", to: "#media-viewer")}
           class="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
           aria-label="Close media viewer"
         >
@@ -69,9 +63,7 @@ defmodule PleromaReduxWeb.MediaViewer do
         <button
           type="button"
           data-role="media-viewer-next"
-          phx-click={
-            JS.dispatch("predux:media-next", to: "#media-viewer")
-          }
+          phx-click={JS.dispatch("predux:media-next", to: "#media-viewer")}
           class={[
             "absolute right-4 top-1/2 z-20 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
             @item_count < 2 && "hidden"

@@ -2,7 +2,7 @@ defmodule PleromaReduxWeb.SearchLiveTest do
   use PleromaReduxWeb.ConnCase, async: true
 
   import Mox
-import Phoenix.LiveViewTest
+  import Phoenix.LiveViewTest
 
   alias PleromaRedux.Activities.Note
   alias PleromaRedux.Objects

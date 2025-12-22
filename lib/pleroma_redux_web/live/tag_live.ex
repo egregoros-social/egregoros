@@ -34,19 +34,19 @@ defmodule PleromaReduxWeb.TagLive do
     {:ok,
      socket
      |> assign(
-        current_user: current_user,
-        notifications_count: notifications_count(current_user),
-        tag: tag,
-        posts: StatusVM.decorate_many(objects, current_user),
-        reply_to_ap_id: nil,
-        reply_to_handle: nil,
-        reply_form: reply_form,
-        reply_media_alt: %{},
-        reply_options_open?: false,
-        reply_cw_open?: false,
-        posts_cursor: posts_cursor(objects),
-        posts_end?: length(objects) < @page_size
-      )
+       current_user: current_user,
+       notifications_count: notifications_count(current_user),
+       tag: tag,
+       posts: StatusVM.decorate_many(objects, current_user),
+       reply_to_ap_id: nil,
+       reply_to_handle: nil,
+       reply_form: reply_form,
+       reply_media_alt: %{},
+       reply_options_open?: false,
+       reply_cw_open?: false,
+       posts_cursor: posts_cursor(objects),
+       posts_end?: length(objects) < @page_size
+     )
      |> allow_upload(:reply_media,
        accept: ~w(
          .png
@@ -203,11 +203,14 @@ defmodule PleromaReduxWeb.TagLive do
                     content_type: entry.client_type
                   }
 
-                  description = media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
+                  description =
+                    media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
 
                   with {:ok, url_path} <- MediaStorage.store_media(user, upload),
                        {:ok, object} <-
-                         Media.create_media_object(user, upload, url_path, description: description) do
+                         Media.create_media_object(user, upload, url_path,
+                           description: description
+                         ) do
                     {:ok, object.data}
                   else
                     {:error, reason} -> {:ok, {:error, reason}}
@@ -242,7 +245,8 @@ defmodule PleromaReduxWeb.TagLive do
                        |> assign(
                          reply_to_ap_id: nil,
                          reply_to_handle: nil,
-                         reply_form: Phoenix.Component.to_form(default_reply_params(), as: :reply),
+                         reply_form:
+                           Phoenix.Component.to_form(default_reply_params(), as: :reply),
                          reply_media_alt: %{},
                          reply_options_open?: false,
                          reply_cw_open?: false

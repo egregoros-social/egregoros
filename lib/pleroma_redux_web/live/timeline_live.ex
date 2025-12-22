@@ -430,11 +430,14 @@ defmodule PleromaReduxWeb.TimelineLive do
                     content_type: entry.client_type
                   }
 
-                  description = media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
+                  description =
+                    media_alt |> Map.get(entry.ref, "") |> to_string() |> String.trim()
 
                   with {:ok, url_path} <- MediaStorage.store_media(user, upload),
                        {:ok, object} <-
-                         Media.create_media_object(user, upload, url_path, description: description) do
+                         Media.create_media_object(user, upload, url_path,
+                           description: description
+                         ) do
                     {:ok, object.data}
                   else
                     {:error, reason} -> {:ok, {:error, reason}}

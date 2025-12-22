@@ -23,7 +23,10 @@ defmodule PleromaReduxWeb.StatusLiveTest do
     assert has_element?(view, "article[data-role='status-card']", "Hello from status")
   end
 
-  test "redirects to the canonical nickname for local status permalinks", %{conn: conn, user: user} do
+  test "redirects to the canonical nickname for local status permalinks", %{
+    conn: conn,
+    user: user
+  } do
     assert {:ok, note} = Pipeline.ingest(Note.build(user, "Hello from status"), local: true)
     uuid = uuid_from_ap_id(note.ap_id)
 

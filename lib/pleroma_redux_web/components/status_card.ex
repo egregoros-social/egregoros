@@ -237,7 +237,11 @@ defmodule PleromaReduxWeb.StatusCard do
             </button>
           <% end %>
 
-          <details id={"reaction-picker-#{@entry.object.id}"} data-role="reaction-picker" class="relative">
+          <details
+            id={"reaction-picker-#{@entry.object.id}"}
+            data-role="reaction-picker"
+            class="relative"
+          >
             <summary class="list-none [&::-webkit-details-marker]:hidden">
               <span class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 bg-white/70 text-slate-500 transition hover:-translate-y-0.5 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-300 dark:hover:bg-slate-950 dark:hover:text-white">
                 <.icon name="hero-face-smile" class="size-5" />
@@ -672,9 +676,7 @@ defmodule PleromaReduxWeb.StatusCard do
           type="button"
           data-role="attachment-open"
           data-index={@index}
-          phx-click={
-            JS.dispatch("predux:media-open", to: "#media-viewer")
-          }
+          phx-click={JS.dispatch("predux:media-open", to: "#media-viewer")}
           class="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
           aria-label={attachment_label(@attachment, "Open image")}
         >
@@ -708,9 +710,7 @@ defmodule PleromaReduxWeb.StatusCard do
             type="button"
             data-role="attachment-open"
             data-index={@index}
-            phx-click={
-              JS.dispatch("predux:media-open", to: "#media-viewer")
-            }
+            phx-click={JS.dispatch("predux:media-open", to: "#media-viewer")}
             class="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             aria-label={attachment_label(@attachment, "Open video")}
           >
@@ -737,9 +737,7 @@ defmodule PleromaReduxWeb.StatusCard do
             type="button"
             data-role="attachment-open"
             data-index={@index}
-            phx-click={
-              JS.dispatch("predux:media-open", to: "#media-viewer")
-            }
+            phx-click={JS.dispatch("predux:media-open", to: "#media-viewer")}
             class="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             aria-label={attachment_label(@attachment, "Open audio")}
           >

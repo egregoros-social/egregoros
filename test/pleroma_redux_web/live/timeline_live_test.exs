@@ -139,7 +139,10 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     refute has_element?(view, "form#timeline-form button[type='submit'][disabled]")
   end
 
-  test "compose renders an emoji picker without requiring a server roundtrip", %{conn: conn, user: user} do
+  test "compose renders an emoji picker without requiring a server roundtrip", %{
+    conn: conn,
+    user: user
+  } do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")
 
@@ -454,7 +457,12 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     assert has_element?(view, "#timeline-form [data-role='compose-editor']")
     assert has_element?(view, "#timeline-form [data-role='compose-toolbar']")
-    assert has_element?(view, "#timeline-form [data-role='compose-add-media'][aria-label='Add media']")
+
+    assert has_element?(
+             view,
+             "#timeline-form [data-role='compose-add-media'][aria-label='Add media']"
+           )
+
     assert has_element?(view, "#timeline-form [data-role='compose-add-media'] input[type='file']")
 
     html =
@@ -885,8 +893,15 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
 
     {:ok, view, _html} = live(conn, "/?timeline=public")
 
-    assert has_element?(view, "#post-#{note.id} button[data-role='attachment-open'][data-index='0']")
-    assert has_element?(view, "#post-#{note.id} button[data-role='attachment-open'][data-index='1']")
+    assert has_element?(
+             view,
+             "#post-#{note.id} button[data-role='attachment-open'][data-index='0']"
+           )
+
+    assert has_element?(
+             view,
+             "#post-#{note.id} button[data-role='attachment-open'][data-index='1']"
+           )
 
     prev_html =
       view
