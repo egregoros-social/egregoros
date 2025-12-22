@@ -22,8 +22,8 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Feature | Status | Notes |
 |---|---:|---|
 | Responsive layout (desktop + mobile) | PARTIAL | `AppShell` exists (bottom nav on mobile) but layout needs a cohesive, world‑class information architecture across all screens. |
-| Global navigation (timeline / notifications / profile / settings) | PARTIAL | Implemented in `AppShell`, but not uniformly applied to all non‑LiveView pages (login/register/settings are separate templates). |
-| “Compose” quick access on mobile (FAB / sheet) | PARTIAL | A mobile compose affordance exists, but compose is still basic and lacks attachments/etc. |
+| Global navigation (timeline / notifications / profile / settings) | DONE | `AppShell` wraps all primary screens, including controller pages like login/register/settings/OAuth. |
+| “Compose” quick access on mobile (FAB / sheet) | PARTIAL | Mobile FAB + sheet exists; keep polishing layout + affordances. |
 | Light/dark/system theme toggle | DONE | Theme toggle exists in layout; keep improving contrast + consistency. |
 | Flash/toast feedback on user actions | PARTIAL | Controllers use flash; LiveView actions should consistently show success/error (and reduce silent failures). |
 | Consistent button affordances (hover/focus/cursor/disabled) | PARTIAL | Many buttons are polished; keep standardizing remaining custom buttons + icon buttons. |
@@ -79,7 +79,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 | Safe HTML rendering (sanitized) | DONE | Rendering uses safe HTML pipeline. |
 | Local text rendering | DONE | Local posts render as text. |
 | Content warning / spoiler rendering | DONE | Status cards render CW as a toggle and hide body + media behind it. |
-| Linkify mentions/hashtags for local content | PARTIAL | `@user`, `@user@host`, and `#tags` linkified in local text; remote tags still depend on incoming HTML. |
+| Linkify mentions/hashtags/URLs for local content | PARTIAL | `@user`, `@user@host`, `#tags`, and `http(s)` URLs are linkified for plain-text content; remote posts still depend on incoming HTML when it’s provided. |
 | Emoji reactions UI | DONE | Reaction picker exists and renders all emojis present; still missing custom emoji (server-provided) + search. |
 | Like / unlike | DONE | |
 | Repost / unrepost | DONE | |
@@ -124,7 +124,7 @@ This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by
 ### Search & discovery
 | Feature | Status | Notes |
 |---|---:|---|
-| Search box (global) | PARTIAL | `/search` supports account search; still missing statuses + hashtags. |
+| Search box (global) | PARTIAL | `/search` supports accounts + status search; still missing hashtag search UI beyond tag pages. |
 | Account lookup by `@user@host` | PARTIAL | `/search` supports following remote accounts by handle; still missing a standalone “lookup” flow. |
 | Hashtag pages | PARTIAL | Tag timeline exists (`/tags/:tag`) using content search; supports like/repost/reaction + load-more pagination; still needs tag extraction from `tag` fields. |
 | Explore / trending | TODO | |
