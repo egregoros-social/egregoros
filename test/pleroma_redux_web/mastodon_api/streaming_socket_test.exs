@@ -8,7 +8,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocketTest do
   alias PleromaRedux.Users
   alias PleromaReduxWeb.MastodonAPI.StreamingSocket
 
-  test "init computes home_actor_ids for user streams" do
+  test "subscribing to the user stream computes home_actor_ids" do
     {:ok, user} = Users.create_local_user("alice")
     {:ok, followed} = Users.create_user(remote_user_attrs("bob@example.com"))
 
@@ -20,18 +20,22 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocketTest do
                activity_ap_id: "https://example.com/activities/follow/1"
              })
 
-    assert {:ok, state} = StreamingSocket.init(%{streams: ["user"], current_user: user})
+    assert {:ok, state} = StreamingSocket.init(%{streams: [], current_user: user})
+
+    assert {:reply, :ok, {:text, _reply}, state} =
+             StreamingSocket.handle_in(
+               {Jason.encode!(%{"type" => "subscribe", "stream" => "user"}), opcode: :text},
+               state
+             )
 
     assert MapSet.member?(state.home_actor_ids, user.ap_id)
     assert MapSet.member?(state.home_actor_ids, followed.ap_id)
   end
 
-  test "heartbeat pushes an event payload" do
+  test "heartbeat pushes a websocket ping frame" do
     {:ok, state} = StreamingSocket.init(%{streams: [], current_user: nil})
 
-    assert {:push, {:text, payload}, _state} = StreamingSocket.handle_info(:heartbeat, state)
-
-    assert %{"event" => "heartbeat"} = Jason.decode!(payload)
+    assert {:push, {:ping, ""}, _state} = StreamingSocket.handle_info(:heartbeat, state)
   end
 
   test "delivers user timeline updates for followed actors" do
@@ -65,7 +69,9 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocketTest do
     assert {:push, {:text, payload}, ^state} =
              StreamingSocket.handle_info({:post_created, note}, state)
 
-    assert %{"event" => "update", "payload" => status_payload} = Jason.decode!(payload)
+    assert %{"event" => "update", "payload" => status_payload, "stream" => ["user"]} =
+             Jason.decode!(payload)
+
     assert is_binary(status_payload)
     assert %{"id" => _id} = Jason.decode!(status_payload)
   end
@@ -111,7 +117,9 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocketTest do
     assert {:push, {:text, payload}, ^state} =
              StreamingSocket.handle_info({:post_created, note}, state)
 
-    assert %{"event" => "update", "payload" => status_payload} = Jason.decode!(payload)
+    assert %{"event" => "update", "payload" => status_payload, "stream" => ["public"]} =
+             Jason.decode!(payload)
+
     assert is_binary(status_payload)
     assert %{"id" => _id} = Jason.decode!(status_payload)
   end
@@ -137,14 +145,29 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocketTest do
     assert {:push, {:text, payload}, ^state} =
              StreamingSocket.handle_info({:notification_created, like}, state)
 
-    assert %{"event" => "notification", "payload" => notification_payload} =
+    assert %{"event" => "notification", "payload" => notification_payload, "stream" => ["user"]} =
              Jason.decode!(payload)
 
     assert is_binary(notification_payload)
     assert %{"id" => _id, "type" => _type} = Jason.decode!(notification_payload)
   end
 
-  test "handle_in ignores incoming frames" do
+  test "handle_in returns an error when subscribing to user streams without a current user" do
+    {:ok, state} = StreamingSocket.init(%{streams: [], current_user: nil})
+
+    assert {:reply, :error, {:text, reply}, ^state} =
+             StreamingSocket.handle_in(
+               {Jason.encode!(%{"type" => "subscribe", "stream" => "user"}), opcode: :text},
+               state
+             )
+
+    assert %{"event" => "pleroma:respond", "payload" => payload} = Jason.decode!(reply)
+
+    assert %{"result" => "error", "type" => "subscribe", "error" => "unauthorized"} =
+             Jason.decode!(payload)
+  end
+
+  test "handle_in ignores unknown messages" do
     {:ok, state} = StreamingSocket.init(%{streams: [], current_user: nil})
     assert {:ok, ^state} = StreamingSocket.handle_in({"ping", opcode: :text}, state)
   end
