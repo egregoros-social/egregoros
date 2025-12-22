@@ -92,16 +92,15 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocket do
 
     cond do
       stream == "" or stream not in StreamingStreams.known_streams() ->
-        reply = encode_pleroma_respond("subscribe", "error", "bad_topic")
-        {:reply, :error, {:text, reply}, state}
+        reply = encode_error("Unknown stream type", 400)
+        {:push, {:text, reply}, state}
 
       MapSet.member?(state.streams, stream) ->
-        reply = encode_pleroma_respond("subscribe", "ignored")
-        {:reply, :error, {:text, reply}, state}
+        {:ok, state}
 
       stream in StreamingStreams.user_streams() and state.current_user == nil ->
-        reply = encode_pleroma_respond("subscribe", "error", "unauthorized")
-        {:reply, :error, {:text, reply}, state}
+        reply = encode_error("Missing access token", 401)
+        {:push, {:text, reply}, state}
 
       true ->
         new_state =
@@ -109,8 +108,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocket do
           |> Map.update!(:streams, &MapSet.put(&1, stream))
           |> sync_subscriptions()
 
-        reply = encode_pleroma_respond("subscribe", "success")
-        {:reply, :ok, {:text, reply}, new_state}
+        {:ok, new_state}
     end
   end
 
@@ -120,12 +118,10 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocket do
 
     cond do
       stream == "" or stream not in StreamingStreams.known_streams() ->
-        reply = encode_pleroma_respond("unsubscribe", "error", "bad_topic")
-        {:reply, :error, {:text, reply}, state}
+        {:ok, state}
 
       not MapSet.member?(state.streams, stream) ->
-        reply = encode_pleroma_respond("unsubscribe", "ignored")
-        {:reply, :error, {:text, reply}, state}
+        {:ok, state}
 
       true ->
         new_state =
@@ -133,34 +129,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocket do
           |> Map.update!(:streams, &MapSet.delete(&1, stream))
           |> sync_subscriptions()
 
-        reply = encode_pleroma_respond("unsubscribe", "success")
-        {:reply, :ok, {:text, reply}, new_state}
-    end
-  end
-
-  defp handle_client_event(%{"type" => "pleroma:authenticate", "token" => token}, state)
-       when is_binary(token) and is_map(state) do
-    cond do
-      state.current_user != nil ->
-        reply = encode_pleroma_respond("pleroma:authenticate", "error", "already_authenticated")
-        {:reply, :error, {:text, reply}, state}
-
-      true ->
-        case PleromaRedux.OAuth.get_token(String.trim(token)) do
-          %PleromaRedux.OAuth.Token{user: %User{} = user} = oauth_token ->
-            new_state =
-              state
-              |> Map.put(:current_user, user)
-              |> Map.put(:oauth_token, oauth_token)
-              |> sync_subscriptions()
-
-            reply = encode_pleroma_respond("pleroma:authenticate", "success")
-            {:reply, :ok, {:text, reply}, new_state}
-
-          _ ->
-            reply = encode_pleroma_respond("pleroma:authenticate", "error", "unauthorized")
-            {:reply, :error, {:text, reply}, state}
-        end
+        {:ok, new_state}
     end
   end
 
@@ -292,20 +261,9 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocket do
     Jason.encode!(%{"stream" => stream, "event" => event, "payload" => payload})
   end
 
-  defp encode_pleroma_respond(type, result, error \\ nil)
-       when is_binary(type) and is_binary(result) do
-    payload =
-      %{"result" => result, "type" => type}
-      |> maybe_put_error(error)
-      |> Jason.encode!()
-
-    Jason.encode!(%{"event" => "pleroma:respond", "payload" => payload})
+  defp encode_error(message, status) when is_binary(message) and is_integer(status) do
+    Jason.encode!(%{"error" => message, "status" => status})
   end
-
-  defp maybe_put_error(map, nil) when is_map(map), do: map
-
-  defp maybe_put_error(map, error) when is_map(map) and is_binary(error),
-    do: Map.put(map, "error", error)
 
   defp home_actor_ids(%User{} = user) do
     followed_actor_ids =

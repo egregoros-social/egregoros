@@ -22,7 +22,7 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocketTest do
 
     assert {:ok, state} = StreamingSocket.init(%{streams: [], current_user: user})
 
-    assert {:reply, :ok, {:text, _reply}, state} =
+    assert {:ok, state} =
              StreamingSocket.handle_in(
                {Jason.encode!(%{"type" => "subscribe", "stream" => "user"}), opcode: :text},
                state
@@ -155,16 +155,13 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingSocketTest do
   test "handle_in returns an error when subscribing to user streams without a current user" do
     {:ok, state} = StreamingSocket.init(%{streams: [], current_user: nil})
 
-    assert {:reply, :error, {:text, reply}, ^state} =
+    assert {:push, {:text, reply}, ^state} =
              StreamingSocket.handle_in(
                {Jason.encode!(%{"type" => "subscribe", "stream" => "user"}), opcode: :text},
                state
              )
 
-    assert %{"event" => "pleroma:respond", "payload" => payload} = Jason.decode!(reply)
-
-    assert %{"result" => "error", "type" => "subscribe", "error" => "unauthorized"} =
-             Jason.decode!(payload)
+    assert %{"error" => "Missing access token", "status" => 401} = Jason.decode!(reply)
   end
 
   test "handle_in ignores unknown messages" do
