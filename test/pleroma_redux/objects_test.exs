@@ -144,4 +144,76 @@ defmodule PleromaRedux.ObjectsTest do
     assert Enum.any?(notes, &(&1.actor == bob_ap_id))
     refute Enum.any?(notes, &(&1.actor == carol_ap_id))
   end
+
+  test "search_notes finds notes by content or summary" do
+    assert {:ok, %Object{} = content_note} =
+             Objects.create_object(%{
+               ap_id: "https://local.example/objects/search-1",
+               type: "Note",
+               actor: "https://local.example/users/alice",
+               object: nil,
+               data: %{
+                 "id" => "https://local.example/objects/search-1",
+                 "type" => "Note",
+                 "actor" => "https://local.example/users/alice",
+                 "content" => "Hello world"
+               },
+               local: true
+             })
+
+    assert {:ok, %Object{} = summary_note} =
+             Objects.create_object(%{
+               ap_id: "https://local.example/objects/search-2",
+               type: "Note",
+               actor: "https://local.example/users/alice",
+               object: nil,
+               data: %{
+                 "id" => "https://local.example/objects/search-2",
+                 "type" => "Note",
+                 "actor" => "https://local.example/users/alice",
+                 "content" => "Something else",
+                 "summary" => "hello from summary"
+               },
+               local: true
+             })
+
+    assert {:ok, %Object{}} =
+             Objects.create_object(%{
+               ap_id: "https://local.example/objects/search-3",
+               type: "Note",
+               actor: "https://local.example/users/alice",
+               object: nil,
+               data: %{
+                 "id" => "https://local.example/objects/search-3",
+                 "type" => "Note",
+                 "actor" => "https://local.example/users/alice",
+                 "content" => "No match here"
+               },
+               local: true
+             })
+
+    assert {:ok, %Object{}} =
+             Objects.create_object(%{
+               ap_id: "https://local.example/activities/like/search-1",
+               type: "Like",
+               actor: "https://local.example/users/alice",
+               object: "https://local.example/objects/search-1",
+               data: %{
+                 "id" => "https://local.example/activities/like/search-1",
+                 "type" => "Like",
+                 "content" => "hello from like"
+               },
+               local: true
+             })
+
+    results = Objects.search_notes("hello", limit: 10)
+
+    assert Enum.all?(results, &(&1.type == "Note"))
+    assert Enum.any?(results, &(&1.id == content_note.id))
+    assert Enum.any?(results, &(&1.id == summary_note.id))
+  end
+
+  test "search_notes ignores blank queries" do
+    assert [] == Objects.search_notes(" ")
+  end
 end
