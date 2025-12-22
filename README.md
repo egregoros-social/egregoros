@@ -9,6 +9,20 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 
+## Troubleshooting
+
+### `:emfile` / "too many open files" crash under load
+
+If you see errors like `Unexpected error in accept: :emfile` (Bandit/ThousandIsland) or
+`File operation error: emfile`, your OS file descriptor limit is too low (often `ulimit -n 256`).
+
+Increase it before starting the server:
+
+```sh
+ulimit -n 8192
+mix phx.server
+```
+
 ## Learn more
 
 * Official website: https://www.phoenixframework.org/
