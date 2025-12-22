@@ -290,17 +290,29 @@ defmodule PleromaReduxWeb.Composer do
             <.compose_emoji_picker id={@emoji_picker_id} />
           </div>
 
+          <% remaining = remaining_chars(@form, @max_chars) %>
+
           <div class="flex items-center gap-3">
-            <span
-              data-role="compose-char-counter"
-              class={[
-                "tabular-nums text-sm font-semibold",
-                remaining_chars(@form, @max_chars) < 0 && "text-rose-600 dark:text-rose-400",
-                remaining_chars(@form, @max_chars) >= 0 && "text-slate-500 dark:text-slate-400"
-              ]}
-            >
-              {remaining_chars(@form, @max_chars)}
-            </span>
+            <div class="flex flex-col items-end gap-1 text-right">
+              <span
+                data-role="compose-char-counter"
+                class={[
+                  "tabular-nums text-sm font-semibold",
+                  remaining < 0 && "text-rose-600 dark:text-rose-400",
+                  remaining >= 0 && "text-slate-500 dark:text-slate-400"
+                ]}
+              >
+                {remaining}
+              </span>
+
+              <span
+                :if={remaining < 0}
+                data-role="compose-char-error"
+                class="text-xs font-semibold text-rose-600 dark:text-rose-400"
+              >
+                Too long by {abs(remaining)} character{if abs(remaining) == 1, do: "", else: "s"}.
+              </span>
+            </div>
 
             <.button
               data-role="compose-submit"
