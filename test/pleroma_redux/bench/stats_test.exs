@@ -25,4 +25,3 @@ defmodule PleromaRedux.Bench.StatsTest do
            } = Stats.summary([123])
   end
 end
-

@@ -23,7 +23,9 @@ defmodule PleromaReduxWeb.MastodonAPI.StreamingController do
           streams: streams,
           current_user: current_user,
           oauth_token: oauth_token
-        }, timeout: 120_000)
+        },
+        timeout: 120_000
+      )
     else
       {:error, :websocket_upgrade_required} ->
         conn

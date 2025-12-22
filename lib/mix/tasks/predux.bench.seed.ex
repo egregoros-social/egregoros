@@ -70,4 +70,3 @@ defmodule Mix.Tasks.Predux.Bench.Seed do
     """)
   end
 end
-

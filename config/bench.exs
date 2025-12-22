@@ -24,4 +24,3 @@ config :swoosh, :api_client, false
 
 # Keep logs readable for interactive bench runs.
 config :logger, level: :info
-

@@ -34,4 +34,3 @@ defmodule PleromaRedux.Bench.SeedTest do
     assert Repo.aggregate(from(r in Relationship, where: r.type == "Follow"), :count, :id) == 4
   end
 end
-

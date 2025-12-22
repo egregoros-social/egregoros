@@ -103,4 +103,3 @@ defmodule Mix.Tasks.Predux.Bench.Run do
   defp normalize_pos_int(value) when is_integer(value) and value > 0, do: value
   defp normalize_pos_int(_), do: 1
 end
-

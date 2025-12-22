@@ -23,4 +23,3 @@ defmodule PleromaRedux.Bench.RunnerTest do
     assert %{stats: %{samples: 3, min: 15, p50: 30, p95: 40, max: 40}} = result
   end
 end
-

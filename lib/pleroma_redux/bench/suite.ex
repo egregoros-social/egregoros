@@ -67,4 +67,3 @@ defmodule PleromaRedux.Bench.Suite do
     |> Repo.one()
   end
 end
-

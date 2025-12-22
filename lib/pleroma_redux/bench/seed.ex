@@ -189,7 +189,16 @@ defmodule PleromaRedux.Bench.Seed do
   end
 
   defp note_content(i) when is_integer(i) do
-    words = ["hello", "world", "pleroma", "redux", "federation", "activitypub", "phoenix", "elixir"]
+    words = [
+      "hello",
+      "world",
+      "pleroma",
+      "redux",
+      "federation",
+      "activitypub",
+      "phoenix",
+      "elixir"
+    ]
 
     word1 = Enum.at(words, rem(i, length(words)))
     word2 = Enum.at(words, rem(i * 7 + 3, length(words)))

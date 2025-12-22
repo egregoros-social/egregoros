@@ -130,14 +130,24 @@ defmodule PleromaReduxWeb.NotificationsLive do
             </div>
 
             <div :if={@current_user} class="mt-4 flex flex-wrap items-center gap-2">
-              <.filter_button filter="all" current={@notifications_filter} label="All" icon="hero-squares-2x2" />
+              <.filter_button
+                filter="all"
+                current={@notifications_filter}
+                label="All"
+                icon="hero-squares-2x2"
+              />
               <.filter_button
                 filter="follows"
                 current={@notifications_filter}
                 label="Follows"
                 icon="hero-user-plus"
               />
-              <.filter_button filter="likes" current={@notifications_filter} label="Likes" icon="hero-heart" />
+              <.filter_button
+                filter="likes"
+                current={@notifications_filter}
+                label="Likes"
+                icon="hero-heart"
+              />
               <.filter_button
                 filter="reposts"
                 current={@notifications_filter}

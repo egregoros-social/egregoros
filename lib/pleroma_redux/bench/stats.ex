@@ -32,4 +32,3 @@ defmodule PleromaRedux.Bench.Stats do
     Enum.at(sorted, max(idx, 0))
   end
 end
-
