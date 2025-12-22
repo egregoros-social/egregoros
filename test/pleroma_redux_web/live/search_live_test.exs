@@ -32,6 +32,16 @@ defmodule PleromaReduxWeb.SearchLiveTest do
     refute has_element?(view, "[data-role='status-card']", "No match here")
   end
 
+  test "searching for a hashtag shows a tag quick link", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+    assert {:ok, _} = Pipeline.ingest(Note.build(user, "Hello #elixir"), local: true)
+
+    {:ok, view, _html} = live(conn, "/search?q=%23elixir")
+
+    assert has_element?(view, "[data-role='search-tag-results']")
+    assert has_element?(view, "[data-role='search-tag-link'][href='/tags/elixir']", "#elixir")
+  end
+
   test "reply buttons dispatch reply modal events without navigation", %{conn: conn} do
     {:ok, user} = Users.create_local_user("alice")
     assert {:ok, _} = Pipeline.ingest(Note.build(user, "Reply target"), local: true)

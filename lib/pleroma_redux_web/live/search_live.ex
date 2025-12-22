@@ -518,6 +518,47 @@ defmodule PleromaReduxWeb.SearchLive do
           </div>
 
           <section
+            :if={@tag_query != nil}
+            data-role="search-tag-results"
+            class="space-y-3"
+          >
+            <.card class="p-6">
+              <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                Hashtags
+              </p>
+              <h3 class="mt-2 font-display text-xl text-slate-900 dark:text-slate-100">
+                Matching tags
+              </h3>
+            </.card>
+
+            <.card class="p-5">
+              <.link
+                navigate={~p"/tags/#{@tag_query}"}
+                data-role="search-tag-link"
+                class="group flex items-center gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900/5 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                  <.icon name="hero-hashtag" class="size-5" />
+                </span>
+
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    #{@tag_query}
+                  </p>
+                  <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    View tag timeline
+                  </p>
+                </div>
+
+                <.icon
+                  name="hero-chevron-right"
+                  class="size-5 text-slate-400 transition group-hover:translate-x-0.5 dark:text-slate-500"
+                />
+              </.link>
+            </.card>
+          </section>
+
+          <section
             :if={@query != ""}
             data-role="search-post-results"
             class="space-y-3"
@@ -571,6 +612,19 @@ defmodule PleromaReduxWeb.SearchLive do
 
     {search_query, remote_handle} = parse_query(q)
 
+    tag_query =
+      if String.starts_with?(q, "#") do
+        q
+        |> String.trim_leading("#")
+        |> String.trim()
+        |> case do
+          "" -> nil
+          tag -> tag
+        end
+      else
+        nil
+      end
+
     results =
       if search_query == "" do
         []
@@ -599,6 +653,7 @@ defmodule PleromaReduxWeb.SearchLive do
 
     assign(socket,
       query: q,
+      tag_query: tag_query,
       remote_handle: remote_handle,
       remote_following?: remote_following?,
       post_results: post_results,
