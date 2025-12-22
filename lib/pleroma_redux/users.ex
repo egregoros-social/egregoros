@@ -81,9 +81,33 @@ defmodule PleromaRedux.Users do
 
   def get_or_create_local_user(nickname) when is_binary(nickname) do
     case get_by_nickname(nickname) do
-      %User{} = user -> {:ok, user}
-      nil -> create_local_user(nickname)
+      %User{} = user ->
+        {:ok, user}
+
+      nil ->
+        case create_local_user(nickname) do
+          {:ok, %User{} = user} ->
+            {:ok, user}
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            if local_user_unique_conflict?(changeset) do
+              case get_by_nickname(nickname) do
+                %User{} = user -> {:ok, user}
+                nil -> {:error, changeset}
+              end
+            else
+              {:error, changeset}
+            end
+        end
     end
+  end
+
+  defp local_user_unique_conflict?(%Ecto.Changeset{} = changeset) do
+    Enum.any?(changeset.errors, fn
+      {:nickname, {_msg, opts}} -> Keyword.get(opts, :constraint) == :unique
+      {:ap_id, {_msg, opts}} -> Keyword.get(opts, :constraint) == :unique
+      _ -> false
+    end)
   end
 
   def get_by_ap_id(nil), do: nil
