@@ -591,7 +591,7 @@ defmodule PleromaReduxWeb.StatusCard do
           data-role="open-link"
           href={@share_url}
           target="_blank"
-          rel="noreferrer noopener"
+          rel="nofollow noopener noreferrer"
           class="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10"
         >
           <.icon
