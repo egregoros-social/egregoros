@@ -8,6 +8,7 @@ defmodule PleromaReduxWeb.MastodonAPI.InstanceControllerTest do
     assert is_binary(response["uri"])
     assert is_binary(response["title"])
     assert is_binary(response["version"])
+    assert is_binary(get_in(response, ["urls", "streaming_api"]))
     assert is_map(response["stats"])
   end
 
@@ -19,5 +20,6 @@ defmodule PleromaReduxWeb.MastodonAPI.InstanceControllerTest do
     assert is_binary(response["title"])
     assert is_binary(response["version"])
     assert is_map(response["usage"])
+    assert is_binary(get_in(response, ["configuration", "urls", "streaming"]))
   end
 end
