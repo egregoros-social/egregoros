@@ -1,6 +1,7 @@
 defmodule PleromaReduxWeb.NotificationsLive do
   use PleromaReduxWeb, :live_view
 
+  alias PleromaRedux.CustomEmojis
   alias PleromaRedux.HTML
   alias PleromaRedux.Notifications
   alias PleromaRedux.Objects
@@ -327,6 +328,7 @@ defmodule PleromaReduxWeb.NotificationsLive do
     case Objects.get_by_ap_id(note_ap_id) do
       %{type: "Note"} = object ->
         raw = object.data |> Map.get("content", "") |> to_string()
+        emojis = CustomEmojis.from_object(object)
 
         format =
           case Map.get(object, :local) do
@@ -335,7 +337,7 @@ defmodule PleromaReduxWeb.NotificationsLive do
           end
 
         raw
-        |> HTML.to_safe_html(format: format)
+        |> HTML.to_safe_html(format: format, emojis: emojis)
         |> Phoenix.HTML.raw()
 
       _ ->

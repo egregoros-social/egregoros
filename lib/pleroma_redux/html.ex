@@ -24,6 +24,8 @@ defmodule PleromaRedux.HTML do
 
   def to_safe_html(content, opts) when is_binary(content) do
     format = Keyword.get(opts, :format, :html)
+    emojis = Keyword.get(opts, :emojis, [])
+    emoji_map = emoji_map(emojis)
     trimmed = String.trim(content)
 
     cond do
@@ -32,15 +34,17 @@ defmodule PleromaRedux.HTML do
 
       format == :text ->
         trimmed
-        |> text_to_html()
+        |> text_to_html(emoji_map)
         |> sanitize()
 
       format == :html and looks_like_html?(trimmed) ->
-        sanitize(trimmed)
+        trimmed
+        |> emojify_html(emoji_map)
+        |> sanitize()
 
       true ->
         trimmed
-        |> text_to_html()
+        |> text_to_html(emoji_map)
         |> sanitize()
     end
   end
@@ -51,7 +55,7 @@ defmodule PleromaRedux.HTML do
     String.contains?(content, "<") and String.contains?(content, ">")
   end
 
-  defp text_to_html(text) when is_binary(text) do
+  defp text_to_html(text, emoji_map) when is_binary(text) and is_map(emoji_map) do
     text =
       text
       |> String.replace("\r\n", "\n")
@@ -59,8 +63,30 @@ defmodule PleromaRedux.HTML do
 
     text = html_unescape(text)
 
-    "<p>" <> linkify_text(text) <> "</p>"
+    "<p>" <> linkify_text(text, emoji_map) <> "</p>"
   end
+
+  @emoji_shortcode_regex ~r/:[A-Za-z0-9_+-]{1,64}:/
+
+  defp emojify_html(html, emoji_map) when is_binary(html) and is_map(emoji_map) do
+    if map_size(emoji_map) == 0 do
+      html
+    else
+      Regex.replace(@emoji_shortcode_regex, html, fn full ->
+        shortcode = String.trim(full, ":")
+
+        case Map.get(emoji_map, shortcode) do
+          url when is_binary(url) and url != "" ->
+            if safe_img_url?(url), do: emoji_img_tag(shortcode, url), else: full
+
+          _ ->
+            full
+        end
+      end)
+    end
+  end
+
+  defp emojify_html(html, _emoji_map), do: html
 
   defp html_unescape(text) when is_binary(text) do
     text =
@@ -87,26 +113,26 @@ defmodule PleromaRedux.HTML do
     end)
   end
 
-  defp linkify_text(text) when is_binary(text) do
+  defp linkify_text(text, emoji_map) when is_binary(text) and is_map(emoji_map) do
     Regex.split(~r/(\n)/, text, include_captures: true, trim: false)
     |> Enum.map_join("", fn
       "\n" -> "<br>"
-      segment -> linkify_segment(segment)
+      segment -> linkify_segment(segment, emoji_map)
     end)
   end
 
-  defp linkify_segment(segment) when is_binary(segment) do
+  defp linkify_segment(segment, emoji_map) when is_binary(segment) and is_map(emoji_map) do
     Regex.split(~r/(\s+)/, segment, include_captures: true, trim: false)
     |> Enum.map_join("", fn token ->
       token
-      |> linkify_token()
+      |> linkify_token(emoji_map)
       |> IO.iodata_to_binary()
     end)
   end
 
   @mention_trailing ".,!?;:)]},"
 
-  defp linkify_token(token) when is_binary(token) do
+  defp linkify_token(token, emoji_map) when is_binary(token) and is_map(emoji_map) do
     token = to_string(token)
 
     cond do
@@ -138,9 +164,38 @@ defmodule PleromaRedux.HTML do
         end
 
       true ->
-        escape(token)
+        emojify_token(token, emoji_map)
     end
   end
+
+  defp emojify_token(token, emoji_map) when is_binary(token) and is_map(emoji_map) do
+    if map_size(emoji_map) == 0 or not String.contains?(token, ":") do
+      escape(token)
+    else
+      parts = Regex.split(@emoji_shortcode_regex, token, include_captures: true, trim: false)
+
+      parts
+      |> Enum.map(fn part ->
+        cond do
+          is_binary(part) and String.starts_with?(part, ":") and String.ends_with?(part, ":") ->
+            shortcode = String.trim(part, ":")
+
+            case Map.get(emoji_map, shortcode) do
+              url when is_binary(url) and url != "" ->
+                if safe_img_url?(url), do: emoji_img_tag(shortcode, url), else: escape(part)
+
+              _ ->
+                escape(part)
+            end
+
+          true ->
+            escape(part)
+        end
+      end)
+    end
+  end
+
+  defp emojify_token(token, _emoji_map), do: escape(token)
 
   defp split_trailing_punctuation(token, chars) when is_binary(token) and is_binary(chars) do
     {trailing_chars, core_chars} =
@@ -189,6 +244,50 @@ defmodule PleromaRedux.HTML do
   end
 
   defp url_href(_url), do: :error
+
+  defp emoji_map(emojis) when is_list(emojis) do
+    Enum.reduce(emojis, %{}, fn
+      %{shortcode: shortcode, url: url}, acc when is_binary(shortcode) and is_binary(url) ->
+        Map.put(acc, shortcode, url)
+
+      %{"shortcode" => shortcode, "url" => url}, acc
+      when is_binary(shortcode) and is_binary(url) ->
+        Map.put(acc, shortcode, url)
+
+      _other, acc ->
+        acc
+    end)
+  end
+
+  defp emoji_map(%{} = emojis), do: emojis
+  defp emoji_map(_), do: %{}
+
+  defp emoji_img_tag(shortcode, url) when is_binary(shortcode) and is_binary(url) do
+    url = url |> escape_binary() |> IO.iodata_to_binary()
+    shortcode = shortcode |> escape_binary() |> IO.iodata_to_binary()
+    label = ":" <> shortcode <> ":"
+
+    "<img src=\"" <>
+      url <>
+      "\" alt=\"" <>
+      label <>
+      "\" title=\"" <>
+      label <>
+      "\" class=\"emoji\" width=\"20\" height=\"20\">"
+  end
+
+  defp safe_img_url?(url) when is_binary(url) do
+    case URI.parse(String.trim(url)) do
+      %URI{scheme: scheme, host: host}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp safe_img_url?(_url), do: false
 
   defp parse_mention(rest) when is_binary(rest) do
     case String.split(rest, "@", parts: 2) do

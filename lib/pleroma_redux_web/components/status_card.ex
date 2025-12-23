@@ -1,6 +1,7 @@
 defmodule PleromaReduxWeb.StatusCard do
   use PleromaReduxWeb, :html
 
+  alias PleromaRedux.CustomEmojis
   alias PleromaRedux.HTML
   alias PleromaRedux.User
   alias PleromaReduxWeb.ProfilePaths
@@ -480,6 +481,7 @@ defmodule PleromaReduxWeb.StatusCard do
 
   defp post_content_html(%{data: %{} = data} = object) do
     raw = Map.get(data, "content", "")
+    emojis = CustomEmojis.from_object(object)
 
     format =
       case Map.get(object, :local) do
@@ -488,7 +490,7 @@ defmodule PleromaReduxWeb.StatusCard do
       end
 
     raw
-    |> HTML.to_safe_html(format: format)
+    |> HTML.to_safe_html(format: format, emojis: emojis)
     |> Phoenix.HTML.raw()
   end
 
