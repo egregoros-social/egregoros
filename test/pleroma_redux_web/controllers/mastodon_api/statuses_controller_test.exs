@@ -131,6 +131,36 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
     assert response(conn, 404)
   end
 
+  test "GET /api/v1/statuses/:id shows direct statuses to authorized recipients", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+
+    PleromaRedux.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    {:ok, note} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/objects/dm-1",
+          "type" => "Note",
+          "actor" => "https://example.com/users/alice",
+          "content" => "Secret DM for local",
+          "to" => [user.ap_id],
+          "cc" => []
+        },
+        local: false
+      )
+
+    conn =
+      conn
+      |> put_req_header("authorization", "Bearer test-token")
+      |> get("/api/v1/statuses/#{note.id}")
+
+    response = json_response(conn, 200)
+    assert response["id"] == Integer.to_string(note.id)
+    assert response["content"] == "<p>Secret DM for local</p>"
+    assert response["visibility"] == "direct"
+  end
+
   test "POST /api/v1/statuses/:id/favourite creates a like", %{conn: conn} do
     {:ok, user} = Users.create_local_user("local")
 

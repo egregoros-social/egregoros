@@ -19,6 +19,10 @@ defmodule PleromaReduxWeb.Router do
     plug PleromaReduxWeb.Plugs.RequireAuth
   end
 
+  pipeline :api_optional_auth do
+    plug PleromaReduxWeb.Plugs.FetchOptionalAuth
+  end
+
   pipeline :oauth_read do
     plug PleromaReduxWeb.Plugs.RequireScopes, ["read"]
   end
@@ -135,13 +139,18 @@ defmodule PleromaReduxWeb.Router do
     get "/instance", InstanceController, :show
     get "/custom_emojis", CustomEmojisController, :index
     get "/timelines/public", TimelinesController, :public
-    get "/statuses/:id", StatusesController, :show
-    get "/statuses/:id/context", StatusesController, :context
     get "/accounts/lookup", AccountsController, :lookup
     get "/accounts/:id", AccountsController, :show
     get "/accounts/:id/statuses", AccountsController, :statuses
     get "/accounts/:id/followers", AccountsController, :followers
     get "/accounts/:id/following", AccountsController, :following
+  end
+
+  scope "/api/v1", PleromaReduxWeb.MastodonAPI do
+    pipe_through [:api, :api_optional_auth]
+
+    get "/statuses/:id", StatusesController, :show
+    get "/statuses/:id/context", StatusesController, :context
   end
 
   scope "/api/v2", PleromaReduxWeb.MastodonAPI do
