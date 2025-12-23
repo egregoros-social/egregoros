@@ -48,8 +48,8 @@ defmodule PleromaReduxWeb.CoreComponentsTest do
         inner_block: slot_text("Delete")
       })
 
-    assert html =~ "bg-rose"
-    assert html =~ "tracking-[0.2em]"
+    assert html =~ "bg-red-600"
+    assert html =~ "px-3 py-1.5 text-xs"
   end
 
   test "button advertises clickability with a pointer cursor" do

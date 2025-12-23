@@ -46,11 +46,11 @@ defmodule PleromaReduxWeb.CoreComponents do
       role="alert"
       data-role="toast"
       class={[
-        "pointer-events-auto w-full max-w-sm motion-safe:animate-rise overflow-hidden rounded-2xl border px-4 py-3 shadow-lg shadow-slate-900/10 backdrop-blur",
-        "border-white/70 bg-white/90 text-slate-900 dark:border-slate-700/70 dark:bg-slate-950/70 dark:text-slate-100",
-        @kind == :info && "ring-1 ring-slate-900/5 dark:ring-white/10",
+        "pointer-events-auto w-full max-w-sm motion-safe:animate-rise overflow-hidden rounded-xl border px-4 py-3 shadow-lg",
+        @kind == :info &&
+          "border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white",
         @kind == :error &&
-          "border-rose-200/70 ring-1 ring-rose-200/70 dark:border-rose-500/30 dark:ring-rose-500/20",
+          "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/50 dark:text-red-100",
         @class
       ]}
       {@rest}
@@ -60,23 +60,23 @@ defmodule PleromaReduxWeb.CoreComponents do
           <.icon
             :if={@kind == :info}
             name="hero-information-circle"
-            class="size-5 text-slate-500 dark:text-slate-300"
+            class="size-5 text-violet-600 dark:text-violet-400"
           />
           <.icon
             :if={@kind == :error}
             name="hero-exclamation-circle"
-            class="size-5 text-rose-600 dark:text-rose-400"
+            class="size-5 text-red-600 dark:text-red-400"
           />
         </div>
 
         <div class="min-w-0 flex-1">
           <p :if={@title} class="font-semibold leading-6">{@title}</p>
-          <p class="text-sm leading-6 text-slate-700 dark:text-slate-200">{msg}</p>
+          <p class="text-sm leading-6 text-slate-600 dark:text-slate-300">{msg}</p>
         </div>
 
         <button
           type="button"
-          class="group -m-1 inline-flex items-center justify-center rounded-xl p-1 text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+          class="group -m-1 inline-flex items-center justify-center rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
           aria-label={gettext("close")}
         >
           <.icon name="hero-x-mark" class="size-4 opacity-70 group-hover:opacity-100" />
@@ -109,31 +109,31 @@ defmodule PleromaReduxWeb.CoreComponents do
     link? = rest[:href] || rest[:navigate] || rest[:patch]
 
     base_classes = [
-      "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold transition",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-      "disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-offset-slate-950"
+      "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold transition-all",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2",
+      "disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-offset-slate-900"
     ]
 
     size_classes =
       case assigns.size do
-        "sm" -> "px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em]"
+        "sm" -> "px-3 py-1.5 text-xs"
         "lg" -> "px-6 py-3 text-base"
-        _ -> "px-5 py-3 text-sm"
+        _ -> "px-4 py-2 text-sm"
       end
 
     variant_classes =
       case assigns.variant do
         "secondary" ->
-          "border border-slate-200/80 bg-white/70 text-slate-700 shadow-sm shadow-slate-200/20 hover:-translate-y-0.5 hover:bg-white dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+          "border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
 
         "ghost" ->
-          "bg-transparent text-slate-700 hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10"
+          "bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
 
         "destructive" ->
-          "bg-rose-600 text-white shadow-lg shadow-rose-600/20 hover:-translate-y-0.5 hover:bg-rose-500 dark:bg-rose-500 dark:hover:bg-rose-400"
+          "bg-red-600 text-white shadow-sm hover:bg-red-500 dark:bg-red-600 dark:hover:bg-red-500"
 
         _ ->
-          "bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+          "bg-violet-600 text-white shadow-sm hover:bg-violet-500 dark:bg-violet-600 dark:hover:bg-violet-500"
       end
 
     assigns =
@@ -181,7 +181,7 @@ defmodule PleromaReduxWeb.CoreComponents do
         data-role="compose-emoji"
         aria-label="Emoji picker"
         aria-expanded="false"
-        class="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+        class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
       >
         <.icon name="hero-face-smile" class="size-5" />
       </button>
@@ -190,21 +190,21 @@ defmodule PleromaReduxWeb.CoreComponents do
         data-role="compose-emoji-menu"
         data-state="closed"
         class={[
-          "absolute left-0 top-full z-30 mt-3 hidden w-64 rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/80 dark:shadow-slate-900/40",
-          "focus-within:ring-2 focus-within:ring-slate-300 dark:focus-within:ring-slate-600"
+          "absolute left-0 top-full z-30 mt-2 hidden w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-800",
+          "focus-within:ring-2 focus-within:ring-violet-500"
         ]}
       >
-        <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
           Emoji
         </p>
 
-        <div class="mt-4 grid grid-cols-8 gap-2">
+        <div class="mt-3 grid grid-cols-8 gap-1">
           <button
             :for={emoji <- @emojis}
             type="button"
             data-role="compose-emoji-option"
             data-emoji={emoji}
-            class="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-xl transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:hover:bg-white/10"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-xl transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:hover:bg-slate-700"
           >
             {emoji}
           </button>
@@ -227,8 +227,8 @@ defmodule PleromaReduxWeb.CoreComponents do
     <section
       data-role={@data_role}
       class={[
-        "rounded-3xl border border-white/80 bg-white/80 shadow-xl shadow-slate-200/40 backdrop-blur",
-        "dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40",
+        "rounded-xl border border-slate-200 bg-white shadow-sm",
+        "dark:border-slate-700 dark:bg-slate-800/50",
         @class
       ]}
       {@rest}
@@ -254,11 +254,11 @@ defmodule PleromaReduxWeb.CoreComponents do
 
     {box_classes, text_classes} =
       case assigns.size do
-        "xs" -> {"h-7 w-7 rounded-lg", "text-xs"}
-        "sm" -> {"h-9 w-9 rounded-xl", "text-sm"}
-        "lg" -> {"h-14 w-14 rounded-2xl", "text-base"}
-        "xl" -> {"h-16 w-16 rounded-2xl", "text-lg"}
-        _ -> {"h-11 w-11 rounded-2xl", "text-sm"}
+        "xs" -> {"h-7 w-7 rounded-md", "text-xs"}
+        "sm" -> {"h-9 w-9 rounded-lg", "text-sm"}
+        "lg" -> {"h-14 w-14 rounded-xl", "text-base"}
+        "xl" -> {"h-16 w-16 rounded-xl", "text-lg"}
+        _ -> {"h-11 w-11 rounded-xl", "text-sm"}
       end
 
     assigns =
@@ -271,8 +271,8 @@ defmodule PleromaReduxWeb.CoreComponents do
     <span
       data-role={@data_role}
       class={[
-        "inline-flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/80 bg-white shadow-sm shadow-slate-200/30",
-        "dark:border-slate-700/60 dark:bg-slate-950/60 dark:shadow-slate-900/40",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden border-2 border-slate-200 bg-slate-100",
+        "dark:border-slate-600 dark:bg-slate-700",
         @box_classes,
         @class
       ]}
@@ -281,7 +281,7 @@ defmodule PleromaReduxWeb.CoreComponents do
       <%= if is_binary(@src) and @src != "" do %>
         <img src={@src} alt={@alt} class="h-full w-full object-cover" loading="lazy" />
       <% else %>
-        <span class={["font-semibold text-slate-700 dark:text-slate-200", @text_classes]}>
+        <span class={["font-bold text-slate-600 dark:text-slate-300", @text_classes]}>
           {@initial}
         </span>
       <% end %>
@@ -362,7 +362,7 @@ defmodule PleromaReduxWeb.CoreComponents do
         </video>
 
         <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white shadow-sm shadow-slate-900/20 backdrop-blur">
+          <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white">
             <.icon name="hero-play" class="size-4" />
           </span>
         </div>
@@ -370,7 +370,7 @@ defmodule PleromaReduxWeb.CoreComponents do
         <div
           data-role={@data_role}
           data-kind={to_string(@kind)}
-          class="flex h-full w-full items-center justify-center bg-slate-900/5 text-slate-500 dark:bg-white/5 dark:text-slate-300"
+          class="flex h-full w-full items-center justify-center bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
         >
           <.icon name={upload_entry_icon(@entry)} class="size-7" />
         </div>
@@ -402,7 +402,7 @@ defmodule PleromaReduxWeb.CoreComponents do
           phx-no-format
           data-role={@data_role}
           data-kind="video"
-          class={["w-full rounded-2xl bg-black shadow-sm shadow-slate-900/10", @class]}
+          class={["w-full rounded-lg bg-black shadow-sm", @class]}
           controls
           preload="metadata"
           playsinline
@@ -447,7 +447,7 @@ defmodule PleromaReduxWeb.CoreComponents do
       data-role={@data_role}
       datetime={@iso}
       title={@iso}
-      class={["text-xs text-slate-400 dark:text-slate-500", @class]}
+      class={["text-xs font-medium text-slate-500 dark:text-slate-400", @class]}
     >
       {@label}
     </time>
@@ -560,12 +560,12 @@ defmodule PleromaReduxWeb.CoreComponents do
           checked={@checked}
           class={[
             @class ||
-              "h-4 w-4 rounded border-slate-300 text-slate-900 shadow-sm focus:ring-2 focus:ring-slate-300 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-slate-600",
-            @errors != [] && (@error_class || "border-rose-400 dark:border-rose-500/50")
+              "h-4 w-4 rounded border-slate-300 text-violet-600 shadow-sm focus:ring-2 focus:ring-violet-500 dark:border-slate-600 dark:bg-slate-800 dark:focus:ring-violet-400",
+            @errors != [] && (@error_class || "border-red-400 dark:border-red-500")
           ]}
           {@rest}
         />
-        <span :if={@label} class="select-none">{@label}</span>
+        <span :if={@label} class="select-none font-medium">{@label}</span>
       </label>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
@@ -574,7 +574,7 @@ defmodule PleromaReduxWeb.CoreComponents do
 
   def input(%{type: "select"} = assigns) do
     ~H"""
-    <div class="space-y-1">
+    <div class="space-y-1.5">
       <label
         :if={@label}
         for={@id}
@@ -587,8 +587,8 @@ defmodule PleromaReduxWeb.CoreComponents do
         name={@name}
         class={[
           @class ||
-            "w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600",
-          @errors != [] && (@error_class || "border-rose-400 dark:border-rose-500/50")
+            "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-violet-400",
+          @errors != [] && (@error_class || "border-red-400 dark:border-red-500")
         ]}
         multiple={@multiple}
         {@rest}
@@ -603,7 +603,7 @@ defmodule PleromaReduxWeb.CoreComponents do
 
   def input(%{type: "textarea"} = assigns) do
     ~H"""
-    <div class="space-y-1">
+    <div class="space-y-1.5">
       <label
         :if={@label}
         for={@id}
@@ -616,8 +616,8 @@ defmodule PleromaReduxWeb.CoreComponents do
         name={@name}
         class={[
           @class ||
-            "w-full resize-none rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600",
-          @errors != [] && (@error_class || "border-rose-400 dark:border-rose-500/50")
+            "w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-violet-400",
+          @errors != [] && (@error_class || "border-red-400 dark:border-red-500")
         ]}
         {@rest}
       >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
@@ -629,7 +629,7 @@ defmodule PleromaReduxWeb.CoreComponents do
   # All other inputs text, datetime-local, url, password, etc. are handled here...
   def input(assigns) do
     ~H"""
-    <div class="space-y-1">
+    <div class="space-y-1.5">
       <label
         :if={@label}
         for={@id}
@@ -644,8 +644,8 @@ defmodule PleromaReduxWeb.CoreComponents do
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
         class={[
           @class ||
-            "w-full rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600",
-          @errors != [] && (@error_class || "border-rose-400 dark:border-rose-500/50")
+            "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-violet-400",
+          @errors != [] && (@error_class || "border-red-400 dark:border-red-500")
         ]}
         {@rest}
       />
@@ -657,7 +657,7 @@ defmodule PleromaReduxWeb.CoreComponents do
   # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex items-center gap-2 text-sm text-rose-600 dark:text-rose-400">
+    <p class="mt-1 flex items-center gap-2 text-sm font-medium text-red-600 dark:text-red-400">
       <.icon name="hero-exclamation-circle" class="size-4" />
       {render_slot(@inner_block)}
     </p>
@@ -675,10 +675,10 @@ defmodule PleromaReduxWeb.CoreComponents do
     ~H"""
     <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
       <div>
-        <h1 class="text-lg font-semibold leading-8">
+        <h1 class="text-lg font-bold text-slate-900 dark:text-white">
           {render_slot(@inner_block)}
         </h1>
-        <p :if={@subtitle != []} class="text-sm text-slate-600 dark:text-slate-300">
+        <p :if={@subtitle != []} class="mt-1 text-sm text-slate-600 dark:text-slate-400">
           {render_slot(@subtitle)}
         </p>
       </div>
@@ -719,21 +719,21 @@ defmodule PleromaReduxWeb.CoreComponents do
       end
 
     ~H"""
-    <div class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/70 shadow-sm shadow-slate-200/20 dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40">
-      <table class="min-w-full divide-y divide-slate-200/80 text-sm dark:divide-slate-700/70">
-        <thead class="bg-slate-50/80 dark:bg-slate-900/60">
+    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
+      <table class="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-700">
+        <thead class="bg-slate-50 dark:bg-slate-800">
           <tr>
             <th
               :for={col <- @col}
               scope="col"
-              class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300"
+              class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400"
             >
               {col[:label]}
             </th>
             <th
               :if={@action != []}
               scope="col"
-              class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300"
+              class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400"
             >
               <span class="sr-only">{gettext("Actions")}</span>
             </th>
@@ -742,17 +742,17 @@ defmodule PleromaReduxWeb.CoreComponents do
         <tbody
           id={@id}
           phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}
-          class="divide-y divide-slate-200/70 dark:divide-slate-700/70"
+          class="divide-y divide-slate-200 dark:divide-slate-700"
         >
           <tr
             :for={row <- @rows}
             id={@row_id && @row_id.(row)}
-            class="transition hover:bg-slate-900/5 dark:hover:bg-white/5"
+            class="transition hover:bg-slate-50 dark:hover:bg-slate-700/50"
           >
             <td
               :for={col <- @col}
               phx-click={@row_click && @row_click.(row)}
-              class={["px-4 py-3 align-top", @row_click && "cursor-pointer"]}
+              class={["px-4 py-3 align-top text-slate-900 dark:text-slate-100", @row_click && "cursor-pointer"]}
             >
               {render_slot(col, @row_item.(row))}
             </td>
@@ -786,15 +786,15 @@ defmodule PleromaReduxWeb.CoreComponents do
 
   def list(assigns) do
     ~H"""
-    <dl class="divide-y divide-slate-200/70 rounded-2xl border border-slate-200/80 bg-white/70 text-sm shadow-sm shadow-slate-200/20 dark:divide-slate-700/70 dark:border-slate-700/70 dark:bg-slate-950/60 dark:shadow-slate-900/40">
+    <dl class="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white text-sm shadow-sm dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800/50">
       <div
         :for={item <- @item}
         class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between"
       >
-        <dt class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+        <dt class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
           {item.title}
         </dt>
-        <dd class="text-slate-800 dark:text-slate-200">{render_slot(item)}</dd>
+        <dd class="font-medium text-slate-900 dark:text-slate-100">{render_slot(item)}</dd>
       </div>
     </dl>
     """
@@ -832,21 +832,21 @@ defmodule PleromaReduxWeb.CoreComponents do
   def show(js \\ %JS{}, selector) do
     JS.show(js,
       to: selector,
-      time: 300,
+      time: 200,
       transition:
-        {"transition-all ease-out duration-300",
-         "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95",
-         "opacity-100 translate-y-0 sm:scale-100"}
+        {"transition-all ease-out duration-200",
+         "opacity-0 translate-y-2",
+         "opacity-100 translate-y-0"}
     )
   end
 
   def hide(js \\ %JS{}, selector) do
     JS.hide(js,
       to: selector,
-      time: 200,
+      time: 150,
       transition:
-        {"transition-all ease-in duration-200", "opacity-100 translate-y-0 sm:scale-100",
-         "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"}
+        {"transition-all ease-in duration-150", "opacity-100 translate-y-0",
+         "opacity-0 translate-y-2"}
     )
   end
 
