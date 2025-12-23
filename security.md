@@ -28,6 +28,11 @@ This file tracks known security gaps and their remediation status.
   - [x] Reject unsafe inbox URLs before enqueueing/sending deliveries.
 - [x] **Avoid signature verification crashes**: reject invalid stored public keys (bad PEM) without raising (prevents trivial DoS).
 
+## High priority (privacy / visibility)
+- [x] **Prevent DM/private leakage into public surfaces**: ensure public timelines, tag pages, search, profiles, and public permalinks only show statuses visible to the viewer.
+- [x] **Prevent DM/private exfiltration via write endpoints**: require `Objects.visible_to?/2` for Mastodon write actions that return statuses (favourite/unfavourite, reblog/unreblog).
+- [x] **Prevent DM/private probing via ancillary endpoints**: require `Objects.visible_to?/2` for `favourited_by`, `reblogged_by`, and Pleroma emoji reaction endpoints.
+
 ## Medium priority (authz)
 - [x] **Enforce OAuth scopes** for Mastodon API endpoints (coarse `read`/`write`/`follow`).
 - [ ] **Token lifecycle**: token expiry / refresh tokens / revocation endpoint (and tests).
