@@ -6,7 +6,7 @@
 @source "../js";
 @source "../../lib/pleroma_redux_web";
 
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */
@@ -23,36 +23,147 @@
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
-/* This file is for your main application CSS */
+/* ═══════════════════════════════════════════════════════════
+   MIDNIGHT SIGNAL DESIGN SYSTEM
+   A bold, high-contrast theme with vibrant accents
+   ═══════════════════════════════════════════════════════════ */
+
 :root {
-  --font-sans: "Space Grotesk", "Segoe UI", sans-serif;
-  --font-display: "Fraunces", "Georgia", serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Light mode - crisp and clean */
+  --bg-base: #ffffff;
+  --bg-subtle: #f8fafc;
+  --bg-muted: #f1f5f9;
+  --bg-emphasis: #e2e8f0;
+
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+
+  --border-default: #e2e8f0;
+  --border-muted: #f1f5f9;
+
+  /* Accent - electric violet */
+  --accent-primary: #7c3aed;
+  --accent-primary-hover: #6d28d9;
+  --accent-primary-subtle: #ede9fe;
+
+  /* Secondary accent - vivid teal */
+  --accent-secondary: #14b8a6;
+  --accent-secondary-hover: #0d9488;
+  --accent-secondary-subtle: #ccfbf1;
+
+  /* Semantic colors */
+  --success: #10b981;
+  --success-subtle: #d1fae5;
+  --danger: #ef4444;
+  --danger-subtle: #fee2e2;
+  --warning: #f59e0b;
+  --warning-subtle: #fef3c7;
+}
+
+[data-theme="dark"] {
+  /* Dark mode - deep and dramatic */
+  --bg-base: #0a0a0f;
+  --bg-subtle: #12121a;
+  --bg-muted: #1a1a24;
+  --bg-emphasis: #24242e;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  --border-default: #2e2e3a;
+  --border-muted: #1f1f28;
+
+  /* Accent - brighter in dark mode */
+  --accent-primary: #a78bfa;
+  --accent-primary-hover: #c4b5fd;
+  --accent-primary-subtle: #1e1b2e;
+
+  --accent-secondary: #2dd4bf;
+  --accent-secondary-hover: #5eead4;
+  --accent-secondary-subtle: #0d1f1c;
+
+  --success: #34d399;
+  --success-subtle: #052e1c;
+  --danger: #f87171;
+  --danger-subtle: #2d0f0f;
+  --warning: #fbbf24;
+  --warning-subtle: #292209;
 }
 
 body {
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.font-display {
-  font-family: var(--font-display);
+.font-mono {
+  font-family: var(--font-mono);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════ */
 
 @keyframes rise-fade {
-  0% { opacity: 0; transform: translateY(12px); }
+  0% { opacity: 0; transform: translateY(8px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(124, 58, 237, 0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 .animate-rise {
-  animation: rise-fade 0.6s ease-out both;
+  animation: rise-fade 0.4s ease-out both;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-rise {
+  .animate-rise,
+  .animate-pulse-glow {
     animation: none;
   }
 }
 
-/* Notifications filtering (client-side). */
+/* ═══════════════════════════════════════════════════════════
+   CUSTOM COMPONENT STYLES
+   ═══════════════════════════════════════════════════════════ */
+
+/* Gradient text for branding */
+.text-gradient {
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effect for primary actions */
+.glow-primary {
+  box-shadow: 0 0 20px -5px var(--accent-primary);
+}
+
+.glow-secondary {
+  box-shadow: 0 0 20px -5px var(--accent-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NOTIFICATIONS FILTERING (client-side)
+   ═══════════════════════════════════════════════════════════ */
+
 [data-role="notifications-list"][data-filter="follows"] [data-role="notification"]:not([data-type="Follow"]) {
   display: none;
 }
@@ -63,4 +174,41 @@ body {
 
 [data-role="notifications-list"][data-filter="reposts"] [data-role="notification"]:not([data-type="Announce"]) {
   display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCROLLBAR STYLING
+   ═══════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-subtle);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) var(--bg-subtle);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SELECTION STYLING
+   ═══════════════════════════════════════════════════════════ */
+
+::selection {
+  background: var(--accent-primary);
+  color: white;
 }

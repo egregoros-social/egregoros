@@ -39,64 +39,73 @@ defmodule PleromaReduxWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <div class="relative min-h-screen overflow-hidden bg-gradient-to-br from-amber-50 via-white to-slate-100 text-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-slate-100">
-      <div class="pointer-events-none absolute -top-40 right-10 h-72 w-72 rounded-full bg-amber-200/60 blur-3xl dark:bg-sky-500/20">
-      </div>
-      <div class="pointer-events-none absolute -bottom-48 left-6 h-80 w-80 rounded-full bg-rose-200/60 blur-3xl dark:bg-fuchsia-500/20">
-      </div>
-
-      <div class="relative mx-auto max-w-[90rem] px-4 py-10 sm:px-6 lg:px-8">
-        <header class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+    <div class="min-h-screen bg-white text-slate-900 dark:bg-[#0a0a0f] dark:text-slate-100">
+      <div class="mx-auto max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8">
+        <header class="flex flex-col gap-6 border-b border-slate-200 pb-6 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p class="text-xs uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">
-              Pleroma Redux
-            </p>
-            <h1 class="mt-2 font-display text-3xl sm:text-4xl">Signal feed</h1>
-            <p class="mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-300">
-              A reduced federation core with a live, opinionated front door.
-            </p>
+            <div class="flex items-center gap-3">
+              <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 dark:bg-violet-500">
+                <.icon name="hero-signal" class="size-5 text-white" />
+              </div>
+              <div>
+                <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  Pleroma Redux
+                </h1>
+                <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
+                  Signal feed
+                </p>
+              </div>
+            </div>
           </div>
-          <div class="flex items-center gap-4">
+
+          <div class="flex items-center gap-2">
             <a
               href="https://docs.joinmastodon.org/client/intro/"
-              class="text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+              target="_blank"
+              rel="noopener"
+              class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
             >
-              Mastodon API
+              API Docs
             </a>
+
             <%= if @current_user do %>
               <a
                 href={~p"/settings"}
-                class="hidden text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 sm:block"
+                class="hidden rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white sm:block"
               >
                 Settings
               </a>
               <.form for={%{}} action={~p"/logout"} method="post" class="hidden sm:block">
                 <button
                   type="submit"
-                  class="text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                  class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
-                  {@current_user.nickname} · Logout
+                  <span class="font-semibold text-slate-900 dark:text-white">{@current_user.nickname}</span>
+                  <span class="text-slate-400 dark:text-slate-500">&middot;</span>
+                  <span>Logout</span>
                 </button>
               </.form>
             <% else %>
               <a
                 href={~p"/login"}
-                class="hidden text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 sm:block"
+                class="hidden rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white sm:block"
               >
                 Login
               </a>
               <a
                 href={~p"/register"}
-                class="hidden text-xs uppercase tracking-[0.25em] text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 sm:block"
+                class="hidden rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400 sm:block"
               >
                 Register
               </a>
             <% end %>
+
+            <div class="ml-2 h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
             <.theme_toggle />
           </div>
         </header>
 
-        <main class="mt-10">
+        <main class="mt-8">
           {render_slot(@inner_block)}
         </main>
       </div>
@@ -160,13 +169,10 @@ defmodule PleromaReduxWeb.Layouts do
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="relative flex items-center rounded-full border border-slate-200/70 bg-white/70 p-1 shadow-sm shadow-slate-200/30 backdrop-blur transition dark:border-slate-700/70 dark:bg-slate-900/70 dark:shadow-slate-900/40">
-      <div class="absolute inset-y-1 w-10 rounded-full bg-slate-900 text-slate-100 transition-all duration-300 [[data-theme-mode=system]_&]:translate-x-0 [[data-theme-mode=light]_&]:translate-x-10 [[data-theme-mode=dark]_&]:translate-x-20 dark:bg-slate-100 dark:text-slate-900">
-      </div>
-
+    <div class="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
       <button
         type="button"
-        class="relative z-10 flex h-8 w-10 items-center justify-center text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+        class="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-white hover:text-slate-900 hover:shadow-sm dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white [[data-theme-mode=system]_&]:bg-white [[data-theme-mode=system]_&]:text-violet-600 [[data-theme-mode=system]_&]:shadow-sm dark:[[data-theme-mode=system]_&]:bg-slate-700 dark:[[data-theme-mode=system]_&]:text-violet-400"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
         aria-label="Use system theme"
@@ -176,7 +182,7 @@ defmodule PleromaReduxWeb.Layouts do
 
       <button
         type="button"
-        class="relative z-10 flex h-8 w-10 items-center justify-center text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+        class="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-white hover:text-slate-900 hover:shadow-sm dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white [[data-theme-mode=light]_&]:bg-white [[data-theme-mode=light]_&]:text-amber-500 [[data-theme-mode=light]_&]:shadow-sm dark:[[data-theme-mode=light]_&]:bg-slate-700 dark:[[data-theme-mode=light]_&]:text-amber-400"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
         aria-label="Use light theme"
@@ -186,7 +192,7 @@ defmodule PleromaReduxWeb.Layouts do
 
       <button
         type="button"
-        class="relative z-10 flex h-8 w-10 items-center justify-center text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+        class="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-white hover:text-slate-900 hover:shadow-sm dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white [[data-theme-mode=dark]_&]:bg-white [[data-theme-mode=dark]_&]:text-indigo-600 [[data-theme-mode=dark]_&]:shadow-sm dark:[[data-theme-mode=dark]_&]:bg-slate-700 dark:[[data-theme-mode=dark]_&]:text-indigo-400"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
         aria-label="Use dark theme"

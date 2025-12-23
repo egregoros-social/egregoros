@@ -58,16 +58,16 @@ defmodule PleromaReduxWeb.AppShell do
                   src={avatar_src(@current_user)}
                 />
                 <div class="min-w-0">
-                  <p class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <p class="truncate font-semibold text-slate-900 dark:text-white">
                     {display_name(@current_user)}
                   </p>
-                  <p class="truncate text-xs text-slate-500 dark:text-slate-400">
+                  <p class="truncate text-sm text-slate-500 dark:text-slate-400">
                     @{to_string(nickname(@current_user))}
                   </p>
                 </div>
               </div>
             <% else %>
-              <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Guest mode
               </p>
               <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
@@ -80,7 +80,7 @@ defmodule PleromaReduxWeb.AppShell do
                 data-role="app-shell-search"
                 action={~p"/search"}
                 method="get"
-                class="rounded-2xl border border-slate-200/80 bg-white/70 px-3 py-2 shadow-sm shadow-slate-200/20 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/50 dark:shadow-slate-900/40"
+                class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-600 dark:bg-slate-700/50"
               >
                 <div class="flex items-center gap-2">
                   <.icon name="hero-magnifying-glass" class="size-4 text-slate-400" />
@@ -94,7 +94,7 @@ defmodule PleromaReduxWeb.AppShell do
                 </div>
               </form>
 
-              <div class="space-y-2">
+              <div class="space-y-1">
                 <.nav_link
                   role="nav-timeline"
                   active={@active == :timeline}
@@ -122,7 +122,7 @@ defmodule PleromaReduxWeb.AppShell do
                     <span
                       :if={@notifications_count > 0}
                       data-role="nav-notifications-count"
-                      class="ml-auto inline-flex items-center rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white"
+                      class="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-xs font-semibold text-white"
                     >
                       {@notifications_count}
                     </span>
@@ -195,11 +195,11 @@ defmodule PleromaReduxWeb.AppShell do
       </aside>
 
       <nav
-        class="fixed inset-x-4 bottom-4 z-40 rounded-3xl border border-white/70 bg-white/90 px-2 py-2 shadow-xl shadow-slate-900/10 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/70 dark:shadow-slate-900/40 lg:hidden"
+        class="fixed inset-x-4 bottom-4 z-40 rounded-xl border border-slate-200 bg-white px-2 py-2 shadow-lg dark:border-slate-700 dark:bg-slate-800 lg:hidden"
         data-role="bottom-nav"
         aria-label="Primary navigation"
       >
-        <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center justify-between gap-1">
           <.bottom_nav_link
             role="nav-timeline"
             active={@active == :timeline}
@@ -277,14 +277,14 @@ defmodule PleromaReduxWeb.AppShell do
       data-role={@role}
       navigate={@navigate}
       class={[
-        "group flex items-center gap-3 rounded-2xl px-3 py-2 text-sm font-semibold transition",
+        "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
         @active &&
-          "bg-slate-900 text-white shadow-sm shadow-slate-900/20 dark:bg-slate-100 dark:text-slate-900",
+          "bg-violet-600 text-white dark:bg-violet-500",
         !@active &&
-          "text-slate-700 hover:bg-slate-900/5 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white"
+          "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
       ]}
     >
-      <.icon name={@icon} class={["size-5 opacity-80 transition group-hover:opacity-100"]} />
+      <.icon name={@icon} class="size-5" />
       <span class="min-w-0 truncate">{@label}</span>
       {render_slot(@inner_block)}
     </.link>
@@ -304,18 +304,18 @@ defmodule PleromaReduxWeb.AppShell do
       data-role={@role}
       navigate={@navigate}
       class={[
-        "relative flex flex-1 items-center justify-center rounded-2xl px-3 py-3 text-slate-500 transition",
+        "relative flex flex-1 items-center justify-center rounded-lg px-3 py-2.5 transition",
         @active &&
-          "bg-slate-900 text-white shadow-sm shadow-slate-900/20 dark:bg-slate-100 dark:text-slate-900",
+          "bg-violet-600 text-white dark:bg-violet-500",
         !@active &&
-          "hover:bg-slate-900/5 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10"
+          "text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
       ]}
       aria-label={@label}
     >
       <.icon name={@icon} class="size-5" />
       <span
         :if={@badge > 0 and @role == "nav-notifications"}
-        class="absolute right-3 top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+        class="absolute right-2 top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1 py-0.5 text-[10px] font-semibold text-white"
       >
         {@badge}
       </span>
