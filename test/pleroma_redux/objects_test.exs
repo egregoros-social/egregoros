@@ -104,6 +104,8 @@ defmodule PleromaRedux.ObjectsTest do
                  "id" => "https://remote.example/objects/bob-1",
                  "type" => "Note",
                  "actor" => bob_ap_id,
+                 "to" => [bob_ap_id <> "/followers"],
+                 "cc" => [],
                  "content" => "hello"
                },
                local: false

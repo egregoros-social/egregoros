@@ -6,6 +6,7 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
   alias PleromaRedux.Activities.Note
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
+  alias PleromaRedux.Publish
   alias PleromaRedux.Relationships
   alias PleromaRedux.TestSupport.Fixtures
   alias PleromaRedux.Timeline
@@ -54,6 +55,16 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
     assert has_element?(view, "#timeline-feed")
     assert has_element?(view, "#timeline-sidebar #compose-panel")
     refute has_element?(view, "#timeline-aside")
+  end
+
+  test "public timeline does not include direct messages", %{conn: conn, user: user} do
+    {:ok, _} = Publish.post_note(user, "Hello public")
+    {:ok, _} = Publish.post_note(user, "Secret DM", visibility: "direct")
+
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "article", "Hello public")
+    refute has_element?(view, "article", "Secret DM")
   end
 
   test "theme toggle buttons are labeled for accessibility", %{conn: conn} do
@@ -228,7 +239,9 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
                  "id" => "https://remote.example/objects/unsafe-1",
                  "type" => "Note",
                  "attributedTo" => "https://remote.example/users/bob",
-                 "content" => "<p>ok</p><script>alert(1)</script>"
+                 "content" => "<p>ok</p><script>alert(1)</script>",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "cc" => ["https://remote.example/users/bob/followers"]
                },
                local: false
              )
@@ -800,6 +813,8 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
                  "type" => "Note",
                  "attributedTo" => "https://remote.example/users/bob",
                  "content" => "<p>Hello</p>",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "cc" => ["https://remote.example/users/bob/followers"],
                  "attachment" => [
                    %{
                      "type" => "Document",
@@ -843,6 +858,8 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
                  "type" => "Note",
                  "attributedTo" => "https://remote.example/users/bob",
                  "content" => "<p>Hello</p>",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "cc" => ["https://remote.example/users/bob/followers"],
                  "attachment" => [
                    %{
                      "type" => "Document",
@@ -881,6 +898,8 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
                  "type" => "Note",
                  "attributedTo" => "https://remote.example/users/bob",
                  "content" => "<p>Hello</p>",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "cc" => ["https://remote.example/users/bob/followers"],
                  "attachment" => [
                    %{
                      "type" => "Document",
@@ -919,6 +938,8 @@ defmodule PleromaReduxWeb.TimelineLiveTest do
                  "type" => "Note",
                  "attributedTo" => "https://remote.example/users/bob",
                  "content" => "<p>Hello</p>",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "cc" => ["https://remote.example/users/bob/followers"],
                  "attachment" => [
                    %{
                      "type" => "Document",

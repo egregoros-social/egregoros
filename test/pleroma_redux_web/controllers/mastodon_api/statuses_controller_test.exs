@@ -105,7 +105,9 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
           "id" => "https://example.com/objects/1",
           "type" => "Note",
           "actor" => "https://example.com/users/alice",
-          "content" => "Hello show"
+          "content" => "Hello show",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => ["https://example.com/users/alice/followers"]
         },
         local: false
       )
@@ -117,6 +119,16 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
     response = json_response(conn, 200)
     assert response["id"] == Integer.to_string(object.id)
     assert response["content"] == "<p>Hello show</p>"
+  end
+
+  test "GET /api/v1/statuses/:id does not expose direct statuses", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+
+    {:ok, create} = Publish.post_note(user, "Secret DM", visibility: "direct")
+    object = Objects.get_by_ap_id(create.object)
+
+    conn = get(conn, "/api/v1/statuses/#{object.id}")
+    assert response(conn, 404)
   end
 
   test "POST /api/v1/statuses/:id/favourite creates a like", %{conn: conn} do
@@ -452,7 +464,9 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
           "id" => "https://example.com/objects/ctx-1",
           "type" => "Note",
           "actor" => "https://example.com/users/alice",
-          "content" => "Hello context"
+          "content" => "Hello context",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => ["https://example.com/users/alice/followers"]
         },
         local: false
       )
@@ -473,7 +487,9 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
           "id" => "https://example.com/objects/root",
           "type" => "Note",
           "actor" => "https://example.com/users/alice",
-          "content" => "Root"
+          "content" => "Root",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => ["https://example.com/users/alice/followers"]
         },
         local: false
       )
@@ -485,7 +501,9 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
           "type" => "Note",
           "actor" => "https://example.com/users/bob",
           "content" => "Reply 1",
-          "inReplyTo" => root.ap_id
+          "inReplyTo" => root.ap_id,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => ["https://example.com/users/bob/followers"]
         },
         local: false
       )
@@ -497,7 +515,9 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesControllerTest do
           "type" => "Note",
           "actor" => "https://example.com/users/charlie",
           "content" => "Reply 2",
-          "inReplyTo" => reply_1.ap_id
+          "inReplyTo" => reply_1.ap_id,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => ["https://example.com/users/charlie/followers"]
         },
         local: false
       )

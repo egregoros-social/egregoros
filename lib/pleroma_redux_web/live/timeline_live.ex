@@ -635,7 +635,12 @@ defmodule PleromaReduxWeb.TimelineLive do
 
   @impl true
   def handle_info({:post_created, post}, socket) do
-    if include_post?(post, socket.assigns.timeline, socket.assigns.home_actor_ids) do
+    if include_post?(
+         post,
+         socket.assigns.timeline,
+         socket.assigns.current_user,
+         socket.assigns.home_actor_ids
+       ) do
       if socket.assigns.timeline_at_top? do
         cursor =
           case socket.assigns.posts_cursor do
@@ -930,7 +935,7 @@ defmodule PleromaReduxWeb.TimelineLive do
   end
 
   defp list_timeline_posts(_timeline, _user, opts) when is_list(opts) do
-    Objects.list_notes(opts)
+    Objects.list_public_notes(opts)
   end
 
   defp posts_cursor([]), do: nil
@@ -945,13 +950,36 @@ defmodule PleromaReduxWeb.TimelineLive do
   defp post_dom_id(%{object: %{id: id}}) when is_integer(id), do: "post-#{id}"
   defp post_dom_id(_post), do: Ecto.UUID.generate()
 
-  defp include_post?(%{type: "Note"} = post, :home, home_actor_ids)
+  defp include_post?(%{type: "Note"} = post, :home, %User{} = user, home_actor_ids)
        when is_list(home_actor_ids) do
-    is_binary(post.actor) and post.actor in home_actor_ids
+    is_binary(post.actor) and post.actor in home_actor_ids and home_visible?(post, user)
   end
 
-  defp include_post?(%{type: "Note"}, _timeline, _home_actor_ids), do: true
-  defp include_post?(_post, _timeline, _home_actor_ids), do: false
+  defp include_post?(%{type: "Note"} = post, _timeline, _user, _home_actor_ids) do
+    Objects.publicly_visible?(post)
+  end
+
+  defp include_post?(_post, _timeline, _user, _home_actor_ids), do: false
+
+  defp home_visible?(%{actor: actor, data: %{} = data} = post, %User{} = user)
+       when is_binary(actor) do
+    if actor == user.ap_id do
+      true
+    else
+      to = data |> Map.get("to", []) |> List.wrap()
+      cc = data |> Map.get("cc", []) |> List.wrap()
+      followers = actor <> "/followers"
+
+      cond do
+        Objects.publicly_visible?(post) -> true
+        user.ap_id in to or user.ap_id in cc -> true
+        followers in to or followers in cc -> true
+        true -> false
+      end
+    end
+  end
+
+  defp home_visible?(_post, _user), do: false
 
   defp home_actor_ids(nil), do: []
 

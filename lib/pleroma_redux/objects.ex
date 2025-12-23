@@ -1,9 +1,11 @@
 defmodule PleromaRedux.Objects do
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query, only: [from: 2, dynamic: 2]
 
   alias PleromaRedux.Object
   alias PleromaRedux.Relationships
   alias PleromaRedux.Repo
+
+  @as_public "https://www.w3.org/ns/activitystreams#Public"
 
   def create_object(attrs) do
     %Object{}
@@ -114,6 +116,28 @@ defmodule PleromaRedux.Objects do
     |> Repo.all()
   end
 
+  def list_public_notes, do: list_public_notes(limit: 20)
+
+  def list_public_notes(limit) when is_integer(limit) do
+    list_public_notes(limit: limit)
+  end
+
+  def list_public_notes(opts) when is_list(opts) do
+    limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+    max_id = Keyword.get(opts, :max_id)
+    since_id = Keyword.get(opts, :since_id)
+
+    from(o in Object,
+      where: o.type == "Note",
+      order_by: [desc: o.id],
+      limit: ^limit
+    )
+    |> where_publicly_visible()
+    |> maybe_where_max_id(max_id)
+    |> maybe_where_since_id(since_id)
+    |> Repo.all()
+  end
+
   def list_notes_by_hashtag(tag, opts \\ [])
 
   def list_notes_by_hashtag(tag, opts) when is_binary(tag) and is_list(opts) do
@@ -183,10 +207,67 @@ defmodule PleromaRedux.Objects do
       order_by: [desc: o.id],
       limit: ^limit
     )
+    |> where_publicly_visible()
     |> maybe_where_max_id(max_id)
     |> maybe_where_since_id(since_id)
     |> Repo.all()
   end
+
+  def publicly_visible?(%Object{data: %{} = data}) do
+    to = data |> Map.get("to", []) |> List.wrap()
+    cc = data |> Map.get("cc", []) |> List.wrap()
+    @as_public in to or @as_public in cc
+  end
+
+  def publicly_visible?(_object), do: false
+
+  def visible_to?(%Object{} = object, nil), do: publicly_visible?(object)
+
+  def visible_to?(%Object{} = object, %PleromaRedux.User{ap_id: ap_id})
+      when is_binary(ap_id) do
+    visible_to?(object, ap_id)
+  end
+
+  def visible_to?(%Object{} = object, user_ap_id) when is_binary(user_ap_id) do
+    cond do
+      object.actor == user_ap_id -> true
+      publicly_visible?(object) -> true
+      recipient?(object, user_ap_id) -> true
+      followers_visible?(object, user_ap_id) -> true
+      true -> false
+    end
+  end
+
+  defp where_publicly_visible(query) do
+    from(o in query,
+      where:
+        fragment("? @> ?", o.data, ^%{"to" => [@as_public]}) or
+          fragment("? @> ?", o.data, ^%{"cc" => [@as_public]})
+    )
+  end
+
+  defp recipient?(%Object{data: %{} = data}, recipient) when is_binary(recipient) do
+    to = data |> Map.get("to", []) |> List.wrap()
+    cc = data |> Map.get("cc", []) |> List.wrap()
+    recipient in to or recipient in cc
+  end
+
+  defp recipient?(_object, _recipient), do: false
+
+  defp followers_visible?(%Object{actor: actor, data: %{} = data}, user_ap_id)
+       when is_binary(actor) and is_binary(user_ap_id) do
+    followers = actor <> "/followers"
+    to = data |> Map.get("to", []) |> List.wrap()
+    cc = data |> Map.get("cc", []) |> List.wrap()
+
+    if followers in to or followers in cc do
+      Relationships.get_by_type_actor_object("Follow", user_ap_id, actor) != nil
+    else
+      false
+    end
+  end
+
+  defp followers_visible?(_object, _user_ap_id), do: false
 
   def list_home_notes(actor_ap_id) when is_binary(actor_ap_id) do
     list_home_notes(actor_ap_id, limit: 20)
@@ -214,6 +295,7 @@ defmodule PleromaRedux.Objects do
       order_by: [desc: o.id],
       limit: ^limit
     )
+    |> where_visible_to_home(actor_ap_id, followed_actor_ids)
     |> maybe_where_max_id(max_id)
     |> maybe_where_since_id(since_id)
     |> Repo.all()
@@ -241,9 +323,46 @@ defmodule PleromaRedux.Objects do
       order_by: [desc: o.id],
       limit: ^limit
     )
+    |> where_visible_to_home(actor_ap_id, followed_actor_ids)
     |> maybe_where_max_id(max_id)
     |> maybe_where_since_id(since_id)
     |> Repo.all()
+  end
+
+  defp where_visible_to_home(query, user_ap_id, followed_actor_ids)
+       when is_binary(user_ap_id) and is_list(followed_actor_ids) do
+    followers_collections =
+      followed_actor_ids
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&(&1 <> "/followers"))
+
+    base =
+      dynamic(
+        [o],
+        o.actor == ^user_ap_id or
+          fragment("? @> ?", o.data, ^%{"to" => [@as_public]}) or
+          fragment("? @> ?", o.data, ^%{"cc" => [@as_public]}) or
+          fragment("? @> ?", o.data, ^%{"to" => [user_ap_id]}) or
+          fragment("? @> ?", o.data, ^%{"cc" => [user_ap_id]})
+      )
+
+    visibility_dynamic =
+      if followers_collections == [] do
+        base
+      else
+        dynamic(
+          [o],
+          ^base or
+            fragment("jsonb_exists_any((?->'to'), ?)", o.data,
+              type(^followers_collections, {:array, :string})
+            ) or
+            fragment("jsonb_exists_any((?->'cc'), ?)", o.data,
+              type(^followers_collections, {:array, :string})
+            )
+        )
+      end
+
+    from(o in query, where: ^visibility_dynamic)
   end
 
   def list_notes_by_actor(actor) when is_binary(actor), do: list_notes_by_actor(actor, limit: 20)
@@ -280,6 +399,25 @@ defmodule PleromaRedux.Objects do
       order_by: [desc: o.id],
       limit: ^limit
     )
+    |> maybe_where_max_id(max_id)
+    |> maybe_where_since_id(since_id)
+    |> Repo.all()
+  end
+
+  def list_public_statuses_by_actor(actor) when is_binary(actor),
+    do: list_public_statuses_by_actor(actor, limit: 20)
+
+  def list_public_statuses_by_actor(actor, opts) when is_binary(actor) and is_list(opts) do
+    limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+    max_id = Keyword.get(opts, :max_id)
+    since_id = Keyword.get(opts, :since_id)
+
+    from(o in Object,
+      where: o.type in ^@status_types and o.actor == ^actor,
+      order_by: [desc: o.id],
+      limit: ^limit
+    )
+    |> where_publicly_visible()
     |> maybe_where_max_id(max_id)
     |> maybe_where_since_id(since_id)
     |> Repo.all()

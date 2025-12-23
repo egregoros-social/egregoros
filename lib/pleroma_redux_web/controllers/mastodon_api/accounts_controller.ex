@@ -90,7 +90,7 @@ defmodule PleromaReduxWeb.MastodonAPI.AccountsController do
           if pinned_only?(params) do
             []
           else
-            Objects.list_statuses_by_actor(user.ap_id,
+            Objects.list_public_statuses_by_actor(user.ap_id,
               limit: pagination.limit + 1,
               max_id: pagination.max_id,
               since_id: pagination.since_id

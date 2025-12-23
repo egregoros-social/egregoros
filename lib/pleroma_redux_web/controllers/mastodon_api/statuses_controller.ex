@@ -71,28 +71,47 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusesController do
   defp resolve_in_reply_to(_), do: {:error, :not_found}
 
   def show(conn, %{"id" => id}) do
+    current_user = conn.assigns[:current_user]
+
     case Objects.get(id) do
       nil ->
         send_resp(conn, 404, "Not Found")
 
       object ->
-        json(conn, StatusRenderer.render_status(object))
+        if Objects.visible_to?(object, current_user) do
+          json(conn, StatusRenderer.render_status(object, current_user))
+        else
+          send_resp(conn, 404, "Not Found")
+        end
     end
   end
 
   def context(conn, %{"id" => id}) do
+    current_user = conn.assigns[:current_user]
+
     case Objects.get(id) do
       nil ->
         send_resp(conn, 404, "Not Found")
 
       object ->
-        ancestors = Objects.thread_ancestors(object)
-        descendants = Objects.thread_descendants(object)
+        if Objects.visible_to?(object, current_user) do
+          ancestors =
+            object
+            |> Objects.thread_ancestors()
+            |> Enum.filter(&Objects.visible_to?(&1, current_user))
 
-        json(conn, %{
-          "ancestors" => StatusRenderer.render_statuses(ancestors),
-          "descendants" => StatusRenderer.render_statuses(descendants)
-        })
+          descendants =
+            object
+            |> Objects.thread_descendants()
+            |> Enum.filter(&Objects.visible_to?(&1, current_user))
+
+          json(conn, %{
+            "ancestors" => StatusRenderer.render_statuses(ancestors, current_user),
+            "descendants" => StatusRenderer.render_statuses(descendants, current_user)
+          })
+        else
+          send_resp(conn, 404, "Not Found")
+        end
     end
   end
 

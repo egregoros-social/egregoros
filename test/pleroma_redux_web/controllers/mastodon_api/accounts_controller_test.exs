@@ -45,6 +45,19 @@ defmodule PleromaReduxWeb.MastodonAPI.AccountsControllerTest do
     assert Enum.at(response, 1)["content"] == "<p>First post</p>"
   end
 
+  test "GET /api/v1/accounts/:id/statuses does not include direct statuses", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+
+    {:ok, _} = Publish.post_note(user, "Hello public")
+    {:ok, _} = Publish.post_note(user, "Secret DM", visibility: "direct")
+
+    conn = get(conn, "/api/v1/accounts/#{user.id}/statuses")
+    response = json_response(conn, 200)
+
+    assert Enum.any?(response, &(&1["content"] == "<p>Hello public</p>"))
+    refute Enum.any?(response, &(&1["content"] == "<p>Secret DM</p>"))
+  end
+
   test "GET /api/v1/accounts/:id/statuses with pinned=true only returns pinned statuses", %{
     conn: conn
   } do
@@ -70,7 +83,9 @@ defmodule PleromaReduxWeb.MastodonAPI.AccountsControllerTest do
           "id" => "https://example.com/activities/announce/1",
           "type" => "Announce",
           "actor" => bob.ap_id,
-          "object" => create.object
+          "object" => create.object,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => []
         },
         local: true
       )
