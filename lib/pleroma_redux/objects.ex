@@ -162,6 +162,7 @@ defmodule PleromaRedux.Objects do
         order_by: [desc: o.id],
         limit: ^limit
       )
+      |> where_publicly_visible()
       |> maybe_where_max_id(max_id)
       |> maybe_where_since_id(since_id)
       |> Repo.all()
@@ -189,6 +190,7 @@ defmodule PleromaRedux.Objects do
         order_by: [desc: o.id],
         limit: ^limit
       )
+      |> where_publicly_visible()
       |> Repo.all()
     end
   end
@@ -365,6 +367,35 @@ defmodule PleromaRedux.Objects do
     from(o in query, where: ^visibility_dynamic)
   end
 
+  defp where_visible_on_profile(query, actor_ap_id, nil)
+       when is_binary(actor_ap_id) do
+    where_publicly_visible(query)
+  end
+
+  defp where_visible_on_profile(query, actor_ap_id, viewer_ap_id)
+       when is_binary(actor_ap_id) and is_binary(viewer_ap_id) do
+    cond do
+      actor_ap_id == viewer_ap_id ->
+        query
+
+      Relationships.get_by_type_actor_object("Follow", viewer_ap_id, actor_ap_id) != nil ->
+        followers_collection = actor_ap_id <> "/followers"
+
+        from(o in query,
+          where:
+            fragment("? @> ?", o.data, ^%{"to" => [@as_public]}) or
+              fragment("? @> ?", o.data, ^%{"cc" => [@as_public]}) or
+              fragment("? @> ?", o.data, ^%{"to" => [followers_collection]}) or
+              fragment("? @> ?", o.data, ^%{"cc" => [followers_collection]})
+        )
+
+      true ->
+        where_publicly_visible(query)
+    end
+  end
+
+  defp where_visible_on_profile(query, _actor_ap_id, _viewer_ap_id), do: query
+
   def list_notes_by_actor(actor) when is_binary(actor), do: list_notes_by_actor(actor, limit: 20)
 
   def list_notes_by_actor(actor, limit) when is_binary(actor) and is_integer(limit) do
@@ -385,6 +416,33 @@ defmodule PleromaRedux.Objects do
     |> maybe_where_since_id(since_id)
     |> Repo.all()
   end
+
+  def list_visible_notes_by_actor(actor, viewer, opts \\ [])
+
+  def list_visible_notes_by_actor(actor, viewer, opts) when is_binary(actor) and is_list(opts) do
+    limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+    max_id = Keyword.get(opts, :max_id)
+    since_id = Keyword.get(opts, :since_id)
+
+    viewer_ap_id =
+      case viewer do
+        %PleromaRedux.User{ap_id: ap_id} when is_binary(ap_id) -> ap_id
+        ap_id when is_binary(ap_id) -> ap_id
+        _ -> nil
+      end
+
+    from(o in Object,
+      where: o.type == "Note" and o.actor == ^actor,
+      order_by: [desc: o.id],
+      limit: ^limit
+    )
+    |> where_visible_on_profile(actor, viewer_ap_id)
+    |> maybe_where_max_id(max_id)
+    |> maybe_where_since_id(since_id)
+    |> Repo.all()
+  end
+
+  def list_visible_notes_by_actor(_actor, _viewer, _opts), do: []
 
   def list_statuses_by_actor(actor) when is_binary(actor),
     do: list_statuses_by_actor(actor, limit: 20)
@@ -425,6 +483,19 @@ defmodule PleromaRedux.Objects do
 
   def count_notes_by_actor(actor) when is_binary(actor) do
     from(o in Object, where: o.type == "Note" and o.actor == ^actor)
+    |> Repo.aggregate(:count, :id)
+  end
+
+  def count_visible_notes_by_actor(actor, viewer) when is_binary(actor) do
+    viewer_ap_id =
+      case viewer do
+        %PleromaRedux.User{ap_id: ap_id} when is_binary(ap_id) -> ap_id
+        ap_id when is_binary(ap_id) -> ap_id
+        _ -> nil
+      end
+
+    from(o in Object, where: o.type == "Note" and o.actor == ^actor)
+    |> where_visible_on_profile(actor, viewer_ap_id)
     |> Repo.aggregate(:count, :id)
   end
 

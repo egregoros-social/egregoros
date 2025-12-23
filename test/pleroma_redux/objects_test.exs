@@ -148,6 +148,8 @@ defmodule PleromaRedux.ObjectsTest do
   end
 
   test "search_notes finds notes by content or summary" do
+    public = "https://www.w3.org/ns/activitystreams#Public"
+
     assert {:ok, %Object{} = content_note} =
              Objects.create_object(%{
                ap_id: "https://local.example/objects/search-1",
@@ -158,6 +160,8 @@ defmodule PleromaRedux.ObjectsTest do
                  "id" => "https://local.example/objects/search-1",
                  "type" => "Note",
                  "actor" => "https://local.example/users/alice",
+                 "to" => [public],
+                 "cc" => [],
                  "content" => "Hello world"
                },
                local: true
@@ -173,6 +177,8 @@ defmodule PleromaRedux.ObjectsTest do
                  "id" => "https://local.example/objects/search-2",
                  "type" => "Note",
                  "actor" => "https://local.example/users/alice",
+                 "to" => [public],
+                 "cc" => [],
                  "content" => "Something else",
                  "summary" => "hello from summary"
                },
@@ -189,6 +195,8 @@ defmodule PleromaRedux.ObjectsTest do
                  "id" => "https://local.example/objects/search-3",
                  "type" => "Note",
                  "actor" => "https://local.example/users/alice",
+                 "to" => [public],
+                 "cc" => [],
                  "content" => "No match here"
                },
                local: true

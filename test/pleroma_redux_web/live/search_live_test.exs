@@ -32,6 +32,25 @@ defmodule PleromaReduxWeb.SearchLiveTest do
     refute has_element?(view, "[data-role='status-card']", "No match here")
   end
 
+  test "searching by query does not include direct messages", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+
+    assert {:ok, _} = Pipeline.ingest(Note.build(user, "Public hello"), local: true)
+
+    dm =
+      user
+      |> Note.build("Secret hello")
+      |> Map.put("to", [])
+      |> Map.put("cc", [])
+
+    assert {:ok, _} = Pipeline.ingest(dm, local: true)
+
+    {:ok, view, _html} = live(conn, "/search?q=secret")
+
+    assert has_element?(view, "[data-role='search-post-results']")
+    refute has_element?(view, "[data-role='status-card']", "Secret hello")
+  end
+
   test "searching for a hashtag shows a tag quick link", %{conn: conn} do
     {:ok, user} = Users.create_local_user("alice")
     assert {:ok, _} = Pipeline.ingest(Note.build(user, "Hello #elixir"), local: true)

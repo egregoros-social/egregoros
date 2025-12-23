@@ -23,6 +23,21 @@ defmodule PleromaReduxWeb.TagLiveTest do
     assert has_element?(view, "article", "Hello #elixir")
   end
 
+  test "tag pages do not include direct messages", %{conn: conn, user: user} do
+    dm =
+      user
+      |> Note.build("Secret #elixir")
+      |> Map.put("to", [])
+      |> Map.put("cc", [])
+
+    assert {:ok, _} = Pipeline.ingest(dm, local: true)
+
+    assert {:ok, view, _html} = live(conn, "/tags/elixir")
+
+    assert has_element?(view, "article", "Hello #elixir")
+    refute has_element?(view, "article", "Secret #elixir")
+  end
+
   test "signed-in users can like posts from tag pages", %{conn: conn, user: user, note: note} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     assert {:ok, view, _html} = live(conn, "/tags/elixir")

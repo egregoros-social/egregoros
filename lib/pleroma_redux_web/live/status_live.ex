@@ -23,7 +23,14 @@ defmodule PleromaReduxWeb.StatusLive do
         id -> Users.get(id)
       end
 
-    object = object_for_uuid_param(uuid)
+    object =
+      case object_for_uuid_param(uuid) do
+        %PleromaRedux.Object{} = object ->
+          if Objects.visible_to?(object, current_user), do: object, else: nil
+
+        _ ->
+          nil
+      end
 
     reply_open? = truthy?(Map.get(params, "reply"))
     reply_form = Phoenix.Component.to_form(default_reply_params(), as: :reply)
@@ -32,7 +39,13 @@ defmodule PleromaReduxWeb.StatusLive do
       case object do
         %{type: "Note"} = note ->
           status_entry = StatusVM.decorate(note, current_user)
-          ancestors = note |> Objects.thread_ancestors() |> StatusVM.decorate_many(current_user)
+
+          ancestors =
+            note
+            |> Objects.thread_ancestors()
+            |> Enum.filter(&Objects.visible_to?(&1, current_user))
+            |> StatusVM.decorate_many(current_user)
+
           descendants = decorate_descendants(note, current_user)
           {status_entry, ancestors, descendants}
 
@@ -641,7 +654,11 @@ defmodule PleromaReduxWeb.StatusLive do
         socket
         |> assign(
           status: StatusVM.decorate(note, current_user),
-          ancestors: note |> Objects.thread_ancestors() |> StatusVM.decorate_many(current_user),
+          ancestors:
+            note
+            |> Objects.thread_ancestors()
+            |> Enum.filter(&Objects.visible_to?(&1, current_user))
+            |> StatusVM.decorate_many(current_user),
           descendants: decorate_descendants(note, current_user)
         )
 
@@ -651,7 +668,11 @@ defmodule PleromaReduxWeb.StatusLive do
   end
 
   defp decorate_descendants(%{} = note, current_user) do
-    descendants = Objects.thread_descendants(note)
+    descendants =
+      note
+      |> Objects.thread_descendants()
+      |> Enum.filter(&Objects.visible_to?(&1, current_user))
+
     depths = descendant_depths(note.ap_id, descendants)
 
     descendants

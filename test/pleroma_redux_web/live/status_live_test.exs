@@ -23,6 +23,22 @@ defmodule PleromaReduxWeb.StatusLiveTest do
     assert has_element?(view, "article[data-role='status-card']", "Hello from status")
   end
 
+  test "does not render direct messages on public status permalinks", %{conn: conn, user: user} do
+    dm =
+      user
+      |> Note.build("Secret DM")
+      |> Map.put("to", [])
+      |> Map.put("cc", [])
+
+    assert {:ok, note} = Pipeline.ingest(dm, local: true)
+    uuid = uuid_from_ap_id(note.ap_id)
+
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
+
+    assert render(view) =~ "Post not found"
+    refute render(view) =~ "Secret DM"
+  end
+
   test "redirects to the canonical nickname for local status permalinks", %{
     conn: conn,
     user: user
@@ -42,6 +58,8 @@ defmodule PleromaReduxWeb.StatusLiveTest do
                  "id" => "https://remote.example/objects/parent",
                  "type" => "Note",
                  "attributedTo" => "https://remote.example/users/bob",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "cc" => [],
                  "content" => "<p>Remote parent</p>"
                },
                local: false
@@ -132,6 +150,8 @@ defmodule PleromaReduxWeb.StatusLiveTest do
                  "id" => "https://remote.example/objects/parent",
                  "type" => "Note",
                  "attributedTo" => "https://remote.example/users/bob",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "cc" => [],
                  "content" => "<p>Remote parent</p>"
                },
                local: false

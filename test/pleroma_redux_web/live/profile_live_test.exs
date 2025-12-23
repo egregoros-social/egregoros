@@ -64,6 +64,23 @@ defmodule PleromaReduxWeb.ProfileLiveTest do
     assert has_element?(view, "#post-#{oldest.id}")
   end
 
+  test "signed-out users do not see direct messages on profile pages", %{
+    conn: conn,
+    profile_user: profile_user
+  } do
+    dm =
+      profile_user
+      |> Note.build("Secret DM")
+      |> Map.put("to", [])
+      |> Map.put("cc", [])
+
+    assert {:ok, _} = Pipeline.ingest(dm, local: true)
+
+    assert {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
+
+    refute has_element?(view, "article", "Secret DM")
+  end
+
   test "profile stats link to followers and following pages", %{
     conn: conn,
     viewer: viewer,

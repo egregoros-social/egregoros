@@ -42,7 +42,7 @@ defmodule PleromaReduxWeb.ProfileLive do
 
     posts =
       case profile_user do
-        %User{} = user -> Objects.list_notes_by_actor(user.ap_id, limit: @page_size)
+        %User{} = user -> Objects.list_visible_notes_by_actor(user.ap_id, current_user, limit: @page_size)
         _ -> []
       end
 
@@ -65,7 +65,7 @@ defmodule PleromaReduxWeb.ProfileLive do
        reply_media_alt: %{},
        reply_options_open?: false,
        reply_cw_open?: false,
-       posts_count: count_posts(profile_user),
+       posts_count: count_posts(profile_user, current_user),
        followers_count: count_followers(profile_user),
        following_count: count_following(profile_user),
        posts_cursor: posts_cursor(posts),
@@ -380,7 +380,8 @@ defmodule PleromaReduxWeb.ProfileLive do
         posts =
           case socket.assigns.profile_user do
             %User{} = user ->
-              Objects.list_notes_by_actor(user.ap_id, limit: @page_size, max_id: cursor)
+              viewer = socket.assigns.current_user
+              Objects.list_visible_notes_by_actor(user.ap_id, viewer, limit: @page_size, max_id: cursor)
 
             _ ->
               []
@@ -480,7 +481,7 @@ defmodule PleromaReduxWeb.ProfileLive do
 
       socket =
         case profile_user do
-          %User{} -> assign(socket, posts_count: count_posts(profile_user))
+          %User{} -> assign(socket, posts_count: count_posts(profile_user, socket.assigns.current_user))
           _ -> socket
         end
 
@@ -707,8 +708,8 @@ defmodule PleromaReduxWeb.ProfileLive do
     Relationships.get_by_type_actor_object("Follow", current_user.ap_id, profile_user.ap_id)
   end
 
-  defp count_posts(nil), do: 0
-  defp count_posts(%User{} = user), do: Objects.count_notes_by_actor(user.ap_id)
+  defp count_posts(nil, _viewer), do: 0
+  defp count_posts(%User{} = user, viewer), do: Objects.count_visible_notes_by_actor(user.ap_id, viewer)
 
   defp count_followers(nil), do: 0
 
