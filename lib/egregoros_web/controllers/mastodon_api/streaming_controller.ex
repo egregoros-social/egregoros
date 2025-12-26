@@ -9,6 +9,16 @@ defmodule EgregorosWeb.MastodonAPI.StreamingController do
   alias EgregorosWeb.MastodonAPI.StreamingStreams
   alias EgregorosWeb.MastodonAPI.StreamingSocket
 
+  def index(conn, %{"stream" => stream, "scope" => scope} = params)
+      when is_binary(stream) and is_binary(scope) do
+    params =
+      params
+      |> Map.delete("scope")
+      |> Map.put("stream", stream <> ":" <> scope)
+
+    index(conn, params)
+  end
+
   def index(conn, params) do
     with :ok <- validate_websocket_upgrade(conn),
          streams <- normalize_streams(Map.get(params, "stream")),

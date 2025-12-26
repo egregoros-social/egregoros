@@ -151,6 +151,8 @@ defmodule EgregorosWeb.Router do
 
     post "/apps", AppsController, :create
     get "/streaming", StreamingController, :index
+    get "/streaming/:stream", StreamingController, :index
+    get "/streaming/:stream/:scope", StreamingController, :index
     get "/instance", InstanceController, :show
     get "/instance/peers", InstanceController, :peers
     get "/custom_emojis", CustomEmojisController, :index

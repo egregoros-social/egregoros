@@ -61,6 +61,16 @@ defmodule EgregorosWeb.MastodonAPI.StreamingControllerTest do
     assert conn.state == :upgraded
   end
 
+  test "GET /api/v1/streaming/public upgrades for public stream", %{conn: conn} do
+    conn = conn |> with_websocket_headers() |> get("/api/v1/streaming/public")
+    assert conn.state == :upgraded
+  end
+
+  test "GET /api/v1/streaming/public/local upgrades for public:local stream", %{conn: conn} do
+    conn = conn |> with_websocket_headers() |> get("/api/v1/streaming/public/local")
+    assert conn.state == :upgraded
+  end
+
   test "GET /api/v1/streaming upgrades for a normalized stream list", %{conn: conn} do
     conn =
       conn
