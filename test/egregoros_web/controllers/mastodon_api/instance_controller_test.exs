@@ -22,4 +22,9 @@ defmodule EgregorosWeb.MastodonAPI.InstanceControllerTest do
     assert is_map(response["usage"])
     assert is_binary(get_in(response, ["configuration", "urls", "streaming"]))
   end
+
+  test "GET /api/v1/instance/peers returns empty list", %{conn: conn} do
+    conn = get(conn, "/api/v1/instance/peers")
+    assert json_response(conn, 200) == []
+  end
 end
