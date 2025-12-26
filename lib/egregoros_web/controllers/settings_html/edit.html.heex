@@ -113,6 +113,55 @@
             <.button type="submit" variant="secondary" class="w-full">Update password</.button>
           </.form>
         </section>
+
+        <section
+          data-role="e2ee-settings"
+          data-user-id={@current_user.id}
+          data-nickname={@current_user.nickname}
+          class="rounded-3xl border border-white/80 bg-white/80 p-8 shadow-lg shadow-slate-200/30 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/50"
+        >
+          <h3 class="font-display text-xl text-slate-900 dark:text-slate-100">Encrypted DMs</h3>
+
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            End‑to‑end encrypted direct messages (E2EE) keep your message keys in the browser. The server stores only ciphertext.
+          </p>
+
+          <div class="mt-6 space-y-3">
+            <div class="flex items-center justify-between gap-4">
+              <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Status</span>
+
+              <span
+                data-role="e2ee-status"
+                class="text-sm font-semibold text-slate-700 dark:text-slate-200"
+              >
+                {if @e2ee_key, do: "Enabled", else: "Not enabled"}
+              </span>
+            </div>
+
+            <p
+              data-role="e2ee-fingerprint"
+              class={[
+                "text-xs text-slate-500 dark:text-slate-400",
+                !@e2ee_key && "hidden"
+              ]}
+            >
+              Fingerprint: {if @e2ee_key, do: @e2ee_key.fingerprint}
+            </p>
+
+            <p data-role="e2ee-feedback" class="hidden text-sm" role="status" aria-live="polite">
+            </p>
+
+            <.button
+              :if={!@e2ee_key}
+              type="button"
+              variant="secondary"
+              class="w-full"
+              data-role="e2ee-enable-passkey"
+            >
+              Enable with passkey
+            </.button>
+          </div>
+        </section>
       </div>
     </section>
   </AppShell.app_shell>

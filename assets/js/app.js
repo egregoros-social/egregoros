@@ -650,6 +650,285 @@ const ReplyModal = {
   },
 }
 
+const base64UrlEncode = bytes => {
+  let binary = ""
+  const len = bytes.length
+
+  for (let i = 0; i < len; i++) binary += String.fromCharCode(bytes[i])
+
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
+}
+
+const utf8Bytes = value => new TextEncoder().encode(value)
+
+const randomBytes = len => {
+  const out = new Uint8Array(len)
+  crypto.getRandomValues(out)
+  return out
+}
+
+const setE2EEFeedback = (section, message, variant) => {
+  const feedback = section.querySelector("[data-role='e2ee-feedback']")
+  if (!feedback) return
+
+  feedback.textContent = message
+  feedback.classList.remove("hidden")
+
+  feedback.classList.remove(
+    "text-rose-600",
+    "dark:text-rose-400",
+    "text-emerald-700",
+    "dark:text-emerald-300",
+    "text-slate-600",
+    "dark:text-slate-300"
+  )
+
+  if (variant === "success") {
+    feedback.classList.add("text-emerald-700", "dark:text-emerald-300")
+  } else if (variant === "info") {
+    feedback.classList.add("text-slate-600", "dark:text-slate-300")
+  } else {
+    feedback.classList.add("text-rose-600", "dark:text-rose-400")
+  }
+}
+
+const enableE2EEWithPasskey = async (section, button, csrfToken) => {
+  if (!window.PublicKeyCredential || !navigator.credentials?.create || !navigator.credentials?.get) {
+    setE2EEFeedback(section, "Passkeys (WebAuthn) are not supported in this browser.", "error")
+    return
+  }
+
+  if (!window.isSecureContext) {
+    setE2EEFeedback(section, "Passkeys require HTTPS (secure context).", "error")
+    return
+  }
+
+  if (!window.crypto?.subtle) {
+    setE2EEFeedback(section, "WebCrypto is not available in this browser.", "error")
+    return
+  }
+
+  const userId = section.dataset.userId
+  const nickname = section.dataset.nickname
+
+  if (!userId || !nickname) {
+    setE2EEFeedback(section, "Missing user metadata for passkey registration.", "error")
+    return
+  }
+
+  button.disabled = true
+  setE2EEFeedback(section, "Creating passkey…", "info")
+
+  const userHandle = utf8Bytes(`egregoros:user:${userId}`)
+
+  const creationOptions = {
+    challenge: randomBytes(32),
+    rp: {name: "Egregoros", id: window.location.hostname},
+    user: {
+      id: userHandle,
+      name: nickname,
+      displayName: nickname,
+    },
+    pubKeyCredParams: [{type: "public-key", alg: -7}],
+    timeout: 60_000,
+    attestation: "none",
+    authenticatorSelection: {
+      residentKey: "required",
+      userVerification: "required",
+    },
+    extensions: {hmacCreateSecret: true},
+  }
+
+  let created
+  try {
+    created = await navigator.credentials.create({publicKey: creationOptions})
+  } catch (error) {
+    console.error("passkey create failed", error)
+    setE2EEFeedback(section, "Could not create a passkey (cancelled or unsupported).", "error")
+    button.disabled = false
+    return
+  }
+
+  const createExt = created?.getClientExtensionResults?.() || {}
+  if (createExt.hmacCreateSecret !== true) {
+    setE2EEFeedback(
+      section,
+      "This passkey provider does not support PRF/hmac-secret, so it can’t be used for encrypted DM key recovery.",
+      "error"
+    )
+    button.disabled = false
+    return
+  }
+
+  setE2EEFeedback(section, "Deriving recovery key from passkey…", "info")
+
+  const prfSalt = randomBytes(32)
+  const assertionOptions = {
+    challenge: randomBytes(32),
+    rpId: window.location.hostname,
+    allowCredentials: [{type: "public-key", id: created.rawId}],
+    userVerification: "required",
+    extensions: {hmacGetSecret: {salt1: prfSalt}},
+  }
+
+  let assertion
+  try {
+    assertion = await navigator.credentials.get({publicKey: assertionOptions})
+  } catch (error) {
+    console.error("passkey get failed", error)
+    setE2EEFeedback(section, "Could not use the passkey to derive a wrapping key.", "error")
+    button.disabled = false
+    return
+  }
+
+  const getExt = assertion?.getClientExtensionResults?.() || {}
+  const prfOutput = getExt.hmacGetSecret?.output1
+
+  if (!prfOutput) {
+    setE2EEFeedback(section, "Passkey did not return PRF output (unsupported).", "error")
+    button.disabled = false
+    return
+  }
+
+  const hkdfSalt = randomBytes(32)
+  const info = utf8Bytes("egregoros:e2ee:wrap:v1")
+
+  let wrapKey
+  try {
+    const prfKey = await crypto.subtle.importKey("raw", prfOutput, "HKDF", false, ["deriveKey"])
+
+    wrapKey = await crypto.subtle.deriveKey(
+      {name: "HKDF", hash: "SHA-256", salt: hkdfSalt, info},
+      prfKey,
+      {name: "AES-GCM", length: 256},
+      false,
+      ["encrypt", "decrypt"]
+    )
+  } catch (error) {
+    console.error("hkdf derive failed", error)
+    setE2EEFeedback(section, "Could not derive wrapping key.", "error")
+    button.disabled = false
+    return
+  }
+
+  setE2EEFeedback(section, "Generating E2EE identity key…", "info")
+
+  let e2eeKeyPair
+  try {
+    e2eeKeyPair = await crypto.subtle.generateKey({name: "ECDH", namedCurve: "P-256"}, true, [
+      "deriveBits",
+    ])
+  } catch (error) {
+    console.error("generate E2EE keypair failed", error)
+    setE2EEFeedback(section, "Could not generate E2EE keys.", "error")
+    button.disabled = false
+    return
+  }
+
+  const publicJwkFull = await crypto.subtle.exportKey("jwk", e2eeKeyPair.publicKey)
+  const privateJwkFull = await crypto.subtle.exportKey("jwk", e2eeKeyPair.privateKey)
+
+  const publicJwk = {
+    kty: publicJwkFull.kty,
+    crv: publicJwkFull.crv,
+    x: publicJwkFull.x,
+    y: publicJwkFull.y,
+  }
+
+  const kid = `e2ee-${new Date().toISOString()}`
+
+  const plaintext = utf8Bytes(JSON.stringify(privateJwkFull))
+  const iv = randomBytes(12)
+
+  let ciphertext
+  try {
+    ciphertext = await crypto.subtle.encrypt({name: "AES-GCM", iv}, wrapKey, plaintext)
+  } catch (error) {
+    console.error("wrap encrypt failed", error)
+    setE2EEFeedback(section, "Could not encrypt E2EE private key.", "error")
+    button.disabled = false
+    return
+  }
+
+  setE2EEFeedback(section, "Saving encrypted key material…", "info")
+
+  const payload = {
+    kid,
+    public_key_jwk: publicJwk,
+    wrapper: {
+      type: "webauthn_hmac_secret",
+      wrapped_private_key: base64UrlEncode(new Uint8Array(ciphertext)),
+      params: {
+        credential_id: base64UrlEncode(new Uint8Array(created.rawId)),
+        prf_salt: base64UrlEncode(prfSalt),
+        hkdf_salt: base64UrlEncode(hkdfSalt),
+        iv: base64UrlEncode(iv),
+        alg: "A256GCM",
+        kdf: "HKDF-SHA256",
+        info: "egregoros:e2ee:wrap:v1",
+      },
+    },
+  }
+
+  let response
+  try {
+    response = await fetch("/settings/e2ee/passkey", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "x-csrf-token": csrfToken,
+      },
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    console.error("save e2ee failed", error)
+    setE2EEFeedback(section, "Could not save key material (network error).", "error")
+    button.disabled = false
+    return
+  }
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    console.error("save e2ee response", response.status, body)
+
+    const message =
+      body?.error === "already_enabled"
+        ? "Encrypted DMs are already enabled."
+        : "Could not enable encrypted DMs."
+
+    setE2EEFeedback(section, message, "error")
+    button.disabled = false
+    return
+  }
+
+  const body = await response.json().catch(() => ({}))
+  const statusEl = section.querySelector("[data-role='e2ee-status']")
+  if (statusEl) statusEl.textContent = "Enabled"
+
+  const fingerprintEl = section.querySelector("[data-role='e2ee-fingerprint']")
+  if (fingerprintEl) {
+    fingerprintEl.textContent = body.fingerprint ? `Fingerprint: ${body.fingerprint}` : "Fingerprint: (unknown)"
+    fingerprintEl.classList.remove("hidden")
+  }
+
+  setE2EEFeedback(section, "Encrypted DMs enabled.", "success")
+  button.classList.add("hidden")
+}
+
+const initE2EESettings = () => {
+  document.querySelectorAll("[data-role='e2ee-settings']").forEach(section => {
+    if (section.dataset.e2eeInitialized === "true") return
+    section.dataset.e2eeInitialized = "true"
+
+    const button = section.querySelector("[data-role='e2ee-enable-passkey']")
+    if (!button) return
+
+    button.addEventListener("click", () => enableE2EEWithPasskey(section, button, csrfToken))
+  })
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
@@ -657,11 +936,14 @@ const liveSocket = new LiveSocket("/live", Socket, {
   hooks: {...colocatedHooks, TimelineTopSentinel, TimelineBottomSentinel, ComposeCharCounter, EmojiPicker, MediaViewer, ReplyModal},
 })
 
+document.addEventListener("DOMContentLoaded", initE2EESettings)
+window.addEventListener("phx:page-loading-stop", initE2EESettings)
+
 window.addEventListener("egregoros:scroll-top", () => {
   window.scrollTo({top: 0, behavior: "smooth"})
 })
 
-async function copyToClipboard(text) {
+const copyToClipboard = async text => {
   if (!text) return false
 
   if (navigator.clipboard && window.isSecureContext) {

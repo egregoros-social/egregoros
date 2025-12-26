@@ -11,6 +11,14 @@ defmodule EgregorosWeb.Router do
     plug :put_secure_browser_headers
   end
 
+  pipeline :browser_api do
+    plug :accepts, ["json"]
+    plug :fetch_session
+    plug EgregorosWeb.Plugs.FetchCurrentUser
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
   end
@@ -60,6 +68,13 @@ defmodule EgregorosWeb.Router do
     live "/@:nickname/followers", RelationshipsLive, :followers
     live "/@:nickname/following", RelationshipsLive, :following
     live "/@:nickname/:uuid", StatusLive
+  end
+
+  scope "/", EgregorosWeb do
+    pipe_through :browser_api
+
+    get "/settings/e2ee", E2EEController, :show
+    post "/settings/e2ee/passkey", E2EEController, :enable_passkey
   end
 
   scope "/", EgregorosWeb do

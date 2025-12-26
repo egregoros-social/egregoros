@@ -1,6 +1,7 @@
 defmodule EgregorosWeb.ActorControllerTest do
   use EgregorosWeb.ConnCase, async: true
 
+  alias Egregoros.E2EE
   alias Egregoros.Users
 
   test "GET /users/:nickname returns ActivityPub actor", %{conn: conn} do
@@ -54,5 +55,50 @@ defmodule EgregorosWeb.ActorControllerTest do
 
     assert decoded["icon"]["url"] ==
              EgregorosWeb.Endpoint.url() <> "/uploads/avatars/#{user.id}/avatar.png"
+  end
+
+  test "GET /users/:nickname exposes e2ee public keys when configured", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("dana")
+
+    kid = "e2ee-2025-12-26T00:00:00Z"
+
+    public_key_jwk = %{
+      "kty" => "EC",
+      "crv" => "P-256",
+      "x" => "pQECAwQFBgcICQoLDA0ODw",
+      "y" => "AQIDBAUGBwgJCgsMDQ4PEA"
+    }
+
+    assert {:ok, _} =
+             E2EE.enable_key_with_wrapper(user, %{
+               kid: kid,
+               public_key_jwk: public_key_jwk,
+               wrapper: %{
+                 type: "webauthn_hmac_secret",
+                 wrapped_private_key: <<1, 2, 3>>,
+                 params: %{
+                   "credential_id" => Base.url_encode64("cred", padding: false),
+                   "prf_salt" => Base.url_encode64("prf-salt", padding: false),
+                   "hkdf_salt" => Base.url_encode64("hkdf-salt", padding: false),
+                   "iv" => Base.url_encode64("iv", padding: false),
+                   "alg" => "A256GCM",
+                   "kdf" => "HKDF-SHA256",
+                   "info" => "egregoros:e2ee:wrap:v1"
+                 }
+               }
+             })
+
+    conn = get(conn, "/users/dana")
+    assert conn.status == 200
+
+    decoded = Jason.decode!(conn.resp_body)
+
+    assert %{"version" => 1, "keys" => [rendered_key]} = decoded["egregoros:e2ee"]
+    assert rendered_key["kid"] == kid
+    assert rendered_key["kty"] == "EC"
+    assert rendered_key["crv"] == "P-256"
+    assert rendered_key["x"] == public_key_jwk["x"]
+    assert rendered_key["y"] == public_key_jwk["y"]
+    assert String.starts_with?(rendered_key["fingerprint"], "sha256:")
   end
 end
