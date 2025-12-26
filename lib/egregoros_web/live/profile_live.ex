@@ -42,8 +42,11 @@ defmodule EgregorosWeb.ProfileLive do
 
     posts =
       case profile_user do
-        %User{} = user -> Objects.list_visible_notes_by_actor(user.ap_id, current_user, limit: @page_size)
-        _ -> []
+        %User{} = user ->
+          Objects.list_visible_notes_by_actor(user.ap_id, current_user, limit: @page_size)
+
+        _ ->
+          []
       end
 
     follow_relationship =
@@ -381,7 +384,11 @@ defmodule EgregorosWeb.ProfileLive do
           case socket.assigns.profile_user do
             %User{} = user ->
               viewer = socket.assigns.current_user
-              Objects.list_visible_notes_by_actor(user.ap_id, viewer, limit: @page_size, max_id: cursor)
+
+              Objects.list_visible_notes_by_actor(user.ap_id, viewer,
+                limit: @page_size,
+                max_id: cursor
+              )
 
             _ ->
               []
@@ -481,8 +488,11 @@ defmodule EgregorosWeb.ProfileLive do
 
       socket =
         case profile_user do
-          %User{} -> assign(socket, posts_count: count_posts(profile_user, socket.assigns.current_user))
-          _ -> socket
+          %User{} ->
+            assign(socket, posts_count: count_posts(profile_user, socket.assigns.current_user))
+
+          _ ->
+            socket
         end
 
       {:noreply, socket}
@@ -709,7 +719,9 @@ defmodule EgregorosWeb.ProfileLive do
   end
 
   defp count_posts(nil, _viewer), do: 0
-  defp count_posts(%User{} = user, viewer), do: Objects.count_visible_notes_by_actor(user.ap_id, viewer)
+
+  defp count_posts(%User{} = user, viewer),
+    do: Objects.count_visible_notes_by_actor(user.ap_id, viewer)
 
   defp count_followers(nil), do: 0
 

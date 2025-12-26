@@ -303,7 +303,10 @@ defmodule Egregoros.HTMLTest do
 
     test "replaces custom emoji shortcodes in plain text when tags are provided" do
       safe =
-        HTML.to_safe_html("hi :shrug:", format: :text, emojis: [%{shortcode: "shrug", url: "https://cdn.example/shrug.png"}])
+        HTML.to_safe_html("hi :shrug:",
+          format: :text,
+          emojis: [%{shortcode: "shrug", url: "https://cdn.example/shrug.png"}]
+        )
 
       assert safe =~ "<img"
       assert safe =~ "src=\"https://cdn.example/shrug.png\""
@@ -312,7 +315,10 @@ defmodule Egregoros.HTMLTest do
 
     test "replaces custom emoji shortcodes in html input when tags are provided" do
       safe =
-        HTML.to_safe_html("<p>hi :shrug:</p>", format: :html, emojis: [%{shortcode: "shrug", url: "https://cdn.example/shrug.png"}])
+        HTML.to_safe_html("<p>hi :shrug:</p>",
+          format: :html,
+          emojis: [%{shortcode: "shrug", url: "https://cdn.example/shrug.png"}]
+        )
 
       assert safe =~ "<p>hi"
       assert safe =~ "<img"
@@ -321,7 +327,10 @@ defmodule Egregoros.HTMLTest do
 
     test "does not render custom emojis with unsafe urls" do
       safe =
-        HTML.to_safe_html("hi :shrug:", format: :text, emojis: [%{shortcode: "shrug", url: "javascript:alert(1)"}])
+        HTML.to_safe_html("hi :shrug:",
+          format: :text,
+          emojis: [%{shortcode: "shrug", url: "javascript:alert(1)"}]
+        )
 
       refute safe =~ "<img"
       assert safe =~ ":shrug:"

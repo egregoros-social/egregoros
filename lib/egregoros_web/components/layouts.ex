@@ -80,7 +80,9 @@ defmodule EgregorosWeb.Layouts do
                   type="submit"
                   class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
-                  <span class="font-semibold text-slate-900 dark:text-white">{@current_user.nickname}</span>
+                  <span class="font-semibold text-slate-900 dark:text-white">
+                    {@current_user.nickname}
+                  </span>
                   <span class="text-slate-400 dark:text-slate-500">&middot;</span>
                   <span>Logout</span>
                 </button>

@@ -120,7 +120,8 @@ defmodule Egregoros.Relationships do
     end
   end
 
-  def count_by_types_objects(types, object_ap_ids) when is_list(types) and is_list(object_ap_ids) do
+  def count_by_types_objects(types, object_ap_ids)
+      when is_list(types) and is_list(object_ap_ids) do
     types =
       types
       |> Enum.filter(&is_binary/1)
@@ -229,7 +230,8 @@ defmodule Egregoros.Relationships do
       MapSet.new()
     else
       from(r in Relationship,
-        where: r.actor == ^actor_ap_id and r.object in ^object_ap_ids and like(r.type, "EmojiReact:%"),
+        where:
+          r.actor == ^actor_ap_id and r.object in ^object_ap_ids and like(r.type, "EmojiReact:%"),
         select: {r.type, r.object}
       )
       |> Repo.all()

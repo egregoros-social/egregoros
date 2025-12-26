@@ -308,7 +308,8 @@ defmodule Egregoros.Objects do
       )
 
     from(o in Object,
-      where: o.type == "Note" and (o.actor == ^actor_ap_id or o.actor in subquery(followed_subquery)),
+      where:
+        o.type == "Note" and (o.actor == ^actor_ap_id or o.actor in subquery(followed_subquery)),
       order_by: [desc: o.id],
       limit: ^limit
     )

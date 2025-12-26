@@ -752,7 +752,10 @@ defmodule EgregorosWeb.CoreComponents do
             <td
               :for={col <- @col}
               phx-click={@row_click && @row_click.(row)}
-              class={["px-4 py-3 align-top text-slate-900 dark:text-slate-100", @row_click && "cursor-pointer"]}
+              class={[
+                "px-4 py-3 align-top text-slate-900 dark:text-slate-100",
+                @row_click && "cursor-pointer"
+              ]}
             >
               {render_slot(col, @row_item.(row))}
             </td>
@@ -834,8 +837,7 @@ defmodule EgregorosWeb.CoreComponents do
       to: selector,
       time: 200,
       transition:
-        {"transition-all ease-out duration-200",
-         "opacity-0 translate-y-2",
+        {"transition-all ease-out duration-200", "opacity-0 translate-y-2",
          "opacity-100 translate-y-0"}
     )
   end

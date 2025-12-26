@@ -36,4 +36,3 @@ defmodule Egregoros.CustomEmojis do
   defp icon_url(%{"url" => [%{"url" => url} | _]}) when is_binary(url), do: url
   defp icon_url(_), do: nil
 end
-

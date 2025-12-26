@@ -10,9 +10,14 @@ defmodule Egregoros.PerformanceRegressionsTest do
     handler_id = {__MODULE__, System.unique_integer([:positive])}
     parent = self()
 
-    :telemetry.attach(handler_id, [:egregoros, :repo, :query], fn _event, _measurements, metadata, _config ->
-      send(parent, {:repo_query, metadata})
-    end, nil)
+    :telemetry.attach(
+      handler_id,
+      [:egregoros, :repo, :query],
+      fn _event, _measurements, metadata, _config ->
+        send(parent, {:repo_query, metadata})
+      end,
+      nil
+    )
 
     try do
       result = fun.()
@@ -123,7 +128,9 @@ defmodule Egregoros.PerformanceRegressionsTest do
       })
 
     {rendered, queries} =
-      capture_repo_queries(fn -> StatusRenderer.render_statuses([note_1, note_2, note_3], alice) end)
+      capture_repo_queries(fn ->
+        StatusRenderer.render_statuses([note_1, note_2, note_3], alice)
+      end)
 
     # Before batching, rendering each status issues multiple per-status count queries (likes, reblogs,
     # emoji reactions, plus account counts), which scales linearly with the number of statuses.

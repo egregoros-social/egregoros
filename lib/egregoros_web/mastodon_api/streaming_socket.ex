@@ -233,7 +233,8 @@ defmodule EgregorosWeb.MastodonAPI.StreamingSocket do
          %{current_user: %User{} = user, home_actor_ids: %MapSet{} = actor_ids}
        )
        when type in ~w(Note Announce) do
-    is_binary(object.actor) and MapSet.member?(actor_ids, object.actor) and Objects.visible_to?(object, user)
+    is_binary(object.actor) and MapSet.member?(actor_ids, object.actor) and
+      Objects.visible_to?(object, user)
   end
 
   defp deliver_user_status?(_object, _state), do: false

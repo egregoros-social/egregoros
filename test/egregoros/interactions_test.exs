@@ -27,4 +27,3 @@ defmodule Egregoros.InteractionsTest do
     refute Objects.get_by_type_actor_object("Like", user.ap_id, note.ap_id)
   end
 end
-

@@ -51,8 +51,10 @@ defmodule EgregorosWeb.StatusCard do
 
                   <span class={[
                     "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                    @entry.object.local && "bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300",
-                    !@entry.object.local && "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
+                    @entry.object.local &&
+                      "bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300",
+                    !@entry.object.local &&
+                      "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
                   ]}>
                     {if @entry.object.local, do: "local", else: "remote"}
                   </span>
@@ -81,8 +83,10 @@ defmodule EgregorosWeb.StatusCard do
 
                 <span class={[
                   "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                  @entry.object.local && "bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300",
-                  !@entry.object.local && "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
+                  @entry.object.local &&
+                    "bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300",
+                  !@entry.object.local &&
+                    "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
                 ]}>
                   {if @entry.object.local, do: "local", else: "remote"}
                 </span>
@@ -146,7 +150,10 @@ defmodule EgregorosWeb.StatusCard do
         <.status_body entry={@entry} />
       <% end %>
 
-      <div :if={@current_user} class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
+      <div
+        :if={@current_user}
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-700"
+      >
         <div class="flex flex-wrap items-center gap-2">
           <%= if @reply_mode == :modal do %>
             <button
