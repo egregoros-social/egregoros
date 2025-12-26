@@ -2,6 +2,7 @@ defmodule PleromaRedux.Objects do
   import Ecto.Query, only: [from: 2, dynamic: 2]
 
   alias PleromaRedux.Object
+  alias PleromaRedux.Relationship
   alias PleromaRedux.Relationships
   alias PleromaRedux.Repo
 
@@ -284,20 +285,18 @@ defmodule PleromaRedux.Objects do
     max_id = Keyword.get(opts, :max_id)
     since_id = Keyword.get(opts, :since_id)
 
-    followed_actor_ids =
-      actor_ap_id
-      |> Relationships.list_follows_by_actor()
-      |> Enum.map(& &1.object)
-      |> Enum.filter(&is_binary/1)
-
-    actor_ids = Enum.uniq([actor_ap_id | followed_actor_ids])
+    followed_subquery =
+      from(r in Relationship,
+        where: r.type == "Follow" and r.actor == ^actor_ap_id,
+        select: r.object
+      )
 
     from(o in Object,
-      where: o.type == "Note" and o.actor in ^actor_ids,
+      where: o.type == "Note" and (o.actor == ^actor_ap_id or o.actor in subquery(followed_subquery)),
       order_by: [desc: o.id],
       limit: ^limit
     )
-    |> where_visible_to_home(actor_ap_id, followed_actor_ids)
+    |> where_visible_to_home(actor_ap_id)
     |> maybe_where_max_id(max_id)
     |> maybe_where_since_id(since_id)
     |> Repo.all()
@@ -312,32 +311,26 @@ defmodule PleromaRedux.Objects do
     max_id = Keyword.get(opts, :max_id)
     since_id = Keyword.get(opts, :since_id)
 
-    followed_actor_ids =
-      actor_ap_id
-      |> Relationships.list_follows_by_actor()
-      |> Enum.map(& &1.object)
-      |> Enum.filter(&is_binary/1)
-
-    actor_ids = Enum.uniq([actor_ap_id | followed_actor_ids])
+    followed_subquery =
+      from(r in Relationship,
+        where: r.type == "Follow" and r.actor == ^actor_ap_id,
+        select: r.object
+      )
 
     from(o in Object,
-      where: o.type in ^@status_types and o.actor in ^actor_ids,
+      where:
+        o.type in ^@status_types and
+          (o.actor == ^actor_ap_id or o.actor in subquery(followed_subquery)),
       order_by: [desc: o.id],
       limit: ^limit
     )
-    |> where_visible_to_home(actor_ap_id, followed_actor_ids)
+    |> where_visible_to_home(actor_ap_id)
     |> maybe_where_max_id(max_id)
     |> maybe_where_since_id(since_id)
     |> Repo.all()
   end
 
-  defp where_visible_to_home(query, user_ap_id, followed_actor_ids)
-       when is_binary(user_ap_id) and is_list(followed_actor_ids) do
-    followers_collections =
-      followed_actor_ids
-      |> Enum.filter(&is_binary/1)
-      |> Enum.map(&(&1 <> "/followers"))
-
+  defp where_visible_to_home(query, user_ap_id) when is_binary(user_ap_id) do
     base =
       dynamic(
         [o],
@@ -349,20 +342,12 @@ defmodule PleromaRedux.Objects do
       )
 
     visibility_dynamic =
-      if followers_collections == [] do
-        base
-      else
-        dynamic(
-          [o],
-          ^base or
-            fragment("jsonb_exists_any((?->'to'), ?)", o.data,
-              type(^followers_collections, {:array, :string})
-            ) or
-            fragment("jsonb_exists_any((?->'cc'), ?)", o.data,
-              type(^followers_collections, {:array, :string})
-            )
-        )
-      end
+      dynamic(
+        [o],
+        ^base or
+          fragment("jsonb_exists((?->'to'), (? || '/followers'))", o.data, o.actor) or
+          fragment("jsonb_exists((?->'cc'), (? || '/followers'))", o.data, o.actor)
+      )
 
     from(o in query, where: ^visibility_dynamic)
   end
