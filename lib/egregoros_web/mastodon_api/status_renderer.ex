@@ -1,10 +1,12 @@
 defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
+  alias Egregoros.Domain
   alias Egregoros.HTML
   alias Egregoros.Object
   alias Egregoros.Objects
   alias Egregoros.Relationships
   alias Egregoros.User
   alias Egregoros.Users
+  alias EgregorosWeb.ProfilePaths
   alias EgregorosWeb.URL
   alias EgregorosWeb.MastodonAPI.AccountRenderer
 
@@ -139,7 +141,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
     %{
       "id" => Integer.to_string(object.id),
       "uri" => object.ap_id,
-      "url" => object.ap_id,
+      "url" => status_url(object),
       "visibility" => visibility(object),
       "sensitive" => sensitive(object),
       "spoiler_text" => spoiler_text(object),
@@ -188,7 +190,8 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
     %{
       "id" => Integer.to_string(announce.id),
       "uri" => announce.ap_id,
-      "url" => announce.ap_id,
+      "url" =>
+        if(is_map(reblog), do: Map.get(reblog, "url", announce.ap_id), else: announce.ap_id),
       "visibility" =>
         if(is_map(reblog), do: Map.get(reblog, "visibility", "public"), else: "public"),
       "sensitive" => if(is_map(reblog), do: Map.get(reblog, "sensitive", false), else: false),
@@ -476,17 +479,18 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
           %{
             "id" => Integer.to_string(user.id),
             "username" => user.nickname,
-            "url" => href,
+            "url" => URL.absolute(ProfilePaths.profile_path(user)),
             "acct" => acct_for_user(user)
           }
 
         _ ->
           {username, acct} = mention_username_and_acct(name, href)
+          url = ProfilePaths.profile_path(acct) |> URL.absolute()
 
           %{
             "id" => href,
             "username" => username,
-            "url" => href,
+            "url" => url,
             "acct" => acct
           }
       end
@@ -525,8 +529,8 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
   end
 
   defp acct_for_remote(username, ap_id) when is_binary(username) and is_binary(ap_id) do
-    case URI.parse(ap_id) do
-      %URI{host: host} when is_binary(host) and host != "" -> "#{username}@#{host}"
+    case Domain.from_uri(URI.parse(ap_id)) do
+      domain when is_binary(domain) and domain != "" -> "#{username}@#{domain}"
       _ -> username
     end
   end
@@ -539,8 +543,8 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
 
   defp acct_for_user(%User{nickname: nickname, ap_id: ap_id})
        when is_binary(nickname) and is_binary(ap_id) do
-    case URI.parse(ap_id) do
-      %URI{host: host} when is_binary(host) and host != "" -> "#{nickname}@#{host}"
+    case Domain.from_uri(URI.parse(ap_id)) do
+      domain when is_binary(domain) and domain != "" -> "#{nickname}@#{domain}"
       _ -> nickname
     end
   end
@@ -612,6 +616,53 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
   defp icon_url(%{"url" => [%{"url" => url} | _]}) when is_binary(url), do: url
 
   defp icon_url(_), do: nil
+
+  defp status_url(%Object{} = object) do
+    case status_path(object) do
+      path when is_binary(path) and path != "" -> URL.absolute(path)
+      _ -> object.ap_id
+    end
+  end
+
+  defp status_url(_object), do: nil
+
+  defp status_path(%Object{} = object) do
+    case object.local do
+      true -> local_status_path(object)
+      false -> remote_status_path(object)
+    end
+  end
+
+  defp status_path(_object), do: nil
+
+  defp local_status_path(%Object{ap_id: ap_id, actor: actor_ap_id})
+       when is_binary(ap_id) and is_binary(actor_ap_id) do
+    with uuid when is_binary(uuid) and uuid != "" <- URL.local_object_uuid(ap_id),
+         %User{} = actor <- Users.get_by_ap_id(actor_ap_id),
+         "/@" <> _rest = profile_path <- ProfilePaths.profile_path(actor) do
+      profile_path <> "/" <> uuid
+    else
+      _ -> nil
+    end
+  end
+
+  defp local_status_path(_object), do: nil
+
+  defp remote_status_path(%Object{id: id, actor: actor_ap_id})
+       when is_integer(id) and is_binary(actor_ap_id) do
+    actor =
+      case Users.get_by_ap_id(actor_ap_id) do
+        %User{} = user -> user
+        _ -> %{handle: actor_ap_id}
+      end
+
+    case ProfilePaths.profile_path(actor) do
+      "/@" <> _rest = profile_path -> profile_path <> "/" <> Integer.to_string(id)
+      _ -> nil
+    end
+  end
+
+  defp remote_status_path(_object), do: nil
 
   defp activity_tags(%Object{} = object) do
     object.data

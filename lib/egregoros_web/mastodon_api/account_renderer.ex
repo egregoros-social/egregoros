@@ -1,13 +1,21 @@
 defmodule EgregorosWeb.MastodonAPI.AccountRenderer do
+  alias Egregoros.Domain
   alias Egregoros.HTML
   alias Egregoros.Objects
   alias Egregoros.Relationships
   alias Egregoros.User
+  alias EgregorosWeb.ProfilePaths
   alias EgregorosWeb.URL
 
   def render_account(%User{} = user), do: render_account(user, [])
 
   def render_account(%{ap_id: ap_id, nickname: nickname}) do
+    url =
+      case ProfilePaths.profile_path(ap_id) do
+        path when is_binary(path) and path != "" -> URL.absolute(path)
+        _ -> ap_id
+      end
+
     %{
       "id" => ap_id,
       "username" => nickname,
@@ -29,7 +37,7 @@ defmodule EgregorosWeb.MastodonAPI.AccountRenderer do
       "last_status_at" => nil,
       "emojis" => [],
       "fields" => [],
-      "url" => ap_id
+      "url" => url
     }
   end
 
@@ -37,6 +45,12 @@ defmodule EgregorosWeb.MastodonAPI.AccountRenderer do
 
   def render_account(%User{} = user, opts) when is_list(opts) do
     avatar_url = URL.absolute(user.avatar_url, user.ap_id) || ""
+
+    url =
+      case ProfilePaths.profile_path(user) do
+        path when is_binary(path) and path != "" -> URL.absolute(path)
+        _ -> user.ap_id
+      end
 
     bio =
       HTML.to_safe_html(user.bio || "",
@@ -89,16 +103,21 @@ defmodule EgregorosWeb.MastodonAPI.AccountRenderer do
         "sensitive" => false,
         "language" => nil
       },
-      "url" => user.ap_id
+      "url" => url
     }
   end
 
   defp acct(%User{local: true, nickname: nickname}) when is_binary(nickname), do: nickname
 
+  defp acct(%User{local: false, nickname: nickname, domain: domain})
+       when is_binary(nickname) and is_binary(domain) and domain != "" do
+    "#{nickname}@#{domain}"
+  end
+
   defp acct(%User{nickname: nickname, ap_id: ap_id})
        when is_binary(nickname) and is_binary(ap_id) do
-    case URI.parse(ap_id) do
-      %{host: host} when is_binary(host) and host != "" -> "#{nickname}@#{host}"
+    case Domain.from_uri(URI.parse(ap_id)) do
+      domain when is_binary(domain) and domain != "" -> "#{nickname}@#{domain}"
       _ -> nickname
     end
   end

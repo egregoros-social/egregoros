@@ -59,14 +59,39 @@ defmodule EgregorosWeb.MastodonAPI.StatusRendererTest do
 
     rendered = StatusRenderer.render_status(note)
 
-    assert [%{"url" => "http://localtesting.pleroma.lol/users/lain"} = mention] =
+    assert [%{"url" => url} = mention] =
              rendered["mentions"]
 
+    assert url == Endpoint.url() <> "/@lain@localtesting.pleroma.lol"
     assert mention["username"] == "lain"
     assert mention["acct"] == "lain@localtesting.pleroma.lol"
 
     assert [%{"name" => "moo", "url" => "http://mastodon.example.org/tags/moo"}] =
              rendered["tags"]
+  end
+
+  test "renders status url as a local permalink when the object is local" do
+    {:ok, user} = Users.create_local_user("alice")
+    uuid = Ecto.UUID.generate()
+    ap_id = Endpoint.url() <> "/objects/" <> uuid
+
+    {:ok, note} =
+      Objects.create_object(%{
+        ap_id: ap_id,
+        type: "Note",
+        actor: user.ap_id,
+        local: true,
+        data: %{
+          "id" => ap_id,
+          "type" => "Note",
+          "actor" => user.ap_id,
+          "content" => "hello"
+        }
+      })
+
+    rendered = StatusRenderer.render_status(note, user)
+
+    assert rendered["url"] == Endpoint.url() <> "/@alice/" <> uuid
   end
 
   test "renders custom emojis from ActivityPub tag data" do
