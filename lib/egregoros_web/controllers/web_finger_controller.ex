@@ -1,21 +1,36 @@
 defmodule EgregorosWeb.WebFingerController do
   use EgregorosWeb, :controller
 
+  alias Egregoros.Domain
   alias Egregoros.Users
   alias EgregorosWeb.Endpoint
 
   def webfinger(conn, %{"resource" => resource}) do
-    host = Endpoint.url() |> URI.parse() |> Map.fetch!(:host)
+    base_uri = URI.parse(Endpoint.url())
 
-    case find_user(resource, host) do
+    canonical_domain =
+      case Domain.from_uri(base_uri) do
+        domain when is_binary(domain) and domain != "" -> domain
+        _ -> base_uri.host || "localhost"
+      end
+
+    local_domains = Domain.aliases_from_uri(base_uri)
+
+    case find_user(resource, local_domains, canonical_domain) do
       nil ->
         send_resp(conn, 404, "Not Found")
 
-      user ->
+      {user, subject_domain} ->
+        subject_domain =
+          case subject_domain do
+            value when is_binary(value) and value != "" -> value
+            _ -> canonical_domain
+          end
+
         conn
         |> put_resp_content_type("application/jrd+json")
         |> json(%{
-          "subject" => "acct:#{user.nickname}@#{host}",
+          "subject" => "acct:#{user.nickname}@#{subject_domain}",
           "aliases" => [user.ap_id],
           "links" => [
             %{
@@ -30,15 +45,47 @@ defmodule EgregorosWeb.WebFingerController do
 
   def webfinger(conn, _params), do: send_resp(conn, 400, "Bad Request")
 
-  defp find_user(resource, host) do
-    regex = ~r/^(acct:)?(?<username>[^@]+)@#{Regex.escape(host)}$/
+  defp find_user(resource, local_domains, canonical_domain)
+       when is_binary(resource) and is_list(local_domains) and is_binary(canonical_domain) do
+    case parse_acct_resource(resource) do
+      {:ok, username, domain} ->
+        domain = domain |> String.trim() |> String.downcase()
 
-    case Regex.named_captures(regex, resource || "") do
-      %{"username" => username} ->
-        Users.get_by_nickname(username)
+        if domain in local_domains do
+          case Users.get_by_nickname(username) do
+            nil -> nil
+            user -> {user, domain}
+          end
+        else
+          find_user_by_ap_id(resource, canonical_domain)
+        end
 
-      _ ->
-        Users.get_by_ap_id(resource)
+      :error ->
+        find_user_by_ap_id(resource, canonical_domain)
     end
   end
+
+  defp find_user(_resource, _local_domains, _canonical_domain), do: nil
+
+  defp find_user_by_ap_id(resource, canonical_domain) when is_binary(resource) do
+    case Users.get_by_ap_id(resource) do
+      nil -> nil
+      user -> {user, canonical_domain}
+    end
+  end
+
+  defp parse_acct_resource(resource) when is_binary(resource) do
+    resource = String.trim(resource)
+
+    if resource == "" or String.starts_with?(resource, "http://") or String.starts_with?(resource, "https://") do
+      :error
+    else
+      case resource |> String.trim_leading("acct:") |> String.split("@", parts: 2) do
+        [username, domain] when username != "" and domain != "" -> {:ok, username, domain}
+        _ -> :error
+      end
+    end
+  end
+
+  defp parse_acct_resource(_resource), do: :error
 end
