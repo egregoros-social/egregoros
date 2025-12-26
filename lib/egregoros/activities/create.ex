@@ -6,12 +6,15 @@ defmodule Egregoros.Activities.Create do
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
+  alias Egregoros.Federation.Delivery
   alias Egregoros.Objects
   alias Egregoros.Pipeline
   alias Egregoros.Relationships
   alias Egregoros.User
   alias Egregoros.Users
   alias EgregorosWeb.Endpoint
+
+  @as_public "https://www.w3.org/ns/activitystreams#Public"
 
   def type, do: "Create"
 
@@ -74,24 +77,74 @@ defmodule Egregoros.Activities.Create do
 
   def side_effects(object, opts) do
     if Keyword.get(opts, :local, true) do
-      deliver_to_followers(object)
+      deliver(object)
     end
 
     :ok
   end
 
-  defp deliver_to_followers(create_object) do
-    with %{} = actor <- Users.get_by_ap_id(create_object.actor) do
-      actor.ap_id
-      |> Relationships.list_follows_to()
-      |> Enum.each(fn follow ->
-        with %{} = follower <- Users.get_by_ap_id(follow.actor),
-             false <- follower.local do
-          Egregoros.Federation.Delivery.deliver(actor, follower.inbox, create_object.data)
-        end
+  defp deliver(create_object) do
+    with %User{} = actor <- Users.get_by_ap_id(create_object.actor),
+         inboxes when is_list(inboxes) and inboxes != [] <- inboxes_for_delivery(create_object, actor) do
+      Enum.each(inboxes, fn inbox_url ->
+        Delivery.deliver(actor, inbox_url, create_object.data)
       end)
+    else
+      _ -> :ok
     end
   end
+
+  defp inboxes_for_delivery(%{data: %{} = data} = create_object, %User{} = actor) do
+    follower_inboxes =
+      if followers_addressed?(data, create_object.actor) do
+        actor.ap_id
+        |> Relationships.list_follows_to()
+        |> Enum.map(fn follow ->
+          case Users.get_by_ap_id(follow.actor) do
+            %User{local: false, inbox: inbox} when is_binary(inbox) and inbox != "" -> inbox
+            _ -> nil
+          end
+        end)
+        |> Enum.reject(&is_nil/1)
+      else
+        []
+      end
+
+    recipient_inboxes =
+      data
+      |> recipient_actor_ids()
+      |> Enum.map(fn actor_id ->
+        case Users.get_by_ap_id(actor_id) do
+          %User{local: false, inbox: inbox} when is_binary(inbox) and inbox != "" -> inbox
+          _ -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    (follower_inboxes ++ recipient_inboxes)
+    |> Enum.uniq()
+  end
+
+  defp inboxes_for_delivery(_create_object, _actor), do: []
+
+  defp followers_addressed?(%{} = data, actor_ap_id) when is_binary(actor_ap_id) do
+    followers = actor_ap_id <> "/followers"
+    to = data |> Map.get("to", []) |> List.wrap()
+    cc = data |> Map.get("cc", []) |> List.wrap()
+    followers in to or followers in cc
+  end
+
+  defp followers_addressed?(_data, _actor_ap_id), do: false
+
+  defp recipient_actor_ids(%{} = data) do
+    (data |> Map.get("to", []) |> List.wrap()) ++ (data |> Map.get("cc", []) |> List.wrap())
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == "" or &1 == @as_public or String.ends_with?(&1, "/followers")))
+    |> Enum.uniq()
+  end
+
+  defp recipient_actor_ids(_data), do: []
 
   defp to_object_attrs(activity, embedded_object, opts) do
     %{

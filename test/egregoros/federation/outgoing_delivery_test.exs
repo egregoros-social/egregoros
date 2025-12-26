@@ -67,6 +67,7 @@ defmodule Egregoros.Federation.OutgoingDeliveryTest do
 
   test "local Create delivers to remote followers" do
     {:ok, local} = Users.create_local_user("alice")
+    public = "https://www.w3.org/ns/activitystreams#Public"
 
     {:ok, remote_follower} =
       Users.create_user(%{
@@ -95,6 +96,8 @@ defmodule Egregoros.Federation.OutgoingDeliveryTest do
       "id" => "https://local.example/objects/1",
       "type" => "Note",
       "attributedTo" => local.ap_id,
+      "to" => [public],
+      "cc" => [local.ap_id <> "/followers"],
       "content" => "Hello followers"
     }
 
@@ -102,6 +105,8 @@ defmodule Egregoros.Federation.OutgoingDeliveryTest do
       "id" => "https://local.example/activities/create/1",
       "type" => "Create",
       "actor" => local.ap_id,
+      "to" => [public],
+      "cc" => [local.ap_id <> "/followers"],
       "object" => note
     }
 

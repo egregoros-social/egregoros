@@ -4,6 +4,7 @@ defmodule Egregoros.PublishTest do
   import Mox
 
   alias Egregoros.Pipeline
+  alias Egregoros.Objects
   alias Egregoros.Publish
   alias Egregoros.Users
   alias Egregoros.Workers.DeliverActivity
@@ -65,5 +66,72 @@ defmodule Egregoros.PublishTest do
 
     assert is_map(args)
     assert :ok = perform_job(DeliverActivity, args)
+  end
+
+  test "post_note/3 with visibility=direct addresses mentioned local users and does not deliver to followers" do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    {:ok, remote_follower} =
+      Users.create_user(%{
+        nickname: "lain",
+        ap_id: "https://lain.com/users/lain",
+        inbox: "https://lain.com/users/lain/inbox",
+        outbox: "https://lain.com/users/lain/outbox",
+        public_key: "-----BEGIN PUBLIC KEY-----\nMIIB...\n-----END PUBLIC KEY-----\n",
+        local: false
+      })
+
+    follow = %{
+      "id" => "https://lain.com/activities/follow/1",
+      "type" => "Follow",
+      "actor" => remote_follower.ap_id,
+      "object" => alice.ap_id
+    }
+
+    assert {:ok, _} = Pipeline.ingest(follow, local: false)
+
+    assert {:ok, create} = Publish.post_note(alice, "@bob Secret DM", visibility: "direct")
+
+    assert %{} = note = Objects.get_by_ap_id(create.object)
+    assert bob.ap_id in note.data["to"]
+    assert Objects.visible_to?(note, bob)
+
+    create_jobs =
+      all_enqueued(worker: DeliverActivity)
+      |> Enum.filter(fn job ->
+        match?(%{"activity" => %{"type" => "Create"}}, job.args)
+      end)
+
+    refute Enum.any?(create_jobs, &(&1.args["inbox_url"] == remote_follower.inbox))
+  end
+
+  test "post_note/3 with visibility=direct delivers Create to remote recipients" do
+    {:ok, alice} = Users.create_local_user("alice")
+
+    {:ok, remote_recipient} =
+      Users.create_user(%{
+        nickname: "toast",
+        domain: "donotsta.re",
+        ap_id: "https://donotsta.re/users/toast",
+        inbox: "https://donotsta.re/users/toast/inbox",
+        outbox: "https://donotsta.re/users/toast/outbox",
+        public_key: "-----BEGIN PUBLIC KEY-----\nMIIB...\n-----END PUBLIC KEY-----\n",
+        local: false
+      })
+
+    assert {:ok, create} =
+             Publish.post_note(alice, "@toast@donotsta.re hello", visibility: "direct")
+
+    assert %{} = note = Objects.get_by_ap_id(create.object)
+    assert remote_recipient.ap_id in note.data["to"]
+
+    create_jobs =
+      all_enqueued(worker: DeliverActivity)
+      |> Enum.filter(fn job ->
+        match?(%{"activity" => %{"type" => "Create"}}, job.args)
+      end)
+
+    assert Enum.any?(create_jobs, &(&1.args["inbox_url"] == remote_recipient.inbox))
   end
 end
