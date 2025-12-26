@@ -210,7 +210,7 @@ defmodule Egregoros.HTML do
   end
 
   defp mention_href("@" <> rest) when is_binary(rest) and rest != "" do
-    with {:ok, nickname, host} <- parse_mention(rest),
+    with {:ok, nickname, host} <- Egregoros.Mentions.parse(rest),
          href when is_binary(href) <- mention_profile_href(nickname, host) do
       {:ok, href}
     else
@@ -288,40 +288,6 @@ defmodule Egregoros.HTML do
   end
 
   defp safe_img_url?(_url), do: false
-
-  defp parse_mention(rest) when is_binary(rest) do
-    case String.split(rest, "@", parts: 2) do
-      [nickname] ->
-        with true <- valid_nickname?(nickname) do
-          {:ok, nickname, nil}
-        else
-          _ -> :error
-        end
-
-      [nickname, host] ->
-        with true <- valid_nickname?(nickname),
-             true <- valid_host?(host) do
-          {:ok, nickname, host}
-        else
-          _ -> :error
-        end
-
-      _ ->
-        :error
-    end
-  end
-
-  defp valid_nickname?(nickname) when is_binary(nickname) do
-    Regex.match?(~r/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/, nickname)
-  end
-
-  defp valid_nickname?(_), do: false
-
-  defp valid_host?(host) when is_binary(host) do
-    Regex.match?(~r/^[A-Za-z0-9.-]+(?::\d{1,5})?$/, host)
-  end
-
-  defp valid_host?(_), do: false
 
   defp valid_hashtag?(tag) when is_binary(tag) do
     Regex.match?(~r/^[\p{L}\p{N}_][\p{L}\p{N}_-]{0,63}$/u, tag)
