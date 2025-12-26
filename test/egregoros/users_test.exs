@@ -79,4 +79,32 @@ defmodule Egregoros.UsersTest do
 
     assert "has already been taken" in errors_on(changeset).ap_id
   end
+
+  test "search_mentions/2 finds local users by nickname" do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, alicia} = Users.create_local_user("alicia")
+
+    results = Users.search_mentions("ali", limit: 10)
+
+    assert Enum.any?(results, &(&1.id == alice.id))
+    assert Enum.any?(results, &(&1.id == alicia.id))
+  end
+
+  test "search_mentions/2 finds remote users when query includes a domain" do
+    {:ok, remote} =
+      Users.create_user(%{
+        nickname: "toast",
+        domain: "donotsta.re",
+        ap_id: "https://donotsta.re/users/toast",
+        inbox: "https://donotsta.re/users/toast/inbox",
+        outbox: "https://donotsta.re/users/toast/outbox",
+        public_key: "PUB",
+        private_key: nil,
+        local: false
+      })
+
+    results = Users.search_mentions("toast@dono", limit: 10)
+
+    assert Enum.any?(results, &(&1.id == remote.id))
+  end
 end

@@ -245,4 +245,97 @@ defmodule Egregoros.Users do
   end
 
   defp normalize_limit(_), do: 20
+
+  def search_mentions(query, opts \\ [])
+
+  def search_mentions(query, opts) when is_binary(query) and is_list(opts) do
+    query =
+      query
+      |> String.trim()
+      |> String.trim_leading("@")
+
+    limit = opts |> Keyword.get(:limit, 8) |> normalize_limit()
+
+    if query == "" do
+      []
+    else
+      if String.contains?(query, "@") do
+        search_mentions_with_domain(query, limit)
+      else
+        search(query, limit: limit)
+      end
+    end
+  end
+
+  def search_mentions(_query, _opts), do: []
+
+  defp search_mentions_with_domain(query, limit) when is_binary(query) and is_integer(limit) do
+    [nickname_part, domain_part] = String.split(query, "@", parts: 2)
+
+    nickname_part = String.trim(nickname_part)
+    domain_part = String.trim(domain_part)
+
+    nickname_like = nickname_part <> "%"
+    domain_like = domain_part <> "%"
+
+    remote_matches =
+      from(u in User,
+        where:
+          u.local == false and ilike(u.nickname, ^nickname_like) and ilike(u.domain, ^domain_like),
+        order_by: [asc: u.nickname],
+        limit: ^limit
+      )
+      |> Repo.all()
+
+    local_matches =
+      if nickname_part != "" and local_domain_matches_prefix?(domain_part) do
+        from(u in User,
+          where: u.local == true and ilike(u.nickname, ^nickname_like),
+          order_by: [asc: u.nickname],
+          limit: ^limit
+        )
+        |> Repo.all()
+      else
+        []
+      end
+
+    (local_matches ++ remote_matches)
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.take(limit)
+  end
+
+  defp search_mentions_with_domain(_query, _limit), do: []
+
+  defp local_domain_matches_prefix?(domain_part) when is_binary(domain_part) do
+    domain_part = domain_part |> String.trim() |> String.downcase()
+
+    if domain_part == "" do
+      false
+    else
+      Enum.any?(local_domains(), &String.starts_with?(&1, domain_part))
+    end
+  end
+
+  defp local_domain_matches_prefix?(_domain_part), do: false
+
+  defp local_domains do
+    case URI.parse(Endpoint.url()) do
+      %URI{host: host} when is_binary(host) and host != "" ->
+        host = String.downcase(host)
+
+        domains =
+          case URI.parse(Endpoint.url()) do
+            %URI{port: port} when is_integer(port) and port > 0 ->
+              [host, host <> ":" <> Integer.to_string(port)]
+
+            _ ->
+              [host]
+          end
+
+        Enum.uniq(domains)
+
+      _ ->
+        []
+    end
+  end
 end
