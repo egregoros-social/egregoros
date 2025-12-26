@@ -21,7 +21,7 @@ defmodule Egregoros.Federation.WebFinger do
   defp headers do
     [
       {"accept", "application/jrd+json, application/json"},
-      {"user-agent", "pleroma-redux"}
+      {"user-agent", "egregoros"}
     ]
   end
 

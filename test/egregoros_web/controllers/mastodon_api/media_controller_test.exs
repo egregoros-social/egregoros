@@ -92,7 +92,7 @@ defmodule EgregorosWeb.MastodonAPI.MediaControllerTest do
   end
 
   defp tmp_upload_path do
-    path = Path.join(System.tmp_dir!(), "pleroma-redux-test-upload-#{Ecto.UUID.generate()}")
+    path = Path.join(System.tmp_dir!(), "egregoros-test-upload-#{Ecto.UUID.generate()}")
     File.write!(path, <<0, 1, 2, 3>>)
     path
   end

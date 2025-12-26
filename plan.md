@@ -1,4 +1,4 @@
-# Pleroma‑Redux Plan (TDD‑first)
+# Egregoros Plan (TDD‑first)
 
 This plan assumes a green‑field codebase living in this repo and a staged migration of ideas (not code) from Pleroma. Each milestone ends with a runnable, tested vertical slice. **Target stack: Elixir + Phoenix + PostgreSQL.**
 
@@ -181,9 +181,9 @@ Proposed interface:
 This ensures each activity lives in a single module file and reduces cross‑file churn.
 
 ## Activity parsing via Ecto embedded schemas (refactor plan)
-Goal: move from ad‑hoc `normalize/validate` pattern matching toward **Pleroma‑old style embedded schemas** that (1) define canonical shapes, (2) perform normalization during casting, and (3) produce consistent errors — without losing Pleroma‑Redux’s “one file per activity type” goal.
+Goal: move from ad‑hoc `normalize/validate` pattern matching toward **Pleroma‑old style embedded schemas** that (1) define canonical shapes, (2) perform normalization during casting, and (3) produce consistent errors — without losing Egregoros’s “one file per activity type” goal.
 
-### Current state (Pleroma‑Redux)
+### Current state (Egregoros)
 - Each activity module implements `normalize/1` and `validate/1` using pattern matching and guards.
 - Compatibility ingestion tests exist using real fixture payloads from `test/fixtures` (vendored from upstream Pleroma) (`test/egregoros/compat/upstream_fixtures_test.exs`).
 - Normalization is duplicated across modules (e.g. inline `"actor": {"id": ...}` handling).
@@ -193,7 +193,7 @@ Goal: move from ad‑hoc `normalize/validate` pattern matching toward **Pleroma�
 - Per‑type embedded schema validators: `../pleroma/lib/pleroma/web/activity_pub/object_validators/*_validator.ex`
 - Shared Ecto types + fixes: `../pleroma/lib/pleroma/ecto_type/activity_pub/object_validators/*`
 
-### Target design (Redux)
+### Target design (Egregoros)
 - Keep activity ownership: **each activity module remains the only file you edit** to add/modify that activity.
 - Add a single new “parsing entry point” per activity module:
   - `cast_and_validate/1` → returns `{:ok, normalized_activity_map}` or `{:error, %Ecto.Changeset{}}`
@@ -202,10 +202,10 @@ Goal: move from ad‑hoc `normalize/validate` pattern matching toward **Pleroma�
 
 ### Key decisions to make explicitly (before code moves)
 1) **ID strictness (ObjectIDs)**
-   - Pleroma‑old’s `ObjectID` requires `http/https` + host. Redux should likely be more permissive to avoid DNS‑lock (e.g. allow `did:`, `ap:`, `urn:` and future DHT‑style IDs).
+   - Pleroma‑old’s `ObjectID` requires `http/https` + host. Egregoros should likely be more permissive to avoid DNS‑lock (e.g. allow `did:`, `ap:`, `urn:` and future DHT‑style IDs).
    - Recommendation: start with “non‑empty string” (optionally parseable URI) and evolve strictness behind a mockable boundary.
 2) **Preserve unknown keys**
-   - Pleroma‑old discards unknown keys during casting; Redux currently preserves most keys in `object.data`.
+   - Pleroma‑old discards unknown keys during casting; Egregoros currently preserves most keys in `object.data`.
    - Recommendation: keep the raw payload and overlay normalized canonical fields (e.g. normalized `"actor"`), so we don’t lose extensions/unknown fields while still enforcing the core schema.
 3) **Embedded objects in activities**
    - `Create` and `Announce` commonly carry embedded objects.
@@ -254,7 +254,7 @@ Goal: move from ad‑hoc `normalize/validate` pattern matching toward **Pleroma�
    - Standardize validation errors (HTTP 400 + machine‑readable reason for APIs; structured logs for federation).
 
 ### Testing plan (fixtures + unit tests)
-- Keep `test/egregoros/compat/pleroma_old_fixtures_test.exs` as the “real‑world smoke suite”.
+- Keep `test/egregoros/compat/upstream_fixtures_test.exs` as the “real‑world smoke suite”.
 - Add per‑type changeset tests that:
   - cover normalization (inline actor objects, nested `"id"` shapes),
   - assert *minimal* required fields (TDD‑friendly; tighten later as features demand),
@@ -266,7 +266,7 @@ Goal: move from ad‑hoc `normalize/validate` pattern matching toward **Pleroma�
 - Enforce a strict `normalize → validate` contract to avoid drift between modules.
 - Standardize error shapes for pipeline/validation failures.
 
-## Source audit (Pleroma → Pleroma‑Redux)
+## Source audit (Pleroma → Egregoros)
 **Keep/port (core behavior, simplified implementation)**
 - ActivityPub pipeline shape and validation: `../pleroma/lib/pleroma/web/activity_pub/pipeline.ex`, `../pleroma/lib/pleroma/web/activity_pub/object_validator.ex`, `../pleroma/lib/pleroma/web/activity_pub/object_validators/*`
 - Containment + fetch/sign: `../pleroma/lib/pleroma/object/containment.ex`, `../pleroma/lib/pleroma/object/fetcher.ex`, `../pleroma/lib/pleroma/signature/api.ex`, `../pleroma/lib/pleroma/http_signatures_api.ex`

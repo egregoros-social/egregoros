@@ -14,7 +14,7 @@ defmodule Egregoros.Federation.ActorTest do
     expect(Egregoros.HTTP.Mock, :get, fn url, headers ->
       assert url == actor_url
       assert {"accept", "application/activity+json, application/ld+json"} in headers
-      assert {"user-agent", "pleroma-redux"} in headers
+      assert {"user-agent", "egregoros"} in headers
 
       {:ok,
        %{

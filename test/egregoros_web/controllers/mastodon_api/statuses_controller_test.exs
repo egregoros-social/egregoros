@@ -640,7 +640,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusesControllerTest do
   end
 
   defp tmp_upload_path do
-    path = Path.join(System.tmp_dir!(), "pleroma-redux-test-upload-#{Ecto.UUID.generate()}")
+    path = Path.join(System.tmp_dir!(), "egregoros-test-upload-#{Ecto.UUID.generate()}")
     File.write!(path, <<0, 1, 2, 3>>)
     path
   end
@@ -674,9 +674,10 @@ defmodule EgregorosWeb.MastodonAPI.StatusesControllerTest do
     assert Enum.at(response, 0)["username"] == "bob"
   end
 
-  test "GET /api/v1/statuses/:id/favourited_by does not expose direct statuses to non-recipients", %{
-    conn: conn
-  } do
+  test "GET /api/v1/statuses/:id/favourited_by does not expose direct statuses to non-recipients",
+       %{
+         conn: conn
+       } do
     {:ok, alice} = Users.create_local_user("alice")
     {:ok, bob} = Users.create_local_user("bob")
 
@@ -731,9 +732,10 @@ defmodule EgregorosWeb.MastodonAPI.StatusesControllerTest do
     assert Enum.at(response, 0)["username"] == "bob"
   end
 
-  test "GET /api/v1/statuses/:id/reblogged_by does not expose direct statuses to non-recipients", %{
-    conn: conn
-  } do
+  test "GET /api/v1/statuses/:id/reblogged_by does not expose direct statuses to non-recipients",
+       %{
+         conn: conn
+       } do
     {:ok, alice} = Users.create_local_user("alice")
     {:ok, bob} = Users.create_local_user("bob")
 

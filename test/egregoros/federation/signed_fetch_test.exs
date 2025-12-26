@@ -14,7 +14,7 @@ defmodule Egregoros.Federation.SignedFetchTest do
     expect(Egregoros.HTTP.Mock, :get, fn fetched_url, headers ->
       assert fetched_url == url
       assert {"accept", "application/activity+json, application/ld+json"} in headers
-      assert {"user-agent", "pleroma-redux"} in headers
+      assert {"user-agent", "egregoros"} in headers
       assert {"host", "remote.example"} in headers
 
       assert {"date", _date} = List.keyfind(headers, "date", 0)

@@ -1,6 +1,6 @@
 # LiveView Frontend Plan (World‑Class UI)
 
-This is a **Phoenix LiveView + Tailwind v4** UI plan for Pleroma‑Redux. It focuses on: (1) making the app feel premium, (2) closing feature gaps (e.g. attachments), and (3) setting up a maintainable component architecture so future features don’t degrade UX.
+This is a **Phoenix LiveView + Tailwind v4** UI plan for Egregoros. It focuses on: (1) making the app feel premium, (2) closing feature gaps (e.g. attachments), and (3) setting up a maintainable component architecture so future features don’t degrade UX.
 
 ## Current pain points (observed)
 - **Missing core features:** no attachment posting, limited compose options, incomplete parity with implemented backend capabilities.
@@ -11,7 +11,7 @@ This is a **Phoenix LiveView + Tailwind v4** UI plan for Pleroma‑Redux. It foc
 - **Mobile and accessibility undefined:** keyboard navigation, focus handling, screen reader semantics, responsive layout.
 
 ## Target UX (definition of “world‑class”)
-**A world‑class Pleroma‑Redux UI should:**
+**A world‑class Egregoros UI should:**
 - Feel fast (streaming updates, optimistic UI where safe, no jank).
 - Be coherent (clear navigation, predictable layout, consistent interactions).
 - Be accessible (keyboard‑first, focus visible, semantic markup, good contrast).
@@ -188,4 +188,3 @@ Finish “real app” expectations:
 - Pleroma UI screenshot (provided) as a “spatial” reference for multi‑column layout.
 - Husky/Tusky expectations: attachments and emoji reactions must feel first‑class.
 - Keep design distinctive; avoid cloning Mastodon UI, but match its usability bar.
-

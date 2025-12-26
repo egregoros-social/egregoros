@@ -13,7 +13,7 @@ defmodule Egregoros.Federation.WebFingerTest do
                "https://remote.example/.well-known/webfinger?resource=acct:alice@remote.example"
 
       assert {"accept", "application/jrd+json, application/json"} in headers
-      assert {"user-agent", "pleroma-redux"} in headers
+      assert {"user-agent", "egregoros"} in headers
 
       {:ok,
        %{

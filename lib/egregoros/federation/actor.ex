@@ -94,7 +94,7 @@ defmodule Egregoros.Federation.Actor do
   defp headers do
     [
       {"accept", "application/activity+json, application/ld+json"},
-      {"user-agent", "pleroma-redux"}
+      {"user-agent", "egregoros"}
     ]
   end
 

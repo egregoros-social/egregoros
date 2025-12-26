@@ -235,8 +235,7 @@ defmodule Egregoros.Bench.Seed do
     words = [
       "hello",
       "world",
-      "pleroma",
-      "redux",
+      "egregoros",
       "federation",
       "activitypub",
       "phoenix",

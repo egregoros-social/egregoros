@@ -5,7 +5,7 @@ defmodule Egregoros.Federation.SignedFetch do
   alias Egregoros.Signature.HTTP, as: HTTPSignature
 
   @default_accept "application/activity+json, application/ld+json"
-  @default_user_agent "pleroma-redux"
+  @default_user_agent "egregoros"
   @signed_headers ["(request-target)", "host", "date"]
 
   def get(url, opts \\ []) when is_binary(url) and is_list(opts) do

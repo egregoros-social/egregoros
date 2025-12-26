@@ -1,6 +1,6 @@
 # Frontend Feature Checklist (Mastodon / Pleroma / Twitter‑like)
 
-This is a **web UI** checklist for Pleroma‑Redux. Items are ordered roughly by dependency + what typically matters most for a “daily driver” UI.
+This is a **web UI** checklist for Egregoros. Items are ordered roughly by dependency + what typically matters most for a “daily driver” UI.
 
 ## Legend
 - **DONE**: implemented end‑to‑end in the web UI
