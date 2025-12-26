@@ -25,4 +25,3 @@ defmodule Egregoros.MentionsTest do
     assert Mentions.extract("see https://example.com/@alice") == []
   end
 end
-

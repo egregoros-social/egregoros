@@ -65,8 +65,11 @@ defmodule Egregoros.Pipeline do
     case URI.parse(id) do
       %URI{} = uri ->
         case Domain.from_uri(uri) do
-          domain when is_binary(local_domain) and is_binary(domain) and domain == local_domain -> true
-          _ -> false
+          domain when is_binary(local_domain) and is_binary(domain) and domain == local_domain ->
+            true
+
+          _ ->
+            false
         end
 
       _ ->
