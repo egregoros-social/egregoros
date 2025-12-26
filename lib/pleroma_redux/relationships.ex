@@ -86,6 +86,88 @@ defmodule PleromaRedux.Relationships do
     |> Repo.all()
   end
 
+  def count_by_type_objects(type, object_ap_ids)
+      when is_binary(type) and is_list(object_ap_ids) do
+    object_ap_ids = normalize_ap_ids(object_ap_ids)
+
+    if object_ap_ids == [] do
+      %{}
+    else
+      from(r in Relationship,
+        where: r.type == ^type and r.object in ^object_ap_ids,
+        group_by: r.object,
+        select: {r.object, count(r.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+    end
+  end
+
+  def count_by_type_actors(type, actor_ap_ids)
+      when is_binary(type) and is_list(actor_ap_ids) do
+    actor_ap_ids = normalize_ap_ids(actor_ap_ids)
+
+    if actor_ap_ids == [] do
+      %{}
+    else
+      from(r in Relationship,
+        where: r.type == ^type and r.actor in ^actor_ap_ids,
+        group_by: r.actor,
+        select: {r.actor, count(r.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+    end
+  end
+
+  def count_by_types_objects(types, object_ap_ids) when is_list(types) and is_list(object_ap_ids) do
+    types =
+      types
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    object_ap_ids = normalize_ap_ids(object_ap_ids)
+
+    if types == [] or object_ap_ids == [] do
+      %{}
+    else
+      from(r in Relationship,
+        where: r.type in ^types and r.object in ^object_ap_ids,
+        group_by: [r.object, r.type],
+        select: {r.object, r.type, count(r.id)}
+      )
+      |> Repo.all()
+      |> Enum.reduce(%{}, fn {object, type, count}, acc ->
+        Map.update(acc, object, %{type => count}, &Map.put(&1, type, count))
+      end)
+    end
+  end
+
+  def list_by_types_actor_objects(types, actor_ap_id, object_ap_ids)
+      when is_list(types) and is_binary(actor_ap_id) and is_list(object_ap_ids) do
+    types =
+      types
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    object_ap_ids = normalize_ap_ids(object_ap_ids)
+
+    if types == [] or object_ap_ids == [] do
+      MapSet.new()
+    else
+      from(r in Relationship,
+        where: r.type in ^types and r.actor == ^actor_ap_id and r.object in ^object_ap_ids,
+        select: {r.type, r.object}
+      )
+      |> Repo.all()
+      |> MapSet.new()
+    end
+  end
+
   def count_by_type_object(type, object_ap_id)
       when is_binary(type) and is_binary(object_ap_id) do
     from(r in Relationship, where: r.type == ^type and r.object == ^object_ap_id)
@@ -121,6 +203,40 @@ defmodule PleromaRedux.Relationships do
     |> Repo.all()
   end
 
+  def emoji_reaction_counts_for_objects(object_ap_ids) when is_list(object_ap_ids) do
+    object_ap_ids = normalize_ap_ids(object_ap_ids)
+
+    if object_ap_ids == [] do
+      %{}
+    else
+      from(r in Relationship,
+        where: r.object in ^object_ap_ids and like(r.type, "EmojiReact:%"),
+        group_by: [r.object, r.type],
+        select: {r.object, r.type, count(r.id)}
+      )
+      |> Repo.all()
+      |> Enum.reduce(%{}, fn {object, type, count}, acc ->
+        Map.update(acc, object, %{type => count}, &Map.put(&1, type, count))
+      end)
+    end
+  end
+
+  def emoji_reactions_by_actor_for_objects(actor_ap_id, object_ap_ids)
+      when is_binary(actor_ap_id) and is_list(object_ap_ids) do
+    object_ap_ids = normalize_ap_ids(object_ap_ids)
+
+    if object_ap_ids == [] do
+      MapSet.new()
+    else
+      from(r in Relationship,
+        where: r.actor == ^actor_ap_id and r.object in ^object_ap_ids and like(r.type, "EmojiReact:%"),
+        select: {r.type, r.object}
+      )
+      |> Repo.all()
+      |> MapSet.new()
+    end
+  end
+
   defp maybe_where_max_id(query, max_id) when is_integer(max_id) and max_id > 0 do
     from(r in query, where: r.id < ^max_id)
   end
@@ -134,4 +250,12 @@ defmodule PleromaRedux.Relationships do
   end
 
   defp normalize_limit(_), do: 40
+
+  defp normalize_ap_ids(list) when is_list(list) do
+    list
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
 end

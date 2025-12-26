@@ -113,6 +113,22 @@ defmodule PleromaRedux.Users do
   def get_by_ap_id(nil), do: nil
   def get_by_ap_id(ap_id), do: Repo.get_by(User, ap_id: ap_id)
 
+  def list_by_ap_ids(ap_ids) when is_list(ap_ids) do
+    ap_ids =
+      ap_ids
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    if ap_ids == [] do
+      []
+    else
+      from(u in User, where: u.ap_id in ^ap_ids)
+      |> Repo.all()
+    end
+  end
+
   def get(id) when is_integer(id), do: Repo.get(User, id)
 
   def get(id) when is_binary(id) do

@@ -12,35 +12,127 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
     render_status(object, nil)
   end
 
-  def render_status(%Object{type: "Announce"} = object, current_user) do
-    render_reblog(object, current_user)
-  end
-
   def render_status(%Object{} = object, current_user) do
-    account = account_from_actor(object.actor)
-    render_status_with_account(object, account, current_user)
+    case render_statuses([object], current_user) do
+      [rendered] -> rendered
+      _ -> %{"id" => Integer.to_string(object.id)}
+    end
   end
 
   def render_statuses(objects) when is_list(objects) do
-    Enum.map(objects, &render_status/1)
+    render_statuses(objects, nil)
   end
 
   def render_statuses(objects, current_user) when is_list(objects) do
-    Enum.map(objects, &render_status(&1, current_user))
+    ctx = rendering_context(objects, current_user)
+    Enum.map(objects, &render_status_with_context(&1, ctx))
   end
 
-  defp render_status_with_account(object, account, current_user) do
-    favourites_count = Relationships.count_by_type_object("Like", object.ap_id)
-    reblogs_count = Relationships.count_by_type_object("Announce", object.ap_id)
+  defp rendering_context(objects, current_user) when is_list(objects) do
+    reblog_ap_ids =
+      objects
+      |> Enum.filter(&match?(%Object{type: "Announce"}, &1))
+      |> Enum.map(& &1.object)
+      |> Enum.filter(&is_binary/1)
+      |> Enum.uniq()
+
+    reblogs_by_ap_id =
+      reblog_ap_ids
+      |> Objects.list_by_ap_ids()
+      |> Map.new(&{&1.ap_id, &1})
+
+    all_objects =
+      objects
+      |> Kernel.++(Map.values(reblogs_by_ap_id))
+      |> Enum.uniq_by(& &1.ap_id)
+
+    object_ap_ids =
+      all_objects
+      |> Enum.map(& &1.ap_id)
+      |> Enum.filter(&is_binary/1)
+      |> Enum.uniq()
+
+    actor_ap_ids =
+      all_objects
+      |> Enum.map(& &1.actor)
+      |> Enum.filter(&is_binary/1)
+      |> Enum.uniq()
+
+    users_by_ap_id =
+      actor_ap_ids
+      |> Users.list_by_ap_ids()
+      |> Map.new(&{&1.ap_id, &1})
+
+    followers_counts = Relationships.count_by_type_objects("Follow", actor_ap_ids)
+    following_counts = Relationships.count_by_type_actors("Follow", actor_ap_ids)
+    statuses_counts = Objects.count_notes_by_actors(actor_ap_ids)
+
+    accounts_by_actor =
+      Enum.reduce(users_by_ap_id, %{}, fn {ap_id, user}, acc ->
+        account =
+          AccountRenderer.render_account(user,
+            followers_count: Map.get(followers_counts, ap_id, 0),
+            following_count: Map.get(following_counts, ap_id, 0),
+            statuses_count: Map.get(statuses_counts, ap_id, 0)
+          )
+
+        Map.put(acc, ap_id, account)
+      end)
+
+    status_counts = Relationships.count_by_types_objects(["Like", "Announce"], object_ap_ids)
+
+    me_relationships =
+      case current_user do
+        %User{ap_id: ap_id} when is_binary(ap_id) ->
+          Relationships.list_by_types_actor_objects(["Like", "Announce"], ap_id, object_ap_ids)
+
+        _ ->
+          MapSet.new()
+      end
+
+    emoji_counts = Relationships.emoji_reaction_counts_for_objects(object_ap_ids)
+
+    emoji_me_relationships =
+      case current_user do
+        %User{ap_id: ap_id} when is_binary(ap_id) ->
+          Relationships.emoji_reactions_by_actor_for_objects(ap_id, object_ap_ids)
+
+        _ ->
+          MapSet.new()
+      end
+
+    %{
+      current_user: current_user,
+      reblogs_by_ap_id: reblogs_by_ap_id,
+      accounts_by_actor: accounts_by_actor,
+      status_counts: status_counts,
+      me_relationships: me_relationships,
+      emoji_counts: emoji_counts,
+      emoji_me_relationships: emoji_me_relationships
+    }
+  end
+
+  defp render_status_with_context(%Object{type: "Announce"} = object, ctx) do
+    render_reblog(object, ctx)
+  end
+
+  defp render_status_with_context(%Object{} = object, ctx) do
+    account = account_from_actor(object.actor, ctx)
+    render_status_with_account(object, account, ctx)
+  end
+
+  defp render_status_with_account(object, account, ctx) do
+    counts = Map.get(ctx.status_counts, object.ap_id, %{})
+    favourites_count = Map.get(counts, "Like", 0)
+    reblogs_count = Map.get(counts, "Announce", 0)
 
     favourited =
-      current_user != nil and
-        Relationships.get_by_type_actor_object("Like", current_user.ap_id, object.ap_id) != nil
+      match?(%User{}, ctx.current_user) and
+        MapSet.member?(ctx.me_relationships, {"Like", object.ap_id})
 
     reblogged =
-      current_user != nil and
-        Relationships.get_by_type_actor_object("Announce", current_user.ap_id, object.ap_id) !=
-          nil
+      match?(%User{}, ctx.current_user) and
+        MapSet.member?(ctx.me_relationships, {"Announce", object.ap_id})
 
     {in_reply_to_id, in_reply_to_account_id} = in_reply_to(object)
 
@@ -73,19 +165,19 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
       "card" => nil,
       "language" => language(object),
       "pleroma" => %{
-        "emoji_reactions" => emoji_reactions(object, current_user)
+        "emoji_reactions" => emoji_reactions(object, ctx)
       }
     }
   end
 
-  defp render_reblog(%Object{} = announce, current_user) do
-    account = account_from_actor(announce.actor)
+  defp render_reblog(%Object{} = announce, ctx) do
+    account = account_from_actor(announce.actor, ctx)
 
     reblog =
       case announce.object do
         ap_id when is_binary(ap_id) ->
-          case Objects.get_by_ap_id(ap_id) do
-            %Object{} = object -> render_status(object, current_user)
+          case Map.get(ctx.reblogs_by_ap_id, ap_id) do
+            %Object{} = object -> render_status_with_context(object, ctx)
             _ -> nil
           end
 
@@ -129,21 +221,16 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
     }
   end
 
-  defp account_from_actor(actor) when is_binary(actor) do
-    case Users.get_by_ap_id(actor) do
-      %User{} = user ->
-        AccountRenderer.render_account(user)
-
-      _ ->
-        %{
-          "id" => actor,
-          "username" => fallback_username(actor),
-          "acct" => fallback_username(actor)
-        }
-    end
+  defp account_from_actor(actor, ctx) when is_binary(actor) do
+    Map.get(ctx.accounts_by_actor, actor) ||
+      %{
+        "id" => actor,
+        "username" => fallback_username(actor),
+        "acct" => fallback_username(actor)
+      }
   end
 
-  defp account_from_actor(_),
+  defp account_from_actor(_actor, _ctx),
     do: %{"id" => "unknown", "username" => "unknown", "acct" => "unknown"}
 
   defp fallback_username(actor) do
@@ -344,29 +431,17 @@ defmodule PleromaReduxWeb.MastodonAPI.StatusRenderer do
     end
   end
 
-  defp emoji_reactions(%Object{} = object, %User{} = current_user) do
-    object.ap_id
-    |> Relationships.emoji_reaction_counts()
-    |> Enum.map(fn {type, count} ->
-      emoji = String.replace_prefix(type, "EmojiReact:", "")
-
-      %{
-        "name" => emoji,
-        "count" => count,
-        "me" =>
-          Relationships.get_by_type_actor_object(type, current_user.ap_id, object.ap_id) != nil
-      }
-    end)
-  end
-
-  defp emoji_reactions(%Object{} = object, _current_user) do
-    object.ap_id
-    |> Relationships.emoji_reaction_counts()
+  defp emoji_reactions(%Object{} = object, ctx) do
+    ctx.emoji_counts
+    |> Map.get(object.ap_id, %{})
+    |> Enum.sort_by(fn {type, _count} -> type end)
     |> Enum.map(fn {type, count} ->
       %{
         "name" => String.replace_prefix(type, "EmojiReact:", ""),
         "count" => count,
-        "me" => false
+        "me" =>
+          match?(%User{}, ctx.current_user) and
+            MapSet.member?(ctx.emoji_me_relationships, {type, object.ap_id})
       }
     end)
   end

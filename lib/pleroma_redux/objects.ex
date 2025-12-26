@@ -42,6 +42,22 @@ defmodule PleromaRedux.Objects do
   def get_by_ap_id(nil), do: nil
   def get_by_ap_id(ap_id) when is_binary(ap_id), do: Repo.get_by(Object, ap_id: ap_id)
 
+  def list_by_ap_ids(ap_ids) when is_list(ap_ids) do
+    ap_ids =
+      ap_ids
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    if ap_ids == [] do
+      []
+    else
+      from(o in Object, where: o.ap_id in ^ap_ids)
+      |> Repo.all()
+    end
+  end
+
   def delete_object(%Object{} = object) do
     Repo.delete(object)
   end
@@ -469,6 +485,27 @@ defmodule PleromaRedux.Objects do
   def count_notes_by_actor(actor) when is_binary(actor) do
     from(o in Object, where: o.type == "Note" and o.actor == ^actor)
     |> Repo.aggregate(:count, :id)
+  end
+
+  def count_notes_by_actors(actor_ap_ids) when is_list(actor_ap_ids) do
+    actor_ap_ids =
+      actor_ap_ids
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    if actor_ap_ids == [] do
+      %{}
+    else
+      from(o in Object,
+        where: o.type == "Note" and o.actor in ^actor_ap_ids,
+        group_by: o.actor,
+        select: {o.actor, count(o.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+    end
   end
 
   def count_visible_notes_by_actor(actor, viewer) when is_binary(actor) do

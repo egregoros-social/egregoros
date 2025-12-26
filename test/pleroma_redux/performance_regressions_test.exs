@@ -4,6 +4,7 @@ defmodule PleromaRedux.PerformanceRegressionsTest do
   alias PleromaRedux.Objects
   alias PleromaRedux.Pipeline
   alias PleromaRedux.Users
+  alias PleromaReduxWeb.MastodonAPI.StatusRenderer
 
   defp capture_repo_queries(fun) when is_function(fun, 0) do
     handler_id = {__MODULE__, System.unique_integer([:positive])}
@@ -73,5 +74,60 @@ defmodule PleromaRedux.PerformanceRegressionsTest do
 
     assert length(statuses_queries) == 1
   end
-end
 
+  test "status rendering batches relationship queries" do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+    {:ok, carol} = Users.create_local_user("carol")
+
+    {:ok, note_1} =
+      Objects.create_object(%{
+        ap_id: "https://remote.example/objects/1",
+        type: "Note",
+        actor: bob.ap_id,
+        local: false,
+        data: %{
+          "id" => "https://remote.example/objects/1",
+          "type" => "Note",
+          "actor" => bob.ap_id,
+          "content" => "hello"
+        }
+      })
+
+    {:ok, note_2} =
+      Objects.create_object(%{
+        ap_id: "https://remote.example/objects/2",
+        type: "Note",
+        actor: carol.ap_id,
+        local: false,
+        data: %{
+          "id" => "https://remote.example/objects/2",
+          "type" => "Note",
+          "actor" => carol.ap_id,
+          "content" => "hello"
+        }
+      })
+
+    {:ok, note_3} =
+      Objects.create_object(%{
+        ap_id: "https://remote.example/objects/3",
+        type: "Note",
+        actor: carol.ap_id,
+        local: false,
+        data: %{
+          "id" => "https://remote.example/objects/3",
+          "type" => "Note",
+          "actor" => carol.ap_id,
+          "content" => "hello"
+        }
+      })
+
+    {rendered, queries} =
+      capture_repo_queries(fn -> StatusRenderer.render_statuses([note_1, note_2, note_3], alice) end)
+
+    # Before batching, rendering each status issues multiple per-status count queries (likes, reblogs,
+    # emoji reactions, plus account counts), which scales linearly with the number of statuses.
+    assert length(queries) <= 15
+    assert length(rendered) == 3
+  end
+end
