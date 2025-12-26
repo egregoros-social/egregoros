@@ -85,7 +85,8 @@ defmodule Egregoros.Activities.Create do
 
   defp deliver(create_object) do
     with %User{} = actor <- Users.get_by_ap_id(create_object.actor),
-         inboxes when is_list(inboxes) and inboxes != [] <- inboxes_for_delivery(create_object, actor) do
+         inboxes when is_list(inboxes) and inboxes != [] <-
+           inboxes_for_delivery(create_object, actor) do
       Enum.each(inboxes, fn inbox_url ->
         Delivery.deliver(actor, inbox_url, create_object.data)
       end)
@@ -137,7 +138,7 @@ defmodule Egregoros.Activities.Create do
   defp followers_addressed?(_data, _actor_ap_id), do: false
 
   defp recipient_actor_ids(%{} = data) do
-    (data |> Map.get("to", []) |> List.wrap()) ++ (data |> Map.get("cc", []) |> List.wrap())
+    ((data |> Map.get("to", []) |> List.wrap()) ++ (data |> Map.get("cc", []) |> List.wrap()))
     |> Enum.filter(&is_binary/1)
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == "" or &1 == @as_public or String.ends_with?(&1, "/followers")))

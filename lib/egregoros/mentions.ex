@@ -73,4 +73,3 @@ defmodule Egregoros.Mentions do
 
   defp valid_host?(_), do: false
 end
-
