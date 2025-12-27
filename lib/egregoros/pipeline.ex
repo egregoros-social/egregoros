@@ -1,6 +1,7 @@
 defmodule Egregoros.Pipeline do
   alias Egregoros.ActivityRegistry
   alias Egregoros.Domain
+  alias Egregoros.Federation.ActorDiscovery
   alias EgregorosWeb.Endpoint
 
   def ingest(activity, opts \\ []) when is_map(activity) do
@@ -14,6 +15,7 @@ defmodule Egregoros.Pipeline do
   def ingest_with(module, activity, opts \\ [])
       when is_atom(module) and is_map(activity) and is_list(opts) do
     with {:ok, validated} <- cast_and_validate(module, activity),
+         :ok <- discover_actors(validated, opts),
          {:ok, object} <- module.ingest(validated, opts),
          :ok <- module.side_effects(object, opts) do
       {:ok, object}
@@ -21,6 +23,11 @@ defmodule Egregoros.Pipeline do
       {:error, _} = error -> error
       _ -> {:error, :invalid}
     end
+  end
+
+  defp discover_actors(activity, opts) when is_map(activity) and is_list(opts) do
+    _ = ActorDiscovery.enqueue(activity, opts)
+    :ok
   end
 
   defp cast_and_validate(module, activity) do
