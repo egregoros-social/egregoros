@@ -10,6 +10,7 @@ defmodule Egregoros.Application do
     children = [
       EgregorosWeb.Telemetry,
       Egregoros.Repo,
+      Egregoros.RateLimiter.ETS,
       {Oban, Application.fetch_env!(:egregoros, Oban)},
       {DNSCluster, query: Application.get_env(:egregoros, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Egregoros.PubSub},

@@ -1,6 +1,7 @@
 defmodule EgregorosWeb.InboxController do
   use EgregorosWeb, :controller
 
+  plug EgregorosWeb.Plugs.RateLimitInbox
   plug EgregorosWeb.Plugs.VerifySignature
 
   alias Egregoros.Users

@@ -38,9 +38,12 @@ This file tracks known security gaps and their remediation status.
 - [ ] **Token lifecycle**: token expiry / refresh tokens / revocation endpoint (and tests).
 
 ## Medium priority (inbox abuse controls)
-- [ ] **Inbox addressing checks**: optionally require incoming activities to be addressed to this instance/user (e.g. `to`/`cc` includes followers/shared inbox), to reduce DB pollution.
+- [x] **Inbox addressing checks**: optionally require incoming activities to be addressed to this instance/user (e.g. `to`/`cc` includes followers/shared inbox), to reduce DB pollution.
   - [x] Pass `inbox_user_ap_id` from controller → ingestion pipeline.
   - [x] Enforce `Follow.object == inbox_user_ap_id` for incoming remote follows.
-  - [ ] Enforce inbox targeting / addressing for Create/Note.
-  - [ ] Enforce inbox targeting / addressing for Like/Announce/EmojiReact.
-- [ ] **Rate limiting / throttling**: per-IP/per-actor throttles on inbox and expensive federation fetches.
+  - [x] Enforce inbox targeting / addressing for Create/Note.
+  - [x] Enforce inbox targeting / addressing for Like/Announce/EmojiReact.
+  - [x] Enforce inbox targeting / addressing for Accept/Undo/Delete.
+- [x] **Rate limiting / throttling**: per-IP/per-actor throttles on inbox and expensive federation fetches.
+  - [x] Apply rate limiting to `POST /users/:nickname/inbox` (pre-signature-verification).
+  - [x] Apply rate limiting to outgoing `SignedFetch` requests.

@@ -32,4 +32,20 @@ defmodule Egregoros.Federation.SignedFetchTest do
 
     assert {:ok, %{status: 200, body: %{"ok" => true}}} = SignedFetch.get(url)
   end
+
+  test "signed get returns rate_limited when the rate limiter blocks" do
+    url = "https://remote.example/objects/1-rate-limit"
+
+    expect(Egregoros.RateLimiter.Mock, :allow?, fn :signed_fetch, key, _limit, _interval_ms ->
+      assert is_binary(key)
+      assert String.contains?(key, "remote.example")
+      {:error, :rate_limited}
+    end)
+
+    expect(Egregoros.HTTP.Mock, :get, 0, fn _url, _headers ->
+      flunk("expected signed fetch to be blocked before making an HTTP request")
+    end)
+
+    assert {:error, :rate_limited} = SignedFetch.get(url)
+  end
 end

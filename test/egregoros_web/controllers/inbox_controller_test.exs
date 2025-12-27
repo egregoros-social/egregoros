@@ -64,6 +64,58 @@ defmodule EgregorosWeb.InboxControllerTest do
     assert Objects.get_by_ap_id(note["id"])
   end
 
+  test "POST /users/:nickname/inbox returns 429 when rate limited", %{conn: conn} do
+    {:ok, frank} = Users.create_local_user("frank")
+    {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
+
+    {:ok, _alice} =
+      Users.create_user(%{
+        nickname: "alice",
+        ap_id: "https://remote.example/users/alice",
+        inbox: "https://remote.example/users/alice/inbox",
+        outbox: "https://remote.example/users/alice/outbox",
+        public_key: public_key,
+        private_key: private_key,
+        local: false
+      })
+
+    note = %{
+      "id" => "https://remote.example/objects/1-rate-limit",
+      "type" => "Note",
+      "attributedTo" => "https://remote.example/users/alice",
+      "content" => "Hello from remote"
+    }
+
+    create = %{
+      "id" => "https://remote.example/activities/create/1-rate-limit",
+      "type" => "Create",
+      "actor" => "https://remote.example/users/alice",
+      "object" => note
+    }
+
+    path = "/users/#{frank.nickname}/inbox"
+
+    expect(Egregoros.RateLimiter.Mock, :allow?, fn :inbox, key, _limit, _interval_ms ->
+      assert is_binary(key)
+      assert String.contains?(key, path)
+      {:error, :rate_limited}
+    end)
+
+    conn =
+      conn
+      |> sign_request(
+        "post",
+        path,
+        private_key,
+        "https://remote.example/users/alice#main-key"
+      )
+      |> post(path, create)
+
+    assert response(conn, 429)
+    refute_enqueued(worker: IngestActivity)
+    refute Objects.get_by_ap_id(note["id"])
+  end
+
   test "POST /users/:nickname/inbox discards a Follow not targeting that inbox user", %{
     conn: conn
   } do

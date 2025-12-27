@@ -1,6 +1,8 @@
 defmodule Egregoros.Federation.SignedFetch do
+  alias Egregoros.Domain
   alias Egregoros.Federation.InternalFetchActor
   alias Egregoros.HTTP
+  alias Egregoros.RateLimiter
   alias Egregoros.SafeURL
   alias Egregoros.Signature.HTTP, as: HTTPSignature
 
@@ -13,11 +15,13 @@ defmodule Egregoros.Federation.SignedFetch do
     user_agent = Keyword.get(opts, :user_agent, @default_user_agent)
 
     with :ok <- SafeURL.validate_http_url(url),
+         :ok <- rate_limit(url),
          {:ok, actor} <- InternalFetchActor.get_actor(),
          {:ok, signed} <- HTTPSignature.sign_request(actor, "get", url, "", @signed_headers),
          {:ok, response} <- HTTP.get(url, headers(signed, accept, user_agent)) do
       {:ok, response}
     else
+      {:error, :rate_limited} = error -> error
       {:error, _} = error -> error
       _ -> {:error, :signed_fetch_failed}
     end
@@ -33,5 +37,34 @@ defmodule Egregoros.Federation.SignedFetch do
       {"signature", signed.signature},
       {"authorization", signed.authorization}
     ]
+  end
+
+  defp rate_limit(url) when is_binary(url) do
+    opts = Application.get_env(:egregoros, :rate_limit_signed_fetch, [])
+    limit = opts |> Keyword.get(:limit, 200) |> normalize_limit(200)
+    interval_ms = opts |> Keyword.get(:interval_ms, 10_000) |> normalize_interval_ms(10_000)
+    key = url |> URI.parse() |> Domain.from_uri()
+
+    case key do
+      value when is_binary(value) and value != "" ->
+        RateLimiter.allow?(:signed_fetch, value, limit, interval_ms)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp normalize_limit(value, default) when is_integer(default) and default >= 1 do
+    case value do
+      v when is_integer(v) and v >= 1 -> v
+      _ -> default
+    end
+  end
+
+  defp normalize_interval_ms(value, default) when is_integer(default) and default >= 1 do
+    case value do
+      v when is_integer(v) and v >= 1 -> v
+      _ -> default
+    end
   end
 end
