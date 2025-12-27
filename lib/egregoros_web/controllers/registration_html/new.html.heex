@@ -9,7 +9,7 @@
     <section class="mx-auto max-w-xl rounded-3xl border border-white/80 bg-white/80 p-8 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40">
       <h2 class="font-display text-2xl text-slate-900 dark:text-slate-100">Register</h2>
       <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
-        Create a local account with a nickname, email, and password.
+        Create a local account with a nickname and password. Email is optional.
       </p>
 
       <p :if={@error} class="mt-4 text-sm text-rose-500">{@error}</p>
@@ -27,7 +27,7 @@
         <.input
           type="email"
           field={@form[:email]}
-          label="Email"
+          label="Email (optional)"
           placeholder="alice@example.com"
         />
 

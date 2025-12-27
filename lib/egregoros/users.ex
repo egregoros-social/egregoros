@@ -42,15 +42,15 @@ defmodule Egregoros.Users do
 
   def register_local_user(attrs) when is_map(attrs) do
     nickname = attrs |> Map.get(:nickname, "") |> to_string() |> String.trim()
-    email = attrs |> Map.get(:email, "") |> to_string() |> String.trim()
+    email =
+      attrs
+      |> Map.get(:email, nil)
+      |> normalize_optional_string()
     password = attrs |> Map.get(:password, "") |> to_string()
 
     cond do
       nickname == "" ->
         {:error, :invalid_nickname}
-
-      email == "" ->
-        {:error, :invalid_email}
 
       password == "" ->
         {:error, :invalid_password}
@@ -183,19 +183,21 @@ defmodule Egregoros.Users do
     Repo.get_by(User, email: String.trim(email))
   end
 
-  def authenticate_local_user(email, password)
-      when is_binary(email) and is_binary(password) do
-    email = String.trim(email)
+  def authenticate_local_user(nickname, password)
+      when is_binary(nickname) and is_binary(password) do
+    nickname = String.trim(nickname)
 
-    with %User{local: true, password_hash: hash} when is_binary(hash) <- get_by_email(email),
+    with %User{local: true, password_hash: hash} when is_binary(hash) <- get_by_nickname(nickname),
          true <- Password.verify(password, hash) do
-      {:ok, get_by_email(email)}
+      {:ok, get_by_nickname(nickname)}
     else
       _ -> {:error, :unauthorized}
     end
   end
 
   def update_profile(%User{} = user, attrs) when is_map(attrs) do
+    attrs = normalize_optional_email(attrs)
+
     user
     |> User.changeset(attrs)
     |> Repo.update()
@@ -245,6 +247,28 @@ defmodule Egregoros.Users do
   end
 
   defp normalize_limit(_), do: 20
+
+  defp normalize_optional_email(%{} = attrs) do
+    case Map.fetch(attrs, "email") do
+      {:ok, value} ->
+        Map.put(attrs, "email", normalize_optional_string(value))
+
+      :error ->
+        case Map.fetch(attrs, :email) do
+          {:ok, value} -> Map.put(attrs, :email, normalize_optional_string(value))
+          :error -> attrs
+        end
+    end
+  end
+
+  defp normalize_optional_email(attrs), do: attrs
+
+  defp normalize_optional_string(nil), do: nil
+
+  defp normalize_optional_string(value) do
+    value = value |> to_string() |> String.trim()
+    if value == "", do: nil, else: value
+  end
 
   def search_mentions(query, opts \\ [])
 

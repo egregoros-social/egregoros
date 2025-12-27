@@ -7,7 +7,7 @@ defmodule EgregorosWeb.SessionController do
     return_to = params |> Map.get("return_to", "") |> to_string()
 
     form =
-      Phoenix.Component.to_form(%{"email" => "", "password" => "", "return_to" => return_to},
+      Phoenix.Component.to_form(%{"nickname" => "", "password" => "", "return_to" => return_to},
         as: :session
       )
 
@@ -15,16 +15,17 @@ defmodule EgregorosWeb.SessionController do
   end
 
   def create(conn, %{"session" => %{} = params}) do
-    email = params |> Map.get("email", "") |> to_string() |> String.trim()
+    nickname = params |> Map.get("nickname", "") |> to_string() |> String.trim()
     password = params |> Map.get("password", "") |> to_string()
     return_to = params |> Map.get("return_to", "") |> to_string()
 
     form =
-      Phoenix.Component.to_form(%{"email" => email, "password" => "", "return_to" => return_to},
+      Phoenix.Component.to_form(
+        %{"nickname" => nickname, "password" => "", "return_to" => return_to},
         as: :session
       )
 
-    case Users.authenticate_local_user(email, password) do
+    case Users.authenticate_local_user(nickname, password) do
       {:ok, user} ->
         redirect_to = safe_return_to(return_to) || ~p"/"
 
@@ -35,7 +36,7 @@ defmodule EgregorosWeb.SessionController do
       {:error, _} ->
         conn
         |> put_status(:unauthorized)
-        |> render(:new, form: form, error: "Invalid email or password.")
+        |> render(:new, form: form, error: "Invalid nickname or password.")
     end
   end
 

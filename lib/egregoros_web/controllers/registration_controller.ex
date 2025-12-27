@@ -18,7 +18,15 @@ defmodule EgregorosWeb.RegistrationController do
 
   def create(conn, %{"registration" => %{} = params}) do
     nickname = params |> Map.get("nickname", "") |> to_string() |> String.trim()
-    email = params |> Map.get("email", "") |> to_string() |> String.trim()
+    email =
+      params
+      |> Map.get("email", "")
+      |> to_string()
+      |> String.trim()
+      |> case do
+        "" -> nil
+        value -> value
+      end
     password = params |> Map.get("password", "") |> to_string()
     return_to = params |> Map.get("return_to", "") |> to_string()
 
@@ -26,7 +34,7 @@ defmodule EgregorosWeb.RegistrationController do
       Phoenix.Component.to_form(
         %{
           "nickname" => nickname,
-          "email" => email,
+          "email" => email || "",
           "password" => "",
           "return_to" => return_to
         },
@@ -37,16 +45,13 @@ defmodule EgregorosWeb.RegistrationController do
       nickname == "" ->
         render(conn, :new, form: form, error: "Nickname can't be empty.")
 
-      email == "" ->
-        render(conn, :new, form: form, error: "Email can't be empty.")
-
       password == "" ->
         render(conn, :new, form: form, error: "Password can't be empty.")
 
       Users.get_by_nickname(nickname) ->
         render(conn, :new, form: form, error: "Nickname is already registered.")
 
-      Users.get_by_email(email) ->
+      is_binary(email) and Users.get_by_email(email) ->
         render(conn, :new, form: form, error: "Email is already registered.")
 
       true ->
@@ -57,9 +62,6 @@ defmodule EgregorosWeb.RegistrationController do
             conn
             |> put_session(:user_id, user.id)
             |> redirect(to: redirect_to)
-
-          {:error, :invalid_email} ->
-            render(conn, :new, form: form, error: "Email is invalid.")
 
           {:error, :invalid_password} ->
             render(conn, :new, form: form, error: "Password is invalid.")

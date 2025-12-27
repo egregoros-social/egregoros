@@ -16,14 +16,14 @@ defmodule EgregorosWeb.SessionControllerTest do
       apply(Users, :register_local_user, [
         %{
           nickname: "alice",
-          email: "alice@example.com",
+          email: "",
           password: "very secure password"
         }
       ])
 
     conn =
       post(conn, "/login", %{
-        "session" => %{"email" => "alice@example.com", "password" => "very secure password"}
+        "session" => %{"nickname" => "alice", "password" => "very secure password"}
       })
 
     assert redirected_to(conn) == "/"
@@ -35,7 +35,7 @@ defmodule EgregorosWeb.SessionControllerTest do
       apply(Users, :register_local_user, [
         %{
           nickname: "alice",
-          email: "alice@example.com",
+          email: "",
           password: "very secure password"
         }
       ])
@@ -43,7 +43,7 @@ defmodule EgregorosWeb.SessionControllerTest do
     conn =
       post(conn, "/login", %{
         "session" => %{
-          "email" => "alice@example.com",
+          "nickname" => "alice",
           "password" => "very secure password",
           "return_to" => "/settings"
         }
@@ -58,17 +58,17 @@ defmodule EgregorosWeb.SessionControllerTest do
       apply(Users, :register_local_user, [
         %{
           nickname: "alice",
-          email: "alice@example.com",
+          email: "",
           password: "very secure password"
         }
       ])
 
     conn =
       post(conn, "/login", %{
-        "session" => %{"email" => "alice@example.com", "password" => "wrong password"}
+        "session" => %{"nickname" => "alice", "password" => "wrong password"}
       })
 
-    assert html_response(conn, 401) =~ "Invalid email or password"
+    assert html_response(conn, 401) =~ "Invalid nickname or password"
     assert get_session(conn, :user_id) == nil
   end
 

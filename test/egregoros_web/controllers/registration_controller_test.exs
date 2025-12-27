@@ -16,7 +16,7 @@ defmodule EgregorosWeb.RegistrationControllerTest do
       post(conn, "/register", %{
         "registration" => %{
           "nickname" => "alice",
-          "email" => "alice@example.com",
+          "email" => "",
           "password" => "very secure password"
         }
       })
@@ -25,7 +25,7 @@ defmodule EgregorosWeb.RegistrationControllerTest do
     assert is_integer(get_session(conn, :user_id))
 
     assert user = Users.get_by_nickname("alice")
-    assert user.email == "alice@example.com"
+    assert user.email == nil
     assert is_binary(user.password_hash)
   end
 
@@ -34,7 +34,7 @@ defmodule EgregorosWeb.RegistrationControllerTest do
       post(conn, "/register", %{
         "registration" => %{
           "nickname" => "alice",
-          "email" => "alice@example.com",
+          "email" => "",
           "password" => "very secure password",
           "return_to" => "/settings"
         }

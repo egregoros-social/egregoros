@@ -90,7 +90,7 @@ defmodule EgregorosWeb.SettingsControllerTest do
     assert updated.banner_url == "/uploads/banners/#{user.id}/banner.png"
   end
 
-  test "POST /settings/account updates email and allows logging in with the new email", %{
+  test "POST /settings/account updates email and keeps nickname login working", %{
     conn: conn
   } do
     {:ok, user} =
@@ -114,7 +114,7 @@ defmodule EgregorosWeb.SettingsControllerTest do
     conn =
       Phoenix.ConnTest.build_conn()
       |> post("/login", %{
-        "session" => %{"email" => "alice2@example.com", "password" => "very secure password"}
+        "session" => %{"nickname" => "alice", "password" => "very secure password"}
       })
 
     assert redirected_to(conn) == "/"
@@ -146,7 +146,7 @@ defmodule EgregorosWeb.SettingsControllerTest do
     conn =
       Phoenix.ConnTest.build_conn()
       |> post("/login", %{
-        "session" => %{"email" => "alice@example.com", "password" => "even more secure password"}
+        "session" => %{"nickname" => "alice", "password" => "even more secure password"}
       })
 
     assert redirected_to(conn) == "/"
