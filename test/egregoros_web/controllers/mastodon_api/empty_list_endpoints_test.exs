@@ -26,4 +26,8 @@ defmodule EgregorosWeb.MastodonAPI.EmptyListEndpointsTest do
       assert conn |> get(path) |> json_response(200) == []
     end)
   end
+
+  test "directory returns [] without auth", %{conn: conn} do
+    assert conn |> get("/api/v1/directory") |> json_response(200) == []
+  end
 end

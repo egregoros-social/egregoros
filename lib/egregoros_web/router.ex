@@ -103,6 +103,7 @@ defmodule EgregorosWeb.Router do
     get "/users/:nickname/followers", FollowCollectionController, :followers
     get "/users/:nickname/following", FollowCollectionController, :following
     get "/objects/:uuid", ObjectController, :show
+    get "/poco", PocoController, :index
     get "/.well-known/webfinger", WebFingerController, :webfinger
     get "/.well-known/nodeinfo", NodeinfoController, :nodeinfo_index
     get "/nodeinfo/2.0.json", NodeinfoController, :nodeinfo
@@ -173,6 +174,7 @@ defmodule EgregorosWeb.Router do
     get "/instance/peers", InstanceController, :peers
     get "/custom_emojis", CustomEmojisController, :index
     get "/timelines/public", TimelinesController, :public
+    get "/directory", EmptyListController, :index
     get "/accounts/lookup", AccountsController, :lookup
     get "/accounts/:id", AccountsController, :show
     get "/accounts/:id/statuses", AccountsController, :statuses
