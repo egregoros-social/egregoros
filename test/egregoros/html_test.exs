@@ -1,7 +1,12 @@
 defmodule Egregoros.HTMLTest do
   use ExUnit.Case, async: true
 
+  import Mox
+
   alias Egregoros.HTML
+
+  setup :set_mox_from_context
+  setup :verify_on_exit!
 
   describe "sanitize/1" do
     test "removes script tags" do
@@ -201,6 +206,26 @@ defmodule Egregoros.HTMLTest do
 
       refute scrubbed =~ "javascript:"
       refute scrubbed =~ "alert(1)"
+    end
+
+    test "falls back to escaping when scrub fails" do
+      Egregoros.HTML.Sanitizer.Mock
+      |> expect(:scrub, fn _html, _scrubber -> {:error, :boom} end)
+
+      scrubbed =
+        HTML.sanitize("<p>ok</p><script>alert(1)</script>", Egregoros.HTML.Sanitizer.Mock)
+
+      assert scrubbed =~ "&lt;p&gt;ok&lt;/p&gt;"
+      refute scrubbed =~ "<script"
+    end
+
+    test "falls back to escaping when scrub raises" do
+      Egregoros.HTML.Sanitizer.Mock
+      |> expect(:scrub, fn _html, _scrubber -> raise "boom" end)
+
+      scrubbed = HTML.sanitize("<p>ok</p>", Egregoros.HTML.Sanitizer.Mock)
+
+      assert scrubbed =~ "&lt;p&gt;ok&lt;/p&gt;"
     end
   end
 

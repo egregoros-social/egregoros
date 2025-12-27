@@ -14,11 +14,31 @@ defmodule Egregoros.HTML do
   def sanitize(nil), do: ""
 
   def sanitize(html) when is_binary(html) do
-    {:ok, content} = FastSanitize.Sanitizer.scrub(html, @default_scrubber)
-    String.replace(content, "&amp;", "&")
+    sanitize(html, FastSanitize.Sanitizer)
   end
 
   def sanitize(_), do: ""
+
+  def sanitize(html, sanitizer) when is_binary(html) and is_atom(sanitizer) do
+    result =
+      try do
+        sanitizer.scrub(html, @default_scrubber)
+      rescue
+        _ -> {:error, :scrub_failed}
+      catch
+        kind, reason -> {:error, {kind, reason}}
+      end
+
+    content =
+      case result do
+        {:ok, scrubbed} -> IO.iodata_to_binary(scrubbed)
+        _ -> escape_html(html)
+      end
+
+    String.replace(content, "&amp;", "&")
+  end
+
+  def sanitize(_, _), do: ""
 
   def to_safe_html(content, opts \\ [])
 
@@ -389,6 +409,14 @@ defmodule Egregoros.HTML do
   end
 
   defp safe_img_url?(_url), do: false
+
+  defp escape_html(text) when is_binary(text) do
+    text
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+  end
+
+  defp escape_html(_text), do: ""
 
   defp valid_hashtag?(tag) when is_binary(tag) do
     Regex.match?(~r/^[\p{L}\p{N}_][\p{L}\p{N}_-]{0,63}$/u, tag)
