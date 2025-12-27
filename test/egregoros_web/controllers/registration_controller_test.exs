@@ -9,6 +9,7 @@ defmodule EgregorosWeb.RegistrationControllerTest do
     assert html =~ "Register"
     assert html =~ ~s(data-role="app-shell")
     assert html =~ ~s(data-role="nav-register")
+    assert html =~ ~s(data-role="passkey-register-button")
   end
 
   test "POST /register creates user and sets session", %{conn: conn} do

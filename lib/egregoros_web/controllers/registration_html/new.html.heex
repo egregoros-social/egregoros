@@ -9,7 +9,7 @@
     <section class="mx-auto max-w-xl rounded-3xl border border-white/80 bg-white/80 p-8 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70 dark:shadow-slate-900/40">
       <h2 class="font-display text-2xl text-slate-900 dark:text-slate-100">Register</h2>
       <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
-        Create a local account with a nickname and password. Email is optional.
+        Create a local account with a nickname. Use a password or a passkey. Email is optional.
       </p>
 
       <p :if={@error} class="mt-4 text-sm text-rose-500">{@error}</p>
@@ -39,6 +39,31 @@
         />
 
         <.button type="submit" class="w-full">Create account</.button>
+
+        <div class="relative py-2">
+          <div class="absolute inset-0 flex items-center" aria-hidden="true">
+            <div class="w-full border-t border-slate-200 dark:border-slate-700"></div>
+          </div>
+          <div class="relative flex justify-center">
+            <span class="bg-white/80 px-3 text-xs font-semibold uppercase tracking-[0.25em] text-slate-500 dark:bg-slate-900/70 dark:text-slate-400">
+              Or
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          data-role="passkey-register-button"
+          class="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+        >
+          <span class="hero-key size-5 text-violet-600 dark:text-violet-400"></span>
+          Create with passkey
+        </button>
+
+        <p
+          data-role="passkey-register-feedback"
+          class="hidden text-sm text-slate-600 dark:text-slate-300"
+        ></p>
       </.form>
 
       <p class="mt-6 text-sm text-slate-600 dark:text-slate-300">

@@ -9,6 +9,7 @@ defmodule EgregorosWeb.SessionControllerTest do
     assert html =~ "Login"
     assert html =~ ~s(data-role="app-shell")
     assert html =~ ~s(data-role="nav-login")
+    assert html =~ ~s(data-role="passkey-login-button")
   end
 
   test "POST /login sets session for valid credentials", %{conn: conn} do

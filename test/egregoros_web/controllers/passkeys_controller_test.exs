@@ -53,7 +53,45 @@ defmodule EgregorosWeb.PasskeysControllerTest do
     assert {:ok, _user} = authenticate_with_passkey(conn, user, credential, priv)
   end
 
-  defp authenticate_with_passkey(conn, user, credential, priv) do
+  test "passkey registration respects return_to", %{conn: conn} do
+    csrf_token = Phoenix.Controller.get_csrf_token()
+
+    conn =
+      post(conn, "/passkeys/registration/options", %{
+        "_csrf_token" => csrf_token,
+        "nickname" => "bob",
+        "email" => "",
+        "return_to" => "/settings"
+      })
+
+    assert %{"publicKey" => public_key} = json_response(conn, 200)
+
+    {pub, priv} = :crypto.generate_key(:ecdh, :prime256v1)
+    cred_id = :crypto.strong_rand_bytes(16)
+
+    payload =
+      build_attestation_payload(
+        public_key["challenge"],
+        public_key["rp"]["id"],
+        expected_origin(),
+        cred_id,
+        pub
+      )
+
+    conn =
+      conn
+      |> recycle()
+      |> post("/passkeys/registration/finish", Map.put(payload, "_csrf_token", csrf_token))
+
+    assert %{"redirect_to" => "/settings"} = json_response(conn, 201)
+
+    assert user = Users.get_by_nickname("bob")
+    [credential] = Passkeys.list_credentials(user)
+
+    assert {:ok, _user} = authenticate_with_passkey(conn, user, credential, priv, return_to: "/settings")
+  end
+
+  defp authenticate_with_passkey(conn, user, credential, priv, opts \\ []) do
     csrf_token = Phoenix.Controller.get_csrf_token()
 
     conn =
@@ -61,7 +99,8 @@ defmodule EgregorosWeb.PasskeysControllerTest do
       |> recycle()
       |> post("/passkeys/authentication/options", %{
         "_csrf_token" => csrf_token,
-        "nickname" => user.nickname
+        "nickname" => user.nickname,
+        "return_to" => Keyword.get(opts, :return_to, "")
       })
 
     assert %{"publicKey" => public_key} = json_response(conn, 200)
@@ -82,7 +121,8 @@ defmodule EgregorosWeb.PasskeysControllerTest do
       |> recycle()
       |> post("/passkeys/authentication/finish", Map.put(assertion_payload, "_csrf_token", csrf_token))
 
-    assert %{"redirect_to" => "/"} = json_response(conn, 200)
+    expected_return_to = Keyword.get(opts, :return_to, "/")
+    assert %{"redirect_to" => ^expected_return_to} = json_response(conn, 200)
     assert get_session(conn, :user_id) == user.id
     {:ok, user}
   end

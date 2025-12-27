@@ -808,6 +808,18 @@ const base64UrlEncode = bytes => {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
 }
 
+const base64UrlDecode = value => {
+  if (typeof value !== "string" || value.length === 0) return new Uint8Array(0)
+
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/")
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=")
+  const binary = atob(padded)
+
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
 const utf8Bytes = value => new TextEncoder().encode(value)
 
 const randomBytes = len => {
@@ -815,6 +827,8 @@ const randomBytes = len => {
   crypto.getRandomValues(out)
   return out
 }
+
+const parseJsonBody = async response => response.json().catch(() => ({}))
 
 const setE2EEFeedback = (section, message, variant) => {
   const feedback = section.querySelector("[data-role='e2ee-feedback']")
@@ -838,6 +852,300 @@ const setE2EEFeedback = (section, message, variant) => {
     feedback.classList.add("text-slate-600", "dark:text-slate-300")
   } else {
     feedback.classList.add("text-rose-600", "dark:text-rose-400")
+  }
+}
+
+const setPasskeyFeedback = (feedback, message, variant) => {
+  if (!feedback) return
+  feedback.textContent = message
+  feedback.classList.remove("hidden")
+
+  feedback.classList.remove(
+    "text-rose-600",
+    "dark:text-rose-400",
+    "text-emerald-700",
+    "dark:text-emerald-300",
+    "text-slate-600",
+    "dark:text-slate-300"
+  )
+
+  if (variant === "success") {
+    feedback.classList.add("text-emerald-700", "dark:text-emerald-300")
+  } else if (variant === "info") {
+    feedback.classList.add("text-slate-600", "dark:text-slate-300")
+  } else {
+    feedback.classList.add("text-rose-600", "dark:text-rose-400")
+  }
+}
+
+const passkeysSupported = () =>
+  !!(window.PublicKeyCredential && navigator.credentials?.create && navigator.credentials?.get)
+
+const registerWithPasskey = async (form, button, feedback) => {
+  if (!passkeysSupported()) {
+    setPasskeyFeedback(feedback, "Passkeys (WebAuthn) are not supported in this browser.", "error")
+    return
+  }
+
+  if (!window.isSecureContext) {
+    setPasskeyFeedback(feedback, "Passkeys require HTTPS (secure context).", "error")
+    return
+  }
+
+  const nicknameInput = form.querySelector("input[name='registration[nickname]']")
+  const emailInput = form.querySelector("input[name='registration[email]']")
+  const returnToInput = form.querySelector("input[name='registration[return_to]']")
+
+  const nickname = nicknameInput?.value?.trim() || ""
+  const email = emailInput?.value?.trim() || ""
+  const returnTo = returnToInput?.value || ""
+
+  if (!nickname) {
+    setPasskeyFeedback(feedback, "Nickname can't be empty.", "error")
+    nicknameInput?.focus?.()
+    return
+  }
+
+  button.disabled = true
+  setPasskeyFeedback(feedback, "Creating passkey…", "info")
+
+  let optionsResponse
+  try {
+    optionsResponse = await fetch("/passkeys/registration/options", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "x-csrf-token": csrfToken,
+      },
+      body: JSON.stringify({nickname, email, return_to: returnTo}),
+    })
+  } catch (error) {
+    console.error("passkey registration options failed", error)
+    setPasskeyFeedback(feedback, "Could not start passkey registration (network error).", "error")
+    button.disabled = false
+    return
+  }
+
+  if (!optionsResponse.ok) {
+    const body = await parseJsonBody(optionsResponse)
+    const message =
+      body?.error === "nickname_taken"
+        ? "Nickname is already registered."
+        : body?.error === "email_taken"
+          ? "Email is already registered."
+          : "Could not start passkey registration."
+
+    setPasskeyFeedback(feedback, message, "error")
+    button.disabled = false
+    return
+  }
+
+  const optionsBody = await parseJsonBody(optionsResponse)
+  const publicKey = optionsBody?.publicKey
+
+  if (!publicKey?.challenge || !publicKey?.user?.id) {
+    setPasskeyFeedback(feedback, "Passkey registration failed (invalid server response).", "error")
+    button.disabled = false
+    return
+  }
+
+  const creationOptions = {
+    ...publicKey,
+    challenge: base64UrlDecode(publicKey.challenge),
+    user: {...publicKey.user, id: base64UrlDecode(publicKey.user.id)},
+  }
+
+  let created
+  try {
+    created = await navigator.credentials.create({publicKey: creationOptions})
+  } catch (error) {
+    console.error("passkey create failed", error)
+    setPasskeyFeedback(feedback, "Could not create a passkey (cancelled or unsupported).", "error")
+    button.disabled = false
+    return
+  }
+
+  const credential = {
+    id: base64UrlEncode(new Uint8Array(created.rawId)),
+    rawId: base64UrlEncode(new Uint8Array(created.rawId)),
+    type: created.type,
+    response: {
+      attestationObject: base64UrlEncode(new Uint8Array(created.response.attestationObject)),
+      clientDataJSON: base64UrlEncode(new Uint8Array(created.response.clientDataJSON)),
+    },
+  }
+
+  let finishResponse
+  try {
+    finishResponse = await fetch("/passkeys/registration/finish", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "x-csrf-token": csrfToken,
+      },
+      body: JSON.stringify({credential}),
+    })
+  } catch (error) {
+    console.error("passkey registration finish failed", error)
+    setPasskeyFeedback(feedback, "Could not finish passkey registration (network error).", "error")
+    button.disabled = false
+    return
+  }
+
+  if (!finishResponse.ok) {
+    const body = await parseJsonBody(finishResponse)
+    console.error("passkey registration finish response", finishResponse.status, body)
+    setPasskeyFeedback(feedback, "Could not finish passkey registration.", "error")
+    button.disabled = false
+    return
+  }
+
+  const finishBody = await parseJsonBody(finishResponse)
+  window.location.assign(finishBody?.redirect_to || "/")
+}
+
+const loginWithPasskey = async (form, button, feedback) => {
+  if (!passkeysSupported()) {
+    setPasskeyFeedback(feedback, "Passkeys (WebAuthn) are not supported in this browser.", "error")
+    return
+  }
+
+  if (!window.isSecureContext) {
+    setPasskeyFeedback(feedback, "Passkeys require HTTPS (secure context).", "error")
+    return
+  }
+
+  const nicknameInput = form.querySelector("input[name='session[nickname]']")
+  const returnToInput = form.querySelector("input[name='session[return_to]']")
+
+  const nickname = nicknameInput?.value?.trim() || ""
+  const returnTo = returnToInput?.value || ""
+
+  if (!nickname) {
+    setPasskeyFeedback(feedback, "Nickname can't be empty.", "error")
+    nicknameInput?.focus?.()
+    return
+  }
+
+  button.disabled = true
+  setPasskeyFeedback(feedback, "Waiting for passkey…", "info")
+
+  let optionsResponse
+  try {
+    optionsResponse = await fetch("/passkeys/authentication/options", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "x-csrf-token": csrfToken,
+      },
+      body: JSON.stringify({nickname, return_to: returnTo}),
+    })
+  } catch (error) {
+    console.error("passkey authentication options failed", error)
+    setPasskeyFeedback(feedback, "Could not start passkey login (network error).", "error")
+    button.disabled = false
+    return
+  }
+
+  if (!optionsResponse.ok) {
+    setPasskeyFeedback(feedback, "No passkey credentials found for this nickname.", "error")
+    button.disabled = false
+    return
+  }
+
+  const optionsBody = await parseJsonBody(optionsResponse)
+  const publicKey = optionsBody?.publicKey
+
+  if (!publicKey?.challenge || !publicKey?.rpId) {
+    setPasskeyFeedback(feedback, "Passkey login failed (invalid server response).", "error")
+    button.disabled = false
+    return
+  }
+
+  const allowCredentials = Array.isArray(publicKey.allowCredentials) ? publicKey.allowCredentials : []
+
+  const assertionOptions = {
+    ...publicKey,
+    challenge: base64UrlDecode(publicKey.challenge),
+    allowCredentials: allowCredentials.map(entry => ({
+      ...entry,
+      id: base64UrlDecode(entry.id),
+    })),
+  }
+
+  let assertion
+  try {
+    assertion = await navigator.credentials.get({publicKey: assertionOptions})
+  } catch (error) {
+    console.error("passkey get failed", error)
+    setPasskeyFeedback(feedback, "Could not use the passkey (cancelled or unsupported).", "error")
+    button.disabled = false
+    return
+  }
+
+  const credential = {
+    id: base64UrlEncode(new Uint8Array(assertion.rawId)),
+    rawId: base64UrlEncode(new Uint8Array(assertion.rawId)),
+    type: assertion.type,
+    response: {
+      authenticatorData: base64UrlEncode(new Uint8Array(assertion.response.authenticatorData)),
+      clientDataJSON: base64UrlEncode(new Uint8Array(assertion.response.clientDataJSON)),
+      signature: base64UrlEncode(new Uint8Array(assertion.response.signature)),
+    },
+  }
+
+  let finishResponse
+  try {
+    finishResponse = await fetch("/passkeys/authentication/finish", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "x-csrf-token": csrfToken,
+      },
+      body: JSON.stringify({credential}),
+    })
+  } catch (error) {
+    console.error("passkey login finish failed", error)
+    setPasskeyFeedback(feedback, "Could not finish passkey login (network error).", "error")
+    button.disabled = false
+    return
+  }
+
+  if (!finishResponse.ok) {
+    setPasskeyFeedback(feedback, "Passkey login failed.", "error")
+    button.disabled = false
+    return
+  }
+
+  const finishBody = await parseJsonBody(finishResponse)
+  window.location.assign(finishBody?.redirect_to || "/")
+}
+
+const initPasskeyAuth = () => {
+  const registerButton = document.querySelector("[data-role='passkey-register-button']")
+  if (registerButton && registerButton.dataset.passkeyInit !== "true") {
+    registerButton.dataset.passkeyInit = "true"
+    const form = registerButton.closest("form")
+    const feedback = form?.querySelector("[data-role='passkey-register-feedback']")
+    registerButton.addEventListener("click", () => form && registerWithPasskey(form, registerButton, feedback))
+  }
+
+  const loginButton = document.querySelector("[data-role='passkey-login-button']")
+  if (loginButton && loginButton.dataset.passkeyInit !== "true") {
+    loginButton.dataset.passkeyInit = "true"
+    const form = loginButton.closest("form") || document.querySelector("form#login-form")
+    const feedback =
+      form?.querySelector("[data-role='passkey-login-feedback']") ||
+      document.querySelector("[data-role='passkey-login-feedback']")
+    loginButton.addEventListener("click", () => form && loginWithPasskey(form, loginButton, feedback))
   }
 }
 
@@ -1091,6 +1399,8 @@ const liveSocket = new LiveSocket("/live", Socket, {
 
 document.addEventListener("DOMContentLoaded", initE2EESettings)
 window.addEventListener("phx:page-loading-stop", initE2EESettings)
+document.addEventListener("DOMContentLoaded", initPasskeyAuth)
+window.addEventListener("phx:page-loading-stop", initPasskeyAuth)
 
 window.addEventListener("egregoros:scroll-top", () => {
   window.scrollTo({top: 0, behavior: "smooth"})

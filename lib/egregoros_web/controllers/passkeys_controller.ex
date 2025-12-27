@@ -10,6 +10,7 @@ defmodule EgregorosWeb.PasskeysController do
 
   def registration_options(conn, params) do
     nickname = params |> Map.get("nickname", "") |> to_string() |> String.trim()
+    return_to = params |> Map.get("return_to", "") |> to_string()
 
     email =
       params
@@ -44,6 +45,7 @@ defmodule EgregorosWeb.PasskeysController do
         |> put_session(:passkey_reg_challenge, options["challenge"])
         |> put_session(:passkey_reg_nickname, nickname)
         |> put_session(:passkey_reg_email, email)
+        |> put_session(:passkey_reg_return_to, return_to)
         |> json(%{"publicKey" => options})
     end
   end
@@ -52,6 +54,7 @@ defmodule EgregorosWeb.PasskeysController do
     challenge = get_session(conn, :passkey_reg_challenge)
     nickname = get_session(conn, :passkey_reg_nickname)
     email = get_session(conn, :passkey_reg_email)
+    return_to = get_session(conn, :passkey_reg_return_to)
 
     with true <- is_binary(challenge) and challenge != "",
          true <- is_binary(nickname) and nickname != "",
@@ -65,11 +68,13 @@ defmodule EgregorosWeb.PasskeysController do
              public_key: public_key,
              sign_count: sign_count
            }) do
+      redirect_to = safe_return_to(return_to) || "/"
+
       conn
       |> clear_passkey_registration_session()
       |> put_session(:user_id, user.id)
       |> put_status(:created)
-      |> json(%{"redirect_to" => "/"})
+      |> json(%{"redirect_to" => redirect_to})
     else
       _ ->
         conn
@@ -82,6 +87,7 @@ defmodule EgregorosWeb.PasskeysController do
 
   def authentication_options(conn, params) do
     nickname = params |> Map.get("nickname", "") |> to_string() |> String.trim()
+    return_to = params |> Map.get("return_to", "") |> to_string()
 
     with %User{} = user <- Users.get_by_nickname(nickname),
          credentials when is_list(credentials) and credentials != [] <- Passkeys.list_credentials(user) do
@@ -91,6 +97,7 @@ defmodule EgregorosWeb.PasskeysController do
       conn
       |> put_session(:passkey_auth_challenge, options["challenge"])
       |> put_session(:passkey_auth_user_id, user.id)
+      |> put_session(:passkey_auth_return_to, return_to)
       |> json(%{"publicKey" => options})
     else
       _ ->
@@ -101,6 +108,7 @@ defmodule EgregorosWeb.PasskeysController do
   def authentication_finish(conn, %{"credential" => %{} = credential}) do
     challenge = get_session(conn, :passkey_auth_challenge)
     user_id = get_session(conn, :passkey_auth_user_id)
+    return_to = get_session(conn, :passkey_auth_return_to)
 
     with true <- is_binary(challenge) and challenge != "",
          %User{} = user <- Users.get(user_id),
@@ -115,10 +123,12 @@ defmodule EgregorosWeb.PasskeysController do
              sign_count: merged_sign_count(stored.sign_count, sign_count),
              last_used_at: DateTime.utc_now()
            }) do
+      redirect_to = safe_return_to(return_to) || "/"
+
       conn
       |> clear_passkey_authentication_session()
       |> put_session(:user_id, user.id)
-      |> json(%{"redirect_to" => "/"})
+      |> json(%{"redirect_to" => redirect_to})
     else
       _ ->
         conn
@@ -160,12 +170,14 @@ defmodule EgregorosWeb.PasskeysController do
     |> delete_session(:passkey_reg_challenge)
     |> delete_session(:passkey_reg_nickname)
     |> delete_session(:passkey_reg_email)
+    |> delete_session(:passkey_reg_return_to)
   end
 
   defp clear_passkey_authentication_session(conn) do
     conn
     |> delete_session(:passkey_auth_challenge)
     |> delete_session(:passkey_auth_user_id)
+    |> delete_session(:passkey_auth_return_to)
   end
 
   defp register_user_with_credential(%{} = attrs) do
@@ -192,4 +204,21 @@ defmodule EgregorosWeb.PasskeysController do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp safe_return_to(return_to) when is_binary(return_to) do
+    return_to = String.trim(return_to)
+
+    cond do
+      return_to == "" ->
+        nil
+
+      String.starts_with?(return_to, "/") and not String.starts_with?(return_to, "//") ->
+        return_to
+
+      true ->
+        nil
+    end
+  end
+
+  defp safe_return_to(_return_to), do: nil
 end

@@ -34,6 +34,33 @@
         <.button type="submit" class="w-full">Sign in</.button>
       </.form>
 
+      <div class="mt-6 space-y-3">
+        <div class="relative py-1">
+          <div class="absolute inset-0 flex items-center" aria-hidden="true">
+            <div class="w-full border-t border-slate-200 dark:border-slate-700"></div>
+          </div>
+          <div class="relative flex justify-center">
+            <span class="bg-white/80 px-3 text-xs font-semibold uppercase tracking-[0.25em] text-slate-500 dark:bg-slate-900/70 dark:text-slate-400">
+              Or
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          data-role="passkey-login-button"
+          class="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+        >
+          <span class="hero-key size-5 text-violet-600 dark:text-violet-400"></span>
+          Sign in with passkey
+        </button>
+
+        <p
+          data-role="passkey-login-feedback"
+          class="hidden text-sm text-slate-600 dark:text-slate-300"
+        ></p>
+      </div>
+
       <p class="mt-6 text-sm text-slate-600 dark:text-slate-300">
         New here?
         <a href={~p"/register"} class="font-semibold text-slate-900 underline dark:text-slate-100">
