@@ -152,6 +152,7 @@ defmodule Egregoros.PublishTest do
     assert {:ok, create} = Publish.post_note(alice, "hi @lain@lain.com")
 
     assert %{} = note = Objects.get_by_ap_id(create.object)
+    assert note.data["content"] =~ "href=\"#{remote.ap_id}\""
     assert remote.ap_id in List.wrap(note.data["cc"])
 
     assert Enum.any?(List.wrap(note.data["tag"]), fn

@@ -2,6 +2,7 @@ defmodule Egregoros.Publish do
   alias Egregoros.Activities.Create
   alias Egregoros.Activities.Note
   alias Egregoros.Domain
+  alias Egregoros.HTML
   alias Egregoros.Federation.Actor
   alias Egregoros.Federation.WebFinger
   alias Egregoros.Objects
@@ -45,9 +46,22 @@ defmodule Egregoros.Publish do
         mention_recipient_ids = Enum.map(mentions, & &1.ap_id)
         mention_tags = Enum.map(mentions, &mention_tag/1)
 
+        mention_hrefs =
+          mentions
+          |> Enum.reduce(%{}, fn
+            %{nickname: nickname, host: host, ap_id: ap_id}, acc
+            when is_binary(nickname) and is_binary(ap_id) ->
+              Map.put(acc, {nickname, host}, ap_id)
+
+            _other, acc ->
+              acc
+          end)
+
+        content_html = HTML.to_safe_html(content, format: :text, mention_hrefs: mention_hrefs)
+
         note =
           user
-          |> Note.build(content)
+          |> Note.build(content_html)
           |> maybe_put_attachments(attachments)
           |> maybe_put_in_reply_to(in_reply_to)
           |> maybe_put_visibility(visibility, user.ap_id, mention_recipient_ids)

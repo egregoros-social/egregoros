@@ -25,6 +25,7 @@ defmodule Egregoros.HTML do
   def to_safe_html(content, opts) when is_binary(content) do
     format = Keyword.get(opts, :format, :html)
     emojis = Keyword.get(opts, :emojis, [])
+    mention_hrefs = Keyword.get(opts, :mention_hrefs, %{})
     emoji_map = emoji_map(emojis)
     trimmed = String.trim(content)
 
@@ -34,7 +35,7 @@ defmodule Egregoros.HTML do
 
       format == :text ->
         trimmed
-        |> text_to_html(emoji_map)
+        |> text_to_html(emoji_map, mention_hrefs)
         |> sanitize()
 
       format == :html and looks_like_html?(trimmed) ->
@@ -44,7 +45,7 @@ defmodule Egregoros.HTML do
 
       true ->
         trimmed
-        |> text_to_html(emoji_map)
+        |> text_to_html(emoji_map, mention_hrefs)
         |> sanitize()
     end
   end
@@ -55,7 +56,8 @@ defmodule Egregoros.HTML do
     String.contains?(content, "<") and String.contains?(content, ">")
   end
 
-  defp text_to_html(text, emoji_map) when is_binary(text) and is_map(emoji_map) do
+  defp text_to_html(text, emoji_map, mention_hrefs)
+       when is_binary(text) and is_map(emoji_map) and is_map(mention_hrefs) do
     text =
       text
       |> String.replace("\r\n", "\n")
@@ -63,7 +65,11 @@ defmodule Egregoros.HTML do
 
     text = html_unescape(text)
 
-    "<p>" <> linkify_text(text, emoji_map) <> "</p>"
+    "<p>" <> linkify_text(text, emoji_map, mention_hrefs) <> "</p>"
+  end
+
+  defp text_to_html(text, emoji_map, _mention_hrefs) when is_binary(text) and is_map(emoji_map) do
+    text_to_html(text, emoji_map, %{})
   end
 
   @emoji_shortcode_regex ~r/:[A-Za-z0-9_+-]{1,64}:/
@@ -113,28 +119,39 @@ defmodule Egregoros.HTML do
     end)
   end
 
-  defp linkify_text(text, emoji_map) when is_binary(text) and is_map(emoji_map) do
+  defp linkify_text(text, emoji_map, mention_hrefs)
+       when is_binary(text) and is_map(emoji_map) and is_map(mention_hrefs) do
     Regex.split(~r/(\n)/, text, include_captures: true, trim: false)
     |> Enum.map_join("", fn
       "\n" -> "<br>"
-      segment -> linkify_segment(segment, emoji_map)
+      segment -> linkify_segment(segment, emoji_map, mention_hrefs)
     end)
   end
 
-  defp linkify_segment(segment, emoji_map) when is_binary(segment) and is_map(emoji_map) do
+  defp linkify_text(text, emoji_map, _mention_hrefs) when is_binary(text) and is_map(emoji_map) do
+    linkify_text(text, emoji_map, %{})
+  end
+
+  defp linkify_segment(segment, emoji_map, mention_hrefs)
+       when is_binary(segment) and is_map(emoji_map) and is_map(mention_hrefs) do
     Regex.split(~r/(\s+)/, segment, include_captures: true, trim: false)
     |> Enum.map_join("", fn token ->
       token
-      |> linkify_token(emoji_map)
+      |> linkify_token(emoji_map, mention_hrefs)
       |> IO.iodata_to_binary()
     end)
+  end
+
+  defp linkify_segment(segment, emoji_map, _mention_hrefs) when is_binary(segment) and is_map(emoji_map) do
+    linkify_segment(segment, emoji_map, %{})
   end
 
   @mention_trailing ".,!?;:)]},"
 
   @inline_link_regex ~r/(^|[\s\(\[\{\<"'.,!?;:])((?:https?:\/\/[^\s]+)|(?:@[A-Za-z0-9][A-Za-z0-9_.-]{0,63}(?:@[A-Za-z0-9.-]+(?::\d{1,5})?)?)|(?:#[\p{L}\p{N}_][\p{L}\p{N}_-]{0,63}))/u
 
-  defp linkify_token(token, emoji_map) when is_binary(token) and is_map(emoji_map) do
+  defp linkify_token(token, emoji_map, mention_hrefs)
+       when is_binary(token) and is_map(emoji_map) and is_map(mention_hrefs) do
     token = to_string(token)
 
     cond do
@@ -142,11 +159,16 @@ defmodule Egregoros.HTML do
         ""
 
       true ->
-        linkify_inline(token, emoji_map)
+        linkify_inline(token, emoji_map, mention_hrefs)
     end
   end
 
-  defp linkify_inline(token, emoji_map) when is_binary(token) and is_map(emoji_map) do
+  defp linkify_token(token, emoji_map, _mention_hrefs) when is_binary(token) and is_map(emoji_map) do
+    linkify_token(token, emoji_map, %{})
+  end
+
+  defp linkify_inline(token, emoji_map, mention_hrefs)
+       when is_binary(token) and is_map(emoji_map) and is_map(mention_hrefs) do
     matches = Regex.scan(@inline_link_regex, token, return: :index)
 
     case matches do
@@ -160,7 +182,7 @@ defmodule Egregoros.HTML do
               prefix = String.slice(token, last_pos, start - last_pos)
               match = String.slice(token, start, len)
 
-              acc = [acc, emojify_token(prefix, emoji_map), linkify_match(match)]
+              acc = [acc, emojify_token(prefix, emoji_map), linkify_match(match, mention_hrefs)]
               {acc, start + len}
 
             _other, {acc, last_pos} ->
@@ -172,12 +194,16 @@ defmodule Egregoros.HTML do
     end
   end
 
-  defp linkify_inline(token, _emoji_map), do: escape(token)
+  defp linkify_inline(token, emoji_map, _mention_hrefs) when is_binary(token) and is_map(emoji_map) do
+    linkify_inline(token, emoji_map, %{})
+  end
 
-  defp linkify_match(match) when is_binary(match) do
+  defp linkify_inline(token, _emoji_map, _mention_hrefs), do: escape(token)
+
+  defp linkify_match(match, mention_hrefs) when is_binary(match) and is_map(mention_hrefs) do
     cond do
       String.starts_with?(match, "@") ->
-        linkify_prefixed(match, &mention_href/1)
+        linkify_prefixed(match, &mention_href(&1, mention_hrefs))
 
       String.starts_with?(match, "#") ->
         linkify_prefixed(match, &hashtag_href/1)
@@ -190,7 +216,8 @@ defmodule Egregoros.HTML do
     end
   end
 
-  defp linkify_match(match), do: escape(match)
+  defp linkify_match(match, _mention_hrefs) when is_binary(match), do: linkify_match(match, %{})
+  defp linkify_match(match, _mention_hrefs), do: escape(match)
 
   defp linkify_prefixed(token, href_fun) when is_binary(token) and is_function(href_fun, 1) do
     {core, trailing} = split_trailing_punctuation(token, @mention_trailing)
@@ -242,16 +269,48 @@ defmodule Egregoros.HTML do
     {core, trailing}
   end
 
-  defp mention_href("@" <> rest) when is_binary(rest) and rest != "" do
+  defp mention_href("@" <> rest, mention_hrefs)
+       when is_binary(rest) and rest != "" and is_map(mention_hrefs) do
     with {:ok, nickname, host} <- Egregoros.Mentions.parse(rest),
-         href when is_binary(href) <- mention_profile_href(nickname, host) do
+         host <- normalize_mention_host(host),
+         {:ok, href} <- mention_href_for(nickname, host, mention_hrefs) do
       {:ok, href}
-    else
-      _ -> :error
     end
   end
 
-  defp mention_href(_token), do: :error
+  defp mention_href(_token, _mention_hrefs), do: :error
+
+  defp mention_href_for(nickname, host, mention_hrefs)
+       when is_binary(nickname) and is_map(mention_hrefs) do
+    key = {nickname, host}
+
+    case Map.get(mention_hrefs, key) do
+      href when is_binary(href) and href != "" ->
+        {:ok, href}
+
+      _ ->
+        case mention_profile_href(nickname, host) do
+          href when is_binary(href) and href != "" -> {:ok, href}
+          _ -> :error
+        end
+    end
+  end
+
+  defp mention_href_for(_nickname, _host, _mention_hrefs), do: :error
+
+  defp normalize_mention_host(nil), do: nil
+
+  defp normalize_mention_host(host) when is_binary(host) do
+    host
+    |> String.trim()
+    |> String.downcase()
+    |> case do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp normalize_mention_host(_host), do: nil
 
   defp hashtag_href("#" <> rest) when is_binary(rest) and rest != "" do
     tag = rest
