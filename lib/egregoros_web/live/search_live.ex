@@ -709,14 +709,23 @@ defmodule EgregorosWeb.SearchLive do
 
     case Objects.get(post_id) do
       %{type: "Note"} = object ->
-        entry = StatusVM.decorate(object, current_user)
+        if Objects.visible_to?(object, current_user) do
+          entry = StatusVM.decorate(object, current_user)
 
-        assign(socket,
-          post_results:
-            Enum.map(socket.assigns.post_results, fn current ->
-              if current.object.id == post_id, do: entry, else: current
-            end)
-        )
+          assign(socket,
+            post_results:
+              Enum.map(socket.assigns.post_results, fn current ->
+                if current.object.id == post_id, do: entry, else: current
+              end)
+          )
+        else
+          assign(socket,
+            post_results:
+              Enum.reject(socket.assigns.post_results, fn current ->
+                current.object.id == post_id
+              end)
+          )
+        end
 
       _ ->
         socket

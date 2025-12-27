@@ -80,6 +80,31 @@ defmodule EgregorosWeb.TimelineLiveTest do
     assert has_element?(view, "article", "Secret DM")
   end
 
+  test "refresh helpers do not leak DMs via arbitrary toggle events", %{conn: conn, user: user} do
+    {:ok, bob} = Users.create_local_user("bob")
+    {:ok, _charlie} = Users.create_local_user("charlie")
+    {:ok, create} = Publish.post_note(bob, "@charlie really-secret-lv-leak-check", visibility: "direct")
+    dm_note = Objects.get_by_ap_id(create.object)
+    assert dm_note
+
+    {:ok, public_create} = Publish.post_note(bob, "A public post", visibility: "public")
+    public_note = Objects.get_by_ap_id(public_create.object)
+    assert public_note
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "#compose-open-button")
+    refute has_element?(view, "#post-#{dm_note.id}")
+    refute has_element?(view, "#post-#{public_note.id}")
+
+    _html = render_click(view, "toggle_like", %{"id" => public_note.id})
+    assert has_element?(view, "#post-#{public_note.id}")
+
+    _html = render_click(view, "toggle_like", %{"id" => dm_note.id})
+    refute has_element?(view, "#post-#{dm_note.id}")
+  end
+
   test "theme toggle buttons are labeled for accessibility", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/")
 

@@ -291,7 +291,11 @@ defmodule EgregorosWeb.BookmarksLive do
 
     case Objects.get(post_id) do
       %{type: "Note"} = object ->
-        stream_insert(socket, :saved_posts, StatusVM.decorate(object, current_user))
+        if Objects.visible_to?(object, current_user) do
+          stream_insert(socket, :saved_posts, StatusVM.decorate(object, current_user))
+        else
+          stream_delete(socket, :saved_posts, %{object: %{id: post_id}})
+        end
 
       _ ->
         socket
@@ -303,10 +307,14 @@ defmodule EgregorosWeb.BookmarksLive do
 
     case Objects.get(post_id) do
       %{type: "Note"} = object ->
-        entry = StatusVM.decorate(object, current_user)
+        if Objects.visible_to?(object, current_user) do
+          entry = StatusVM.decorate(object, current_user)
 
-        if entry.liked? do
-          stream_insert(socket, :saved_posts, entry)
+          if entry.liked? do
+            stream_insert(socket, :saved_posts, entry)
+          else
+            stream_delete(socket, :saved_posts, %{object: %{id: post_id}})
+          end
         else
           stream_delete(socket, :saved_posts, %{object: %{id: post_id}})
         end

@@ -795,7 +795,11 @@ defmodule EgregorosWeb.ProfileLive do
 
     case Objects.get(post_id) do
       %{type: "Note"} = object ->
-        stream_insert(socket, :posts, StatusVM.decorate(object, current_user))
+        if Objects.visible_to?(object, current_user) do
+          stream_insert(socket, :posts, StatusVM.decorate(object, current_user))
+        else
+          stream_delete(socket, :posts, %{object: %{id: post_id}})
+        end
 
       _ ->
         socket
