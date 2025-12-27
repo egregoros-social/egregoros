@@ -3,12 +3,15 @@ defmodule Egregoros.OAuth.Token do
 
   import Ecto.Changeset
 
-  @required_fields ~w(token user_id application_id)a
-  @optional_fields ~w(scopes revoked_at)a
+  @required_fields ~w(token refresh_token user_id application_id)a
+  @optional_fields ~w(scopes expires_at refresh_expires_at revoked_at)a
 
   schema "oauth_tokens" do
     field :token, :string
+    field :refresh_token, :string
     field :scopes, :string, default: ""
+    field :expires_at, :utc_datetime_usec
+    field :refresh_expires_at, :utc_datetime_usec
     field :revoked_at, :utc_datetime_usec
 
     belongs_to :user, Egregoros.User
@@ -22,6 +25,8 @@ defmodule Egregoros.OAuth.Token do
     |> cast(attrs, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
     |> validate_length(:token, min: 10, max: 255)
+    |> validate_length(:refresh_token, min: 10, max: 255)
     |> unique_constraint(:token)
+    |> unique_constraint(:refresh_token)
   end
 end

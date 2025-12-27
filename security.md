@@ -35,7 +35,7 @@ This file tracks known security gaps and their remediation status.
 
 ## Medium priority (authz)
 - [x] **Enforce OAuth scopes** for Mastodon API endpoints (coarse `read`/`write`/`follow`).
-- [ ] **Token lifecycle**: token expiry / refresh tokens / revocation endpoint (and tests).
+- [x] **Token lifecycle**: token expiry / refresh tokens / revocation endpoint (and tests).
 
 ## Medium priority (inbox abuse controls)
 - [x] **Inbox addressing checks**: optionally require incoming activities to be addressed to this instance/user (e.g. `to`/`cc` includes followers/shared inbox), to reduce DB pollution.

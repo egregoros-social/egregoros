@@ -29,17 +29,47 @@ defmodule EgregorosWeb.OAuthController do
 
     case OAuth.exchange_code_for_token(params) do
       {:ok, token} ->
+        expires_in =
+          case token.expires_at do
+            %DateTime{} = expires_at ->
+              max(DateTime.diff(expires_at, DateTime.utc_now(), :second), 0)
+
+            _ ->
+              nil
+          end
+
         json(conn, %{
           "access_token" => token.token,
+          "refresh_token" => token.refresh_token,
           "token_type" => "Bearer",
           "scope" => token.scopes,
-          "created_at" => DateTime.to_unix(token.inserted_at)
+          "created_at" => DateTime.to_unix(token.inserted_at),
+          "expires_in" => expires_in
         })
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
         |> json(%{"error" => to_string(reason)})
+    end
+  end
+
+  def revoke(conn, params) do
+    params = stringify_keys(params)
+
+    case OAuth.revoke_token(params) do
+      :ok ->
+        send_resp(conn, 200, "")
+
+      {:error, :invalid_client} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{"error" => "invalid_client"})
+
+      {:error, _reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{"error" => "invalid_request"})
     end
   end
 

@@ -9,6 +9,8 @@ defmodule Egregoros.OAuth do
   alias Egregoros.User
 
   @default_code_ttl_seconds 600
+  @default_access_token_ttl_seconds 7_200
+  @default_refresh_token_ttl_seconds 31_536_000
 
   def create_application(attrs) when is_map(attrs) do
     now = DateTime.utc_now()
@@ -100,8 +102,34 @@ defmodule Egregoros.OAuth do
          true <- auth_code.application_id == application.id,
          true <- auth_code.redirect_uri == redirect_uri,
          true <- DateTime.compare(auth_code.expires_at, DateTime.utc_now()) == :gt,
-         {:ok, %Token{} = token} <- create_token(application, auth_code) do
+         {:ok, %Token{} = token} <- create_token(application, auth_code.user_id, auth_code.scopes) do
       _ = Repo.delete(auth_code)
+      {:ok, token}
+    else
+      nil -> {:error, :invalid_client}
+      false -> {:error, :invalid_grant}
+      {:error, _} = error -> error
+      _ -> {:error, :invalid_grant}
+    end
+  end
+
+  def exchange_code_for_token(%{
+        "grant_type" => "refresh_token",
+        "refresh_token" => refresh_token,
+        "client_id" => client_id,
+        "client_secret" => client_secret
+      } = params)
+      when is_binary(refresh_token) and is_binary(client_id) and is_binary(client_secret) do
+    refresh_token = String.trim(refresh_token)
+
+    with %OAuthApplication{} = application <- get_application_by_client_id(client_id),
+         true <- Plug.Crypto.secure_compare(application.client_secret, client_secret),
+         %Token{} = old_token <- get_token_by_refresh_token(refresh_token),
+         true <- old_token.application_id == application.id,
+         true <- refresh_token_active?(old_token),
+         {:ok, scopes} <- refresh_scopes(params, old_token, application),
+         {:ok, %Token{} = token} <- create_token(application, old_token.user_id, scopes) do
+      _ = revoke_token_record(old_token)
       {:ok, token}
     else
       nil -> {:error, :invalid_client}
@@ -125,23 +153,141 @@ defmodule Egregoros.OAuth do
   def get_token(nil), do: nil
 
   def get_token(token) when is_binary(token) do
+    now = DateTime.utc_now()
+
     from(t in Token,
-      where: t.token == ^token and is_nil(t.revoked_at),
+      where:
+        t.token == ^token and is_nil(t.revoked_at) and (is_nil(t.expires_at) or t.expires_at > ^now),
       join: u in assoc(t, :user),
       preload: [user: u]
     )
     |> Repo.one()
   end
 
-  defp create_token(%OAuthApplication{} = application, %AuthorizationCode{} = auth_code) do
+  def revoke_token(%{
+        "token" => token,
+        "client_id" => client_id,
+        "client_secret" => client_secret
+      })
+      when is_binary(token) and is_binary(client_id) and is_binary(client_secret) do
+    token = String.trim(token)
+
+    with %OAuthApplication{} = application <- get_application_by_client_id(client_id),
+         true <- Plug.Crypto.secure_compare(application.client_secret, client_secret) do
+      _ = revoke_token_record_for_token(application.id, token)
+      :ok
+    else
+      nil -> {:error, :invalid_client}
+      false -> {:error, :invalid_client}
+      _ -> {:error, :invalid_client}
+    end
+  end
+
+  def revoke_token(_params), do: {:error, :invalid_request}
+
+  defp create_token(%OAuthApplication{} = application, user_id, scopes)
+       when is_integer(user_id) and user_id > 0 and is_binary(scopes) do
+    now = DateTime.utc_now()
+    ttl_seconds = access_token_ttl_seconds()
+    refresh_ttl_seconds = refresh_token_ttl_seconds()
+
+    expires_at =
+      case ttl_seconds do
+        seconds when is_integer(seconds) and seconds >= 1 -> DateTime.add(now, seconds, :second)
+        _ -> nil
+      end
+
+    refresh_expires_at =
+      case refresh_ttl_seconds do
+        seconds when is_integer(seconds) and seconds >= 1 ->
+          DateTime.add(now, seconds, :second)
+
+        _ ->
+          nil
+      end
+
     %Token{}
     |> Token.changeset(%{
       token: generate_token(48),
-      scopes: auth_code.scopes,
-      user_id: auth_code.user_id,
-      application_id: application.id
+      refresh_token: generate_token(48),
+      scopes: scopes,
+      user_id: user_id,
+      application_id: application.id,
+      expires_at: expires_at,
+      refresh_expires_at: refresh_expires_at
     })
     |> Repo.insert()
+  end
+
+  defp get_token_by_refresh_token(refresh_token) when is_binary(refresh_token) do
+    now = DateTime.utc_now()
+
+    from(t in Token,
+      where:
+        t.refresh_token == ^refresh_token and is_nil(t.revoked_at) and
+          (is_nil(t.refresh_expires_at) or t.refresh_expires_at > ^now)
+    )
+    |> Repo.one()
+  end
+
+  defp get_token_by_refresh_token(_refresh_token), do: nil
+
+  defp refresh_token_active?(%Token{refresh_expires_at: nil}), do: true
+
+  defp refresh_token_active?(%Token{refresh_expires_at: %DateTime{} = expires_at}) do
+    DateTime.compare(expires_at, DateTime.utc_now()) == :gt
+  end
+
+  defp refresh_token_active?(_), do: false
+
+  defp refresh_scopes(params, %Token{} = old_token, %OAuthApplication{} = application) do
+    case Map.get(params, "scope") do
+      scope when is_binary(scope) and scope != "" ->
+        scope = String.trim(scope)
+
+        cond do
+          not Scopes.subset?(scope, old_token.scopes) ->
+            {:error, :invalid_scope}
+
+          not Scopes.subset?(scope, application.scopes) ->
+            {:error, :invalid_scope}
+
+          true ->
+            {:ok, scope}
+        end
+
+      _ ->
+        {:ok, old_token.scopes}
+    end
+  end
+
+  defp revoke_token_record(%Token{} = token) do
+    Token.changeset(token, %{revoked_at: DateTime.utc_now()})
+    |> Repo.update()
+  end
+
+  defp revoke_token_record(_token), do: :ok
+
+  defp revoke_token_record_for_token(application_id, token)
+       when is_integer(application_id) and application_id > 0 and is_binary(token) do
+    now = DateTime.utc_now()
+
+    from(t in Token,
+      where:
+        t.application_id == ^application_id and is_nil(t.revoked_at) and
+          (t.token == ^token or t.refresh_token == ^token)
+    )
+    |> Repo.update_all(set: [revoked_at: now])
+  end
+
+  defp revoke_token_record_for_token(_application_id, _token), do: :ok
+
+  defp access_token_ttl_seconds do
+    Application.get_env(:egregoros, :oauth_access_token_ttl_seconds, @default_access_token_ttl_seconds)
+  end
+
+  defp refresh_token_ttl_seconds do
+    Application.get_env(:egregoros, :oauth_refresh_token_ttl_seconds, @default_refresh_token_ttl_seconds)
   end
 
   defp parse_redirect_uris(nil), do: []

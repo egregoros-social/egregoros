@@ -96,6 +96,7 @@ defmodule EgregorosWeb.Router do
     pipe_through :api
 
     post "/oauth/token", OAuthController, :token
+    post "/oauth/revoke", OAuthController, :revoke
     get "/users/:nickname", ActorController, :show
     post "/users/:nickname/inbox", InboxController, :inbox
     get "/users/:nickname/outbox", OutboxController, :outbox
