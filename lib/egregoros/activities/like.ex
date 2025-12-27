@@ -7,6 +7,7 @@ defmodule Egregoros.Activities.Like do
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.Federation.Delivery
+  alias Egregoros.InboxTargeting
   alias Egregoros.Notifications
   alias Egregoros.Object
   alias Egregoros.Objects
@@ -81,9 +82,11 @@ defmodule Egregoros.Activities.Like do
   end
 
   def ingest(activity, opts) do
-    activity
-    |> to_object_attrs(opts)
-    |> Objects.upsert_object()
+    with :ok <- validate_inbox_target(activity, opts) do
+      activity
+      |> to_object_attrs(opts)
+      |> Objects.upsert_object()
+    end
   end
 
   def side_effects(object, opts) do
@@ -105,6 +108,25 @@ defmodule Egregoros.Activities.Like do
 
     :ok
   end
+
+  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+    InboxTargeting.validate(opts, fn inbox_user_ap_id ->
+      object_ap_id = Map.get(activity, "object")
+
+      cond do
+        InboxTargeting.addressed_to?(activity, inbox_user_ap_id) ->
+          :ok
+
+        InboxTargeting.object_owned_by?(object_ap_id, inbox_user_ap_id) ->
+          :ok
+
+        true ->
+          {:error, :not_targeted}
+      end
+    end)
+  end
+
+  defp validate_inbox_target(_activity, _opts), do: :ok
 
   defp maybe_fetch_liked_object(%Object{object: liked_ap_id} = _like, opts)
        when is_binary(liked_ap_id) and is_list(opts) do

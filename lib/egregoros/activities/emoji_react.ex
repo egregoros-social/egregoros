@@ -7,6 +7,7 @@ defmodule Egregoros.Activities.EmojiReact do
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.Federation.Delivery
+  alias Egregoros.InboxTargeting
   alias Egregoros.Object
   alias Egregoros.Objects
   alias Egregoros.Relationships
@@ -82,9 +83,11 @@ defmodule Egregoros.Activities.EmojiReact do
   end
 
   def ingest(activity, opts) do
-    activity
-    |> to_object_attrs(opts)
-    |> Objects.upsert_object()
+    with :ok <- validate_inbox_target(activity, opts) do
+      activity
+      |> to_object_attrs(opts)
+      |> Objects.upsert_object()
+    end
   end
 
   def side_effects(object, opts) do
@@ -106,6 +109,25 @@ defmodule Egregoros.Activities.EmojiReact do
 
     :ok
   end
+
+  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+    InboxTargeting.validate(opts, fn inbox_user_ap_id ->
+      object_ap_id = Map.get(activity, "object")
+
+      cond do
+        InboxTargeting.addressed_to?(activity, inbox_user_ap_id) ->
+          :ok
+
+        InboxTargeting.object_owned_by?(object_ap_id, inbox_user_ap_id) ->
+          :ok
+
+        true ->
+          {:error, :not_targeted}
+      end
+    end)
+  end
+
+  defp validate_inbox_target(_activity, _opts), do: :ok
 
   defp deliver_reaction(object) do
     with %{} = actor <- Users.get_by_ap_id(object.actor),

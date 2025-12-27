@@ -7,6 +7,7 @@ defmodule Egregoros.Activities.Undo do
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.Federation.Delivery
+  alias Egregoros.InboxTargeting
   alias Egregoros.Object
   alias Egregoros.Objects
   alias Egregoros.Relationships
@@ -73,9 +74,11 @@ defmodule Egregoros.Activities.Undo do
   end
 
   def ingest(activity, opts) do
-    activity
-    |> to_object_attrs(opts)
-    |> Objects.upsert_object()
+    with :ok <- validate_inbox_target(activity, opts) do
+      activity
+      |> to_object_attrs(opts)
+      |> Objects.upsert_object()
+    end
   end
 
   def side_effects(object, opts) do
@@ -91,6 +94,53 @@ defmodule Egregoros.Activities.Undo do
 
     :ok
   end
+
+  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+    InboxTargeting.validate(opts, fn inbox_user_ap_id ->
+      actor_ap_id = Map.get(activity, "actor")
+      target_activity_ap_id = Map.get(activity, "object")
+
+      cond do
+        InboxTargeting.addressed_to?(activity, inbox_user_ap_id) ->
+          :ok
+
+        InboxTargeting.follows?(inbox_user_ap_id, actor_ap_id) ->
+          :ok
+
+        target_activity_ap_id
+        |> targeted_via_undo_object?(inbox_user_ap_id) ->
+          :ok
+
+        true ->
+          {:error, :not_targeted}
+      end
+    end)
+  end
+
+  defp validate_inbox_target(_activity, _opts), do: :ok
+
+  defp targeted_via_undo_object?(target_activity_ap_id, inbox_user_ap_id)
+       when is_binary(target_activity_ap_id) and is_binary(inbox_user_ap_id) do
+    target_activity_ap_id = String.trim(target_activity_ap_id)
+    inbox_user_ap_id = String.trim(inbox_user_ap_id)
+
+    if target_activity_ap_id == "" or inbox_user_ap_id == "" do
+      false
+    else
+      case Objects.get_by_ap_id(target_activity_ap_id) do
+        %Object{type: "Follow", object: ^inbox_user_ap_id} ->
+          true
+
+        %Object{type: type, object: object_ap_id} when type in ["Like", "Announce", "EmojiReact"] ->
+          InboxTargeting.object_owned_by?(object_ap_id, inbox_user_ap_id)
+
+        _ ->
+          false
+      end
+    end
+  end
+
+  defp targeted_via_undo_object?(_target_activity_ap_id, _inbox_user_ap_id), do: false
 
   defp deliver_undo(%Object{} = undo_object, %Object{} = target_activity) do
     with %{} = actor <- Users.get_by_ap_id(undo_object.actor) do

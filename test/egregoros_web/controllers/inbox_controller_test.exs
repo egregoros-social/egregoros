@@ -10,7 +10,7 @@ defmodule EgregorosWeb.InboxControllerTest do
     {:ok, frank} = Users.create_local_user("frank")
     {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
 
-    {:ok, _} =
+    {:ok, alice} =
       Users.create_user(%{
         nickname: "alice",
         ap_id: "https://remote.example/users/alice",
@@ -20,6 +20,8 @@ defmodule EgregorosWeb.InboxControllerTest do
         private_key: private_key,
         local: false
       })
+
+    :ok = follow!(frank.ap_id, alice.ap_id)
 
     note = %{
       "id" => "https://remote.example/objects/1",
@@ -116,7 +118,7 @@ defmodule EgregorosWeb.InboxControllerTest do
     refute Relationships.get_by_type_actor_object("Follow", follow["actor"], bob.ap_id)
   end
 
-  test "POST /users/:nickname/inbox accepts a Create with attachments and blank content", %{
+  test "POST /users/:nickname/inbox discards a Create not targeting that inbox user", %{
     conn: conn
   } do
     {:ok, frank} = Users.create_local_user("frank")
@@ -132,6 +134,195 @@ defmodule EgregorosWeb.InboxControllerTest do
         private_key: private_key,
         local: false
       })
+
+    note = %{
+      "id" => "https://remote.example/objects/1-not-targeted",
+      "type" => "Note",
+      "attributedTo" => "https://remote.example/users/alice",
+      "content" => "Hello from remote"
+    }
+
+    create = %{
+      "id" => "https://remote.example/activities/create/1-not-targeted",
+      "type" => "Create",
+      "actor" => "https://remote.example/users/alice",
+      "object" => note
+    }
+
+    conn =
+      conn
+      |> sign_request(
+        "post",
+        "/users/frank/inbox",
+        private_key,
+        "https://remote.example/users/alice#main-key"
+      )
+      |> post("/users/frank/inbox", create)
+
+    assert response(conn, 202)
+
+    assert_enqueued(
+      worker: IngestActivity,
+      args: %{"activity" => create, "inbox_user_ap_id" => frank.ap_id}
+    )
+
+    assert {:discard, :not_targeted} =
+             perform_job(IngestActivity, %{
+               "activity" => create,
+               "inbox_user_ap_id" => frank.ap_id
+             })
+
+    refute Objects.get_by_ap_id(note["id"])
+  end
+
+  test "POST /users/:nickname/inbox discards a Like not targeting that inbox user", %{
+    conn: conn
+  } do
+    {:ok, frank} = Users.create_local_user("frank")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    {:ok, _} =
+      Objects.upsert_object(%{
+        ap_id: "https://egregoros.example/objects/bob-post",
+        type: "Note",
+        actor: bob.ap_id,
+        object: nil,
+        data: %{"id" => "https://egregoros.example/objects/bob-post", "type" => "Note"},
+        local: true
+      })
+
+    {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
+
+    {:ok, _} =
+      Users.create_user(%{
+        nickname: "alice",
+        ap_id: "https://remote.example/users/alice",
+        inbox: "https://remote.example/users/alice/inbox",
+        outbox: "https://remote.example/users/alice/outbox",
+        public_key: public_key,
+        private_key: private_key,
+        local: false
+      })
+
+    like = %{
+      "id" => "https://remote.example/activities/like/1-not-targeted",
+      "type" => "Like",
+      "actor" => "https://remote.example/users/alice",
+      "object" => "https://egregoros.example/objects/bob-post"
+    }
+
+    conn =
+      conn
+      |> sign_request(
+        "post",
+        "/users/frank/inbox",
+        private_key,
+        "https://remote.example/users/alice#main-key"
+      )
+      |> post("/users/frank/inbox", like)
+
+    assert response(conn, 202)
+
+    assert_enqueued(
+      worker: IngestActivity,
+      args: %{"activity" => like, "inbox_user_ap_id" => frank.ap_id}
+    )
+
+    assert {:discard, :not_targeted} =
+             perform_job(IngestActivity, %{
+               "activity" => like,
+               "inbox_user_ap_id" => frank.ap_id
+             })
+
+    refute Objects.get_by_ap_id(like["id"])
+    refute Relationships.get_by_type_actor_object("Like", like["actor"], like["object"])
+  end
+
+  test "POST /users/:nickname/inbox discards an Accept not targeting that inbox user", %{
+    conn: conn
+  } do
+    {:ok, frank} = Users.create_local_user("frank")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
+
+    {:ok, alice} =
+      Users.create_user(%{
+        nickname: "alice",
+        ap_id: "https://remote.example/users/alice",
+        inbox: "https://remote.example/users/alice/inbox",
+        outbox: "https://remote.example/users/alice/outbox",
+        public_key: public_key,
+        private_key: private_key,
+        local: false
+      })
+
+    {:ok, _} =
+      Objects.upsert_object(%{
+        ap_id: "https://egregoros.example/activities/follow/bob-to-alice",
+        type: "Follow",
+        actor: bob.ap_id,
+        object: alice.ap_id,
+        data: %{
+          "id" => "https://egregoros.example/activities/follow/bob-to-alice",
+          "type" => "Follow",
+          "actor" => bob.ap_id,
+          "object" => alice.ap_id
+        },
+        local: true
+      })
+
+    accept = %{
+      "id" => "https://remote.example/activities/accept/1-not-targeted",
+      "type" => "Accept",
+      "actor" => "https://remote.example/users/alice",
+      "object" => "https://egregoros.example/activities/follow/bob-to-alice"
+    }
+
+    conn =
+      conn
+      |> sign_request(
+        "post",
+        "/users/frank/inbox",
+        private_key,
+        "https://remote.example/users/alice#main-key"
+      )
+      |> post("/users/frank/inbox", accept)
+
+    assert response(conn, 202)
+
+    assert_enqueued(
+      worker: IngestActivity,
+      args: %{"activity" => accept, "inbox_user_ap_id" => frank.ap_id}
+    )
+
+    assert {:discard, :not_targeted} =
+             perform_job(IngestActivity, %{
+               "activity" => accept,
+               "inbox_user_ap_id" => frank.ap_id
+             })
+
+    refute Objects.get_by_ap_id(accept["id"])
+  end
+
+  test "POST /users/:nickname/inbox accepts a Create with attachments and blank content", %{
+    conn: conn
+  } do
+    {:ok, frank} = Users.create_local_user("frank")
+    {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
+
+    {:ok, alice} =
+      Users.create_user(%{
+        nickname: "alice",
+        ap_id: "https://remote.example/users/alice",
+        inbox: "https://remote.example/users/alice/inbox",
+        outbox: "https://remote.example/users/alice/outbox",
+        public_key: public_key,
+        private_key: private_key,
+        local: false
+      })
+
+    :ok = follow!(frank.ap_id, alice.ap_id)
 
     note = %{
       "id" => "https://remote.example/objects/1-attachment-only",
@@ -191,7 +382,7 @@ defmodule EgregorosWeb.InboxControllerTest do
     {:ok, frank} = Users.create_local_user("frank")
     {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
 
-    {:ok, _} =
+    {:ok, alice} =
       Users.create_user(%{
         nickname: "alice",
         ap_id: "https://remote.example/users/alice",
@@ -201,6 +392,8 @@ defmodule EgregorosWeb.InboxControllerTest do
         private_key: private_key,
         local: false
       })
+
+    :ok = follow!(frank.ap_id, alice.ap_id)
 
     note = %{
       "id" => "https://remote.example/objects/1-digest",
@@ -253,7 +446,7 @@ defmodule EgregorosWeb.InboxControllerTest do
     {:ok, frank} = Users.create_local_user("frank")
     {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
 
-    {:ok, _} =
+    {:ok, alice} =
       Users.create_user(%{
         nickname: "alice",
         ap_id: "https://remote.example/users/alice",
@@ -263,6 +456,8 @@ defmodule EgregorosWeb.InboxControllerTest do
         private_key: private_key,
         local: false
       })
+
+    :ok = follow!(frank.ap_id, alice.ap_id)
 
     note = %{
       "id" => "https://remote.example/objects/1-signature-header",
@@ -312,7 +507,7 @@ defmodule EgregorosWeb.InboxControllerTest do
     {:ok, frank} = Users.create_local_user("frank")
     {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
 
-    {:ok, _} =
+    {:ok, alice} =
       Users.create_user(%{
         nickname: "alice",
         ap_id: "https://remote.example/users/alice",
@@ -322,6 +517,8 @@ defmodule EgregorosWeb.InboxControllerTest do
         private_key: private_key,
         local: false
       })
+
+    :ok = follow!(frank.ap_id, alice.ap_id)
 
     note = %{
       "id" => "https://remote.example/objects/1-proxy",
@@ -567,6 +764,19 @@ defmodule EgregorosWeb.InboxControllerTest do
     assert response(conn, 401)
 
     refute Objects.get_by_ap_id(note["id"])
+  end
+
+  defp follow!(follower_ap_id, followed_ap_id)
+       when is_binary(follower_ap_id) and is_binary(followed_ap_id) do
+    {:ok, _} =
+      Relationships.upsert_relationship(%{
+        type: "Follow",
+        actor: follower_ap_id,
+        object: followed_ap_id,
+        activity_ap_id: Ecto.UUID.generate()
+      })
+
+    :ok
   end
 
   defp sign_request(

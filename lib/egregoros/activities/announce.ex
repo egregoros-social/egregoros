@@ -7,6 +7,7 @@ defmodule Egregoros.Activities.Announce do
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.Federation.Delivery
+  alias Egregoros.InboxTargeting
   alias Egregoros.Notifications
   alias Egregoros.Object
   alias Egregoros.Objects
@@ -80,7 +81,8 @@ defmodule Egregoros.Activities.Announce do
   end
 
   def ingest(%{"object" => %{} = embedded_object} = activity, opts) do
-    with {:ok, _} <- Pipeline.ingest(embedded_object, opts) do
+    with :ok <- validate_inbox_target(activity, opts),
+         {:ok, _} <- Pipeline.ingest(embedded_object, opts) do
       activity
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -88,9 +90,11 @@ defmodule Egregoros.Activities.Announce do
   end
 
   def ingest(activity, opts) do
-    activity
-    |> to_object_attrs(opts)
-    |> Objects.upsert_object()
+    with :ok <- validate_inbox_target(activity, opts) do
+      activity
+      |> to_object_attrs(opts)
+      |> Objects.upsert_object()
+    end
   end
 
   def side_effects(object, opts) do
@@ -113,6 +117,29 @@ defmodule Egregoros.Activities.Announce do
 
     :ok
   end
+
+  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+    InboxTargeting.validate(opts, fn inbox_user_ap_id ->
+      actor_ap_id = Map.get(activity, "actor")
+      object_ap_id = extract_object_id(Map.get(activity, "object"))
+
+      cond do
+        InboxTargeting.addressed_to?(activity, inbox_user_ap_id) ->
+          :ok
+
+        InboxTargeting.follows?(inbox_user_ap_id, actor_ap_id) ->
+          :ok
+
+        InboxTargeting.object_owned_by?(object_ap_id, inbox_user_ap_id) ->
+          :ok
+
+        true ->
+          {:error, :not_targeted}
+      end
+    end)
+  end
+
+  defp validate_inbox_target(_activity, _opts), do: :ok
 
   defp maybe_fetch_announced_object(%Object{object: announced_ap_id, data: %{} = data}, opts)
        when is_binary(announced_ap_id) and is_list(opts) do

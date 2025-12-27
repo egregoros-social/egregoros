@@ -7,6 +7,7 @@ defmodule Egregoros.Activities.Note do
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.Federation.ThreadDiscovery
+  alias Egregoros.InboxTargeting
   alias Egregoros.Objects
   alias Egregoros.Timeline
   alias Egregoros.User
@@ -83,9 +84,11 @@ defmodule Egregoros.Activities.Note do
   end
 
   def ingest(note, opts) do
-    note
-    |> to_object_attrs(opts)
-    |> Objects.upsert_object()
+    with :ok <- validate_inbox_target(note, opts) do
+      note
+      |> to_object_attrs(opts)
+      |> Objects.upsert_object()
+    end
   end
 
   def side_effects(object, opts) do
@@ -93,6 +96,25 @@ defmodule Egregoros.Activities.Note do
     _ = ThreadDiscovery.enqueue(object, opts)
     :ok
   end
+
+  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+    InboxTargeting.validate(opts, fn inbox_user_ap_id ->
+      actor_ap_id = Map.get(activity, "actor")
+
+      cond do
+        InboxTargeting.addressed_to?(activity, inbox_user_ap_id) ->
+          :ok
+
+        InboxTargeting.follows?(inbox_user_ap_id, actor_ap_id) ->
+          :ok
+
+        true ->
+          {:error, :not_targeted}
+      end
+    end)
+  end
+
+  defp validate_inbox_target(_activity, _opts), do: :ok
 
   defp apply_note(note, %__MODULE__{} = validated_note) do
     note

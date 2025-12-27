@@ -7,6 +7,7 @@ defmodule Egregoros.Activities.Accept do
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.Federation.Delivery
+  alias Egregoros.InboxTargeting
   alias Egregoros.Object
   alias Egregoros.Objects
   alias Egregoros.User
@@ -43,9 +44,11 @@ defmodule Egregoros.Activities.Accept do
   end
 
   def ingest(activity, opts) do
-    activity
-    |> to_object_attrs(opts)
-    |> Objects.upsert_object()
+    with :ok <- validate_inbox_target(activity, opts) do
+      activity
+      |> to_object_attrs(opts)
+      |> Objects.upsert_object()
+    end
   end
 
   def side_effects(object, opts) do
@@ -54,6 +57,49 @@ defmodule Egregoros.Activities.Accept do
     end
 
     :ok
+  end
+
+  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+    InboxTargeting.validate(opts, fn inbox_user_ap_id ->
+      cond do
+        InboxTargeting.addressed_to?(activity, inbox_user_ap_id) ->
+          :ok
+
+        accepted_follower_ap_id(activity) == inbox_user_ap_id ->
+          :ok
+
+        true ->
+          {:error, :not_targeted}
+      end
+    end)
+  end
+
+  defp validate_inbox_target(_activity, _opts), do: :ok
+
+  defp accepted_follower_ap_id(%{"object" => %{} = follow}) do
+    follow
+    |> Map.get("actor")
+    |> normalize_ap_id()
+  end
+
+  defp accepted_follower_ap_id(%{"object" => object_id}) when is_binary(object_id) do
+    case Objects.get_by_ap_id(object_id) do
+      %Object{actor: actor} -> normalize_ap_id(actor)
+      _ -> nil
+    end
+  end
+
+  defp accepted_follower_ap_id(_activity), do: nil
+
+  defp normalize_ap_id(nil), do: nil
+
+  defp normalize_ap_id(ap_id) when is_binary(ap_id) do
+    ap_id
+    |> String.trim()
+    |> case do
+      "" -> nil
+      trimmed -> trimmed
+    end
   end
 
   def build(%User{} = actor, %Object{type: "Follow"} = follow_object) do

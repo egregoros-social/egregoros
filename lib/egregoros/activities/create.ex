@@ -7,6 +7,7 @@ defmodule Egregoros.Activities.Create do
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.Federation.Delivery
+  alias Egregoros.InboxTargeting
   alias Egregoros.Objects
   alias Egregoros.Pipeline
   alias Egregoros.Relationships
@@ -68,7 +69,8 @@ defmodule Egregoros.Activities.Create do
   end
 
   def ingest(activity, opts) do
-    with {:ok, object} <- Pipeline.ingest(activity["object"], opts) do
+    with :ok <- validate_inbox_target(activity, opts),
+         {:ok, object} <- Pipeline.ingest(activity["object"], opts) do
       activity
       |> to_object_attrs(object, opts)
       |> Objects.upsert_object()
@@ -94,6 +96,25 @@ defmodule Egregoros.Activities.Create do
       _ -> :ok
     end
   end
+
+  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+    InboxTargeting.validate(opts, fn inbox_user_ap_id ->
+      actor_ap_id = Map.get(activity, "actor")
+
+      cond do
+        InboxTargeting.addressed_to?(activity, inbox_user_ap_id) ->
+          :ok
+
+        InboxTargeting.follows?(inbox_user_ap_id, actor_ap_id) ->
+          :ok
+
+        true ->
+          {:error, :not_targeted}
+      end
+    end)
+  end
+
+  defp validate_inbox_target(_activity, _opts), do: :ok
 
   defp inboxes_for_delivery(%{data: %{} = data} = create_object, %User{} = actor) do
     follower_inboxes =
