@@ -19,6 +19,20 @@ defmodule Egregoros.SafeURL do
 
   def validate_http_url(_), do: {:error, :unsafe_url}
 
+  def validate_http_url_no_dns(url) when is_binary(url) do
+    uri = URI.parse(url)
+
+    with scheme when scheme in @http_schemes <- uri.scheme,
+         host when is_binary(host) and host != "" <- uri.host,
+         :ok <- validate_host_no_dns(host) do
+      :ok
+    else
+      _ -> {:error, :unsafe_url}
+    end
+  end
+
+  def validate_http_url_no_dns(_), do: {:error, :unsafe_url}
+
   defp validate_host("localhost"), do: {:error, :unsafe_url}
 
   defp validate_host(host) when is_binary(host) do
@@ -42,6 +56,21 @@ defmodule Egregoros.SafeURL do
   end
 
   defp validate_host(_), do: {:error, :unsafe_url}
+
+  defp validate_host_no_dns("localhost"), do: {:error, :unsafe_url}
+
+  defp validate_host_no_dns(host) when is_binary(host) do
+    if ip_literal?(host) do
+      case :inet.parse_address(String.to_charlist(host)) do
+        {:ok, ip} -> if private_ip?(ip), do: {:error, :unsafe_url}, else: :ok
+        {:error, _} -> {:error, :unsafe_url}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp validate_host_no_dns(_), do: {:error, :unsafe_url}
 
   defp ip_literal?(host) when is_binary(host) do
     String.contains?(host, ":") or

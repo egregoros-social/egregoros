@@ -398,13 +398,9 @@ defmodule Egregoros.HTML do
   end
 
   defp safe_img_url?(url) when is_binary(url) do
-    case URI.parse(String.trim(url)) do
-      %URI{scheme: scheme, host: host}
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        true
-
-      _ ->
-        false
+    case Egregoros.SafeURL.validate_http_url_no_dns(String.trim(url)) do
+      :ok -> true
+      _ -> false
     end
   end
 

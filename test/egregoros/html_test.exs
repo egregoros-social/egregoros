@@ -385,5 +385,25 @@ defmodule Egregoros.HTMLTest do
       refute safe =~ "<img"
       assert safe =~ ":shrug:"
     end
+
+    test "does not render custom emojis with localhost or private ip urls" do
+      safe =
+        HTML.to_safe_html("hi :shrug:",
+          format: :text,
+          emojis: [%{shortcode: "shrug", url: "http://localhost/emoji.png"}]
+        )
+
+      refute safe =~ "<img"
+      assert safe =~ ":shrug:"
+
+      safe =
+        HTML.to_safe_html("hi :shrug:",
+          format: :text,
+          emojis: [%{shortcode: "shrug", url: "http://127.0.0.1/emoji.png"}]
+        )
+
+      refute safe =~ "<img"
+      assert safe =~ ":shrug:"
+    end
   end
 end

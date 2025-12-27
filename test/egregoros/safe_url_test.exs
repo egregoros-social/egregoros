@@ -89,4 +89,18 @@ defmodule Egregoros.SafeURLTest do
     assert {:error, :unsafe_url} ==
              SafeURL.validate_http_url("https://missing.example/users/alice")
   end
+
+  test "validate_http_url_no_dns allows hostnames without DNS lookups" do
+    Egregoros.DNS.Mock
+    |> expect(:lookup_ips, 0, fn _host -> {:ok, [{127, 0, 0, 1}]} end)
+
+    assert :ok == SafeURL.validate_http_url_no_dns("https://remote.example/users/alice")
+  end
+
+  test "validate_http_url_no_dns rejects localhost and private ip literals" do
+    assert {:error, :unsafe_url} == SafeURL.validate_http_url_no_dns("http://localhost/users/alice")
+    assert {:error, :unsafe_url} == SafeURL.validate_http_url_no_dns("http://127.0.0.1/users/alice")
+    assert {:error, :unsafe_url} == SafeURL.validate_http_url_no_dns("http://10.0.0.1/users/alice")
+    assert {:error, :unsafe_url} == SafeURL.validate_http_url_no_dns("http://[::1]/users/alice")
+  end
 end
