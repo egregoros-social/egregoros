@@ -12,17 +12,11 @@ No new “drop everything” issues found beyond the items already tracked in `s
 
 ### Medium priority (new)
 
-- **Inbox addressing / target verification is missing** (abuse/DB pollution risk).
-  - `lib/egregoros_web/controllers/inbox_controller.ex` only checks the local nickname exists; it doesn’t pass “which local inbox user was targeted” into ingestion (`Egregoros.Workers.IngestActivity` only receives `%{"activity" => activity}`).
-  - As a result, a malicious sender can POST validly signed activities that are *not* actually addressed to that local user, and we may still store them (including relationships).
-  - Suggested approach: include `inbox_user_ap_id` (and/or nickname) in the Oban job args and pass it through pipeline opts, then enforce:
-    - Follow: `Follow.object == inbox_user_ap_id`
-    - Like/Announce/EmojiReact: addressed to inbox user or followers/shared inbox rules
-    - Create/Note: addressed to inbox user or followers/shared inbox rules
+- [x] **Inbox addressing / target verification** (abuse/DB pollution risk).
+  - Addressing context is now propagated from inbox controller into ingestion (`inbox_user_ap_id`) and enforced for common activity types (see `Egregoros.InboxTargeting`).
 
-- **Defense-in-depth: LiveView “refresh” helpers don’t re-check visibility**.
-  - Several LiveViews call `Objects.get(id)` and update streams without a `Objects.visible_to?/2` guard (see `refresh_post/2` helpers in `lib/egregoros_web/live/*.ex`).
-  - This probably doesn’t create an exploit by itself (call sites typically already require auth/visibility), but it’s a cheap hardening win and prevents regressions from turning into leaks.
+- [x] **Defense-in-depth: LiveView “refresh” helpers re-check visibility**.
+  - `refresh_post/2` helpers now guard via `Objects.visible_to?/2`, removing items from streams when they become invisible to the viewer.
 
 - **Client-side “SSRF-ish” via remote emoji/icon URLs** (privacy/internal network probing).
   - Custom emoji tags (`Egregoros.CustomEmojis`) and some remote profile fields can embed arbitrary `http(s)` URLs which the browser will fetch.
@@ -31,9 +25,8 @@ No new “drop everything” issues found beyond the items already tracked in `s
 
 ### Low priority (new)
 
-- **Potential DoS if HTML sanitization ever raises**.
-  - `Egregoros.HTML.sanitize/1` currently pattern-matches on `{:ok, content}` from `FastSanitize.Sanitizer.scrub/2`.
-  - If scrub ever returns `{:error, _}` (or raises), it would crash the request render path. Consider wrapping in a safe fallback.
+- [x] **Potential DoS if HTML sanitization ever raises**.
+  - `Egregoros.HTML.sanitize/1` now wraps scrubbing in a safe fallback and escapes on failure.
 
 ## Consistency / correctness gaps (non-security)
 
@@ -44,21 +37,17 @@ No new “drop everything” issues found beyond the items already tracked in `s
   - `lib/egregoros_web/controllers/mastodon_api/accounts_controller.ex` uses `Objects.list_public_statuses_by_actor/2` for `/api/v1/accounts/:id/statuses` even when authenticated.
   - This avoids leaks but may diverge from user expectations (followers-only/profile-visible posts won’t show via API even when the viewer is allowed).
 
-- **Minor config mismatch**:
-  - `nodeinfo` sets `openRegistrations: false` while Mastodon instance endpoints report registrations enabled. Decide which policy is intended and keep consistent.
-
-- **Stray CRLF artifact**:
-  - `lib/egregoros_web/controllers/e2ee_controller.ex` contains a literal `\r` character on one line (harmless but noisy).
+- [x] **Registration flags are consistent**:
+  - `nodeinfo` now reports `openRegistrations: true` when registrations are enabled (aligned with Mastodon instance endpoints).
 
 ## Performance / scalability
 
-- **Search and hashtag scan are unindexed**:
-  - `Objects.search_notes/2` and `Objects.list_notes_by_hashtag/2` use `ILIKE` on `data->>'content'`/`summary`. This will degrade to sequential scans at scale.
-  - Options: trigram index on extracted text, full-text search via `tsvector`, or precomputed searchable columns.
+- [x] **Search and hashtag scan are indexed**:
+  - Trigram indexes were added for note `content`/`summary` and a GIN `jsonb_path_ops` index for status `data` to support common `@>` visibility queries.
 
-- **Visibility filtering relies on JSONB containment** (`@>` / `jsonb_exists`) without GIN support.
-  - Home timeline and visibility checks do JSONB ops over `data.to`/`data.cc`.
-  - Consider GIN indexes on `data` (or specific json paths), or a normalized “recipient” table/materialized columns.
+- **Visibility filtering relies on JSONB containment** (`@>` / `jsonb_exists`) and can still be improved.
+  - A GIN `jsonb_path_ops` index on status `data` helps the common `@>` predicates, but some `jsonb_exists` patterns may still be slow at scale.
+  - Consider further indexes (path-specific), or a normalized “recipient” table/materialized columns.
 
 - **DNS lookups are synchronous and uncached**:
   - `Egregoros.SafeURL` calls `Egregoros.DNS.Inet.lookup_ips/1` on every validation. This is correct for SSRF protection but can become a throughput limiter.
@@ -84,4 +73,3 @@ No new “drop everything” issues found beyond the items already tracked in `s
 3. Make `HTML.sanitize/1` resilient to scrub failures (safe fallback).
 4. Pick an indexing strategy for search + JSONB recipient visibility queries.
 5. Decide on (and align) registration flags across Nodeinfo and Mastodon instance endpoints.
-
