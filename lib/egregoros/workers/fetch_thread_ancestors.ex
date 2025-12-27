@@ -21,13 +21,32 @@ defmodule Egregoros.Workers.FetchThreadAncestors do
 
     case Objects.get_by_ap_id(start_ap_id) do
       %Object{} = start ->
-        fetch_ancestors(start, MapSet.new([start_ap_id]), max_depth)
+        start_for_ancestors = normalize_start_object(start)
+
+        visited =
+          [start_ap_id, start_for_ancestors.ap_id]
+          |> Enum.filter(&is_binary/1)
+          |> MapSet.new()
+
+        fetch_ancestors(start_for_ancestors, visited, max_depth)
 
       nil ->
         case ObjectFetcher.fetch_and_ingest(start_ap_id) do
-          {:ok, %Object{} = start} -> fetch_ancestors(start, MapSet.new([start_ap_id]), max_depth)
-          {:error, reason} -> {:error, reason}
-          _ -> {:error, :object_fetch_failed}
+          {:ok, %Object{} = start} ->
+            start_for_ancestors = normalize_start_object(start)
+
+            visited =
+              [start_ap_id, start_for_ancestors.ap_id]
+              |> Enum.filter(&is_binary/1)
+              |> MapSet.new()
+
+            fetch_ancestors(start_for_ancestors, visited, max_depth)
+
+          {:error, reason} ->
+            {:error, reason}
+
+          _ ->
+            {:error, :object_fetch_failed}
         end
     end
   end
@@ -85,6 +104,16 @@ defmodule Egregoros.Workers.FetchThreadAncestors do
   defp in_reply_to_ap_id(value) when is_binary(value), do: value
   defp in_reply_to_ap_id(%{"id" => id}) when is_binary(id), do: id
   defp in_reply_to_ap_id(_), do: nil
+
+  defp normalize_start_object(%Object{type: "Create", object: embedded_ap_id} = create)
+       when is_binary(embedded_ap_id) do
+    case Objects.get_by_ap_id(embedded_ap_id) do
+      %Object{type: "Note"} = note -> note
+      _ -> create
+    end
+  end
+
+  defp normalize_start_object(%Object{} = object), do: object
 
   defp normalize_max_depth(max_depth) when is_integer(max_depth) do
     max_depth

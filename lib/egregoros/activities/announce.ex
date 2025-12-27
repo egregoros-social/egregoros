@@ -15,9 +15,11 @@ defmodule Egregoros.Activities.Announce do
   alias Egregoros.Timeline
   alias Egregoros.User
   alias Egregoros.Users
+  alias Egregoros.Workers.FetchThreadAncestors
   alias EgregorosWeb.Endpoint
 
   @public "https://www.w3.org/ns/activitystreams#Public"
+  @fetch_priority 9
 
   def type, do: "Announce"
 
@@ -91,6 +93,8 @@ defmodule Egregoros.Activities.Announce do
   end
 
   def side_effects(object, opts) do
+    maybe_fetch_announced_object(object, opts)
+
     _ =
       Relationships.upsert_relationship(%{
         type: object.type,
@@ -108,6 +112,50 @@ defmodule Egregoros.Activities.Announce do
 
     :ok
   end
+
+  defp maybe_fetch_announced_object(%Object{object: announced_ap_id, data: %{} = data}, opts)
+       when is_binary(announced_ap_id) and is_list(opts) do
+    if Keyword.get(opts, :local, true) do
+      :ok
+    else
+      announced_ap_id = String.trim(announced_ap_id)
+
+      cond do
+        announced_ap_id == "" ->
+          :ok
+
+        not public_activity?(data) ->
+          :ok
+
+        not String.starts_with?(announced_ap_id, ["http://", "https://"]) ->
+          :ok
+
+        Objects.get_by_ap_id(announced_ap_id) != nil ->
+          :ok
+
+        true ->
+          _ =
+            Oban.insert(
+              FetchThreadAncestors.new(%{"start_ap_id" => announced_ap_id},
+                priority: @fetch_priority
+              )
+            )
+
+          :ok
+      end
+    end
+  end
+
+  defp maybe_fetch_announced_object(_object, _opts), do: :ok
+
+  defp public_activity?(%{} = data) do
+    data
+    |> Map.get("to", [])
+    |> List.wrap()
+    |> Enum.any?(&(&1 == @public))
+  end
+
+  defp public_activity?(_), do: false
 
   defp maybe_broadcast_notification(object) do
     with %{} = announced_object <- Objects.get_by_ap_id(object.object),
