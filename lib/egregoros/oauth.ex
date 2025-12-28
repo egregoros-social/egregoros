@@ -141,6 +141,31 @@ defmodule Egregoros.OAuth do
     end
   end
 
+  def exchange_code_for_token(
+        %{
+          "grant_type" => "client_credentials",
+          "client_id" => client_id,
+          "client_secret" => client_secret
+        } = params
+      )
+      when is_binary(client_id) and is_binary(client_secret) do
+    client_id = String.trim(client_id)
+    client_secret = String.trim(client_secret)
+
+    with %OAuthApplication{} = application <- get_application_by_client_id(client_id),
+         true <- Plug.Crypto.secure_compare(application.client_secret, client_secret),
+         :ok <- validate_redirect_uri_param(application, params),
+         {:ok, scopes} <- client_credentials_scopes(params, application),
+         {:ok, %Token{} = token} <- create_token(application, nil, scopes) do
+      {:ok, token}
+    else
+      nil -> {:error, :invalid_client}
+      false -> {:error, :invalid_client}
+      {:error, _} = error -> error
+      _ -> {:error, :invalid_request}
+    end
+  end
+
   def exchange_code_for_token(_params), do: {:error, :unsupported_grant_type}
 
   def get_user_by_token(nil), do: nil
@@ -161,7 +186,7 @@ defmodule Egregoros.OAuth do
       where:
         t.token == ^token and is_nil(t.revoked_at) and
           (is_nil(t.expires_at) or t.expires_at > ^now),
-      join: u in assoc(t, :user),
+      left_join: u in assoc(t, :user),
       preload: [user: u]
     )
     |> Repo.one()
@@ -222,6 +247,39 @@ defmodule Egregoros.OAuth do
     |> Repo.insert()
   end
 
+  defp create_token(%OAuthApplication{} = application, nil, scopes) when is_binary(scopes) do
+    now = DateTime.utc_now()
+    ttl_seconds = access_token_ttl_seconds()
+    refresh_ttl_seconds = refresh_token_ttl_seconds()
+
+    expires_at =
+      case ttl_seconds do
+        seconds when is_integer(seconds) and seconds >= 1 -> DateTime.add(now, seconds, :second)
+        _ -> nil
+      end
+
+    refresh_expires_at =
+      case refresh_ttl_seconds do
+        seconds when is_integer(seconds) and seconds >= 1 ->
+          DateTime.add(now, seconds, :second)
+
+        _ ->
+          nil
+      end
+
+    %Token{}
+    |> Token.changeset(%{
+      token: generate_token(48),
+      refresh_token: generate_token(48),
+      scopes: scopes,
+      user_id: nil,
+      application_id: application.id,
+      expires_at: expires_at,
+      refresh_expires_at: refresh_expires_at
+    })
+    |> Repo.insert()
+  end
+
   defp get_token_by_refresh_token(refresh_token) when is_binary(refresh_token) do
     now = DateTime.utc_now()
 
@@ -261,6 +319,40 @@ defmodule Egregoros.OAuth do
 
       _ ->
         {:ok, old_token.scopes}
+    end
+  end
+
+  defp validate_redirect_uri_param(%OAuthApplication{} = application, params) when is_map(params) do
+    case Map.get(params, "redirect_uri") do
+      redirect_uri when is_binary(redirect_uri) ->
+        redirect_uri = String.trim(redirect_uri)
+
+        if redirect_uri == "" or redirect_uri_allowed?(application, redirect_uri) do
+          :ok
+        else
+          {:error, :invalid_redirect_uri}
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp validate_redirect_uri_param(_application, _params), do: :ok
+
+  defp client_credentials_scopes(params, %OAuthApplication{} = application) when is_map(params) do
+    scope =
+      case Map.get(params, "scope") do
+        value when is_binary(value) -> String.trim(value)
+        _ -> ""
+      end
+
+    scopes = if scope == "", do: application.scopes, else: scope
+
+    if Scopes.subset?(scopes, application.scopes) do
+      {:ok, scopes}
+    else
+      {:error, :invalid_scope}
     end
   end
 

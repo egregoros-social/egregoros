@@ -3,8 +3,8 @@ defmodule Egregoros.OAuth.Token do
 
   import Ecto.Changeset
 
-  @required_fields ~w(token refresh_token user_id application_id)a
-  @optional_fields ~w(scopes expires_at refresh_expires_at revoked_at)a
+  @required_fields ~w(token refresh_token application_id)a
+  @optional_fields ~w(user_id scopes expires_at refresh_expires_at revoked_at)a
 
   schema "oauth_tokens" do
     field :token, :string

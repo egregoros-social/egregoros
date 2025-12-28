@@ -75,6 +75,30 @@ defmodule EgregorosWeb.OAuthControllerTest do
     assert second["refresh_token"] != first["refresh_token"]
   end
 
+  test "POST /oauth/token issues an app token for client_credentials", %{conn: conn} do
+    {:ok, app} =
+      OAuth.create_application(%{
+        "client_name" => "Ivory for iOS",
+        "redirect_uris" => "com.tapbots.Ivory.23600:/request_token/39A4ABC7-48F1-4DBC-906A-4D2D249C3440",
+        "scopes" => "read write follow push"
+      })
+
+    conn =
+      post(conn, "/oauth/token", %{
+        "grant_type" => "client_credentials",
+        "client_id" => app.client_id,
+        "client_secret" => app.client_secret,
+        "redirect_uri" => List.first(app.redirect_uris),
+        "scope" => "read write follow push"
+      })
+
+    response = json_response(conn, 200)
+    assert response["token_type"] == "Bearer"
+    assert response["scope"] == "read write follow push"
+    assert is_binary(response["access_token"])
+    assert is_binary(response["refresh_token"])
+  end
+
   test "POST /oauth/revoke revokes an access token", %{conn: conn} do
     {:ok, user} = Users.create_local_user("alice")
 
