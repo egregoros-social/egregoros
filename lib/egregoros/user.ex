@@ -5,7 +5,7 @@ defmodule Egregoros.User do
 
   alias Egregoros.Domain
 
-  @fields ~w(nickname domain ap_id inbox outbox public_key private_key local admin email password_hash name bio avatar_url banner_url)a
+  @fields ~w(nickname domain ap_id inbox outbox public_key private_key local admin email password_hash name bio avatar_url banner_url emojis)a
   @required_fields ~w(nickname ap_id inbox outbox public_key local)a
 
   schema "users" do
@@ -24,6 +24,7 @@ defmodule Egregoros.User do
     field :bio, :string
     field :avatar_url, :string
     field :banner_url, :string
+    field :emojis, {:array, :map}, default: []
 
     timestamps(type: :utc_datetime_usec)
   end
