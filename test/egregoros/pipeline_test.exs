@@ -3,6 +3,8 @@ defmodule Egregoros.PipelineTest do
 
   alias Egregoros.Object
   alias Egregoros.Pipeline
+  alias Egregoros.Relationships
+  alias Egregoros.Users
   alias EgregorosWeb.Endpoint
 
   @note %{
@@ -108,6 +110,42 @@ defmodule Egregoros.PipelineTest do
     assert object.object == @note["id"]
 
     assert Egregoros.Objects.get_by_ap_id(@note["id"])
+  end
+
+  test "ingest stores embedded objects for announces even when the object isn't targeted to the inbox user" do
+    {:ok, user} = Users.create_local_user("inbox-user")
+    relay_actor = "https://relay.example/users/relay"
+
+    assert {:ok, _} =
+             Relationships.upsert_relationship(%{
+               type: "Follow",
+               actor: user.ap_id,
+               object: relay_actor,
+               activity_ap_id: "https://egregoros.example/activities/follow/1"
+             })
+
+    note_id = "https://remote.example/objects/1"
+
+    announce = %{
+      "id" => "https://relay.example/activities/announce/1",
+      "type" => "Announce",
+      "actor" => relay_actor,
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "object" => %{
+        "id" => note_id,
+        "type" => "Note",
+        "actor" => "https://remote.example/users/alice",
+        "content" => "Hello from the relay payload",
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"]
+      }
+    }
+
+    assert {:ok, %Object{} = object} =
+             Pipeline.ingest(announce, local: false, inbox_user_ap_id: user.ap_id)
+
+    assert object.type == "Announce"
+    assert object.object == note_id
+    assert Egregoros.Objects.get_by_ap_id(note_id)
   end
 
   test "ingest rejects unknown types" do

@@ -82,7 +82,7 @@ defmodule Egregoros.Activities.Announce do
 
   def ingest(%{"object" => %{} = embedded_object} = activity, opts) do
     with :ok <- validate_inbox_target(activity, opts),
-         {:ok, _} <- Pipeline.ingest(embedded_object, opts) do
+         {:ok, _} <- Pipeline.ingest(embedded_object, Keyword.delete(opts, :inbox_user_ap_id)) do
       activity
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
