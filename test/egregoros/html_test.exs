@@ -277,14 +277,18 @@ defmodule Egregoros.HTMLTest do
 
     test "linkifies local @mentions in plain text" do
       safe = HTML.to_safe_html("hi @alice", format: :text)
-      assert safe =~ ~s(href="#{EgregorosWeb.Endpoint.url()}/@alice")
-      assert safe =~ ">@alice</a>"
+      href = "#{EgregorosWeb.Endpoint.url()}/@alice"
+
+      assert safe =~
+               ~r/<a[^>]*href="#{Regex.escape(href)}"[^>]*class="mention-link"[^>]*>@alice<\/a>/
     end
 
     test "linkifies remote @mentions in plain text" do
       safe = HTML.to_safe_html("hi @bob@example.com", format: :text)
-      assert safe =~ ~s(href="#{EgregorosWeb.Endpoint.url()}/@bob@example.com")
-      assert safe =~ ">@bob@example.com</a>"
+      href = "#{EgregorosWeb.Endpoint.url()}/@bob@example.com"
+
+      assert safe =~
+               ~r/<a[^>]*href="#{Regex.escape(href)}"[^>]*class="mention-link"[^>]*>@bob@example\.com<\/a>/
     end
 
     test "does not linkify email addresses" do
@@ -308,10 +312,19 @@ defmodule Egregoros.HTMLTest do
     test "linkifies multiple @mentions inside the same token" do
       safe = HTML.to_safe_html("hi (@alice,@bob@example.com)", format: :text)
 
+      alice_href = "#{EgregorosWeb.Endpoint.url()}/@alice"
+      bob_href = "#{EgregorosWeb.Endpoint.url()}/@bob@example.com"
+
       assert safe =~ "(<a "
-      assert safe =~ ~s(href="#{EgregorosWeb.Endpoint.url()}/@alice")
+
+      assert safe =~
+               ~r/<a[^>]*href="#{Regex.escape(alice_href)}"[^>]*class="mention-link"[^>]*>@alice<\/a>/
+
       assert safe =~ ">@alice</a>,<a"
-      assert safe =~ ~s(href="#{EgregorosWeb.Endpoint.url()}/@bob@example.com")
+
+      assert safe =~
+               ~r/<a[^>]*href="#{Regex.escape(bob_href)}"[^>]*class="mention-link"[^>]*>@bob@example\.com<\/a>/
+
       assert safe =~ ">@bob@example.com</a>)"
     end
 
@@ -404,6 +417,25 @@ defmodule Egregoros.HTMLTest do
 
       refute safe =~ "<img"
       assert safe =~ ":shrug:"
+    end
+
+    test "styles mention links in html input when mention tags are provided" do
+      safe =
+        HTML.to_safe_html("<p>hi <a href=\"https://remote.example/users/bob\">@bob</a></p>",
+          format: :html,
+          ap_tags: [
+            %{
+              "type" => "Mention",
+              "href" => "https://remote.example/users/bob",
+              "name" => "@bob@remote.example"
+            }
+          ]
+        )
+
+      href = "#{EgregorosWeb.Endpoint.url()}/@bob@remote.example"
+
+      assert safe =~
+               ~r/<a[^>]*href="#{Regex.escape(href)}"[^>]*class="mention-link"[^>]*>@bob<\/a>/
     end
   end
 

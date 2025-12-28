@@ -253,7 +253,7 @@ defmodule Egregoros.HTML do
   defp linkify_match(match, mention_hrefs) when is_binary(match) and is_map(mention_hrefs) do
     cond do
       String.starts_with?(match, "@") ->
-        linkify_prefixed(match, &mention_href(&1, mention_hrefs))
+        linkify_prefixed(match, &mention_href(&1, mention_hrefs), "mention-link")
 
       String.starts_with?(match, "#") ->
         linkify_prefixed(match, &hashtag_href/1)
@@ -269,11 +269,12 @@ defmodule Egregoros.HTML do
   defp linkify_match(match, _mention_hrefs) when is_binary(match), do: linkify_match(match, %{})
   defp linkify_match(match, _mention_hrefs), do: escape(match)
 
-  defp linkify_prefixed(token, href_fun) when is_binary(token) and is_function(href_fun, 1) do
+  defp linkify_prefixed(token, href_fun, class \\ nil)
+       when is_binary(token) and is_function(href_fun, 1) do
     {core, trailing} = split_trailing_punctuation(token, @mention_trailing)
 
     case href_fun.(core) do
-      {:ok, href} -> [anchor(href, core), escape(trailing)]
+      {:ok, href} -> [anchor(href, core, class), escape(trailing)]
       :error -> escape(token)
     end
   end
@@ -484,6 +485,18 @@ defmodule Egregoros.HTML do
     "<a href=\"" <> href <> "\">" <> label <> "</a>"
   end
 
+  defp anchor(href, label, class)
+       when is_binary(href) and is_binary(label) and is_binary(class) and class != "" do
+    href = href |> escape_binary() |> IO.iodata_to_binary()
+    label = label |> escape_binary() |> IO.iodata_to_binary()
+    class = class |> escape_binary() |> IO.iodata_to_binary()
+    "<a href=\"" <> href <> "\" class=\"" <> class <> "\">" <> label <> "</a>"
+  end
+
+  defp anchor(href, label, _class) when is_binary(href) and is_binary(label) do
+    anchor(href, label)
+  end
+
   defp escape(value), do: escape_binary(to_string(value))
 
   defp escape_binary(value) when is_binary(value) do
@@ -501,7 +514,9 @@ defmodule Egregoros.HTML do
             profile_url = URL.absolute(profile_path)
 
             if is_binary(profile_url) and profile_url != "" do
-              replace_href(acc, href, profile_url)
+              acc
+              |> replace_href(href, profile_url)
+              |> add_anchor_class_for_href(profile_url, "mention-link")
             else
               acc
             end
@@ -527,4 +542,46 @@ defmodule Egregoros.HTML do
   end
 
   defp replace_href(html, _old_href, _new_href) when is_binary(html), do: html
+
+  defp add_anchor_class_for_href(html, href, class)
+       when is_binary(html) and is_binary(href) and is_binary(class) and class != "" do
+    href_escaped = href |> escape_binary() |> IO.iodata_to_binary()
+    href_regex = Regex.escape(href_escaped)
+
+    Regex.replace(~r/<a\b([^>]*?)\bhref=(["'])#{href_regex}\2([^>]*?)>/, html, fn _match,
+                                                                                  before,
+                                                                                  quote,
+                                                                                  after_attrs ->
+      attrs = before <> "href=" <> quote <> href_escaped <> quote <> after_attrs
+      attrs = ensure_anchor_class(attrs, class)
+      "<a" <> attrs <> ">"
+    end)
+  end
+
+  defp add_anchor_class_for_href(html, _href, _class) when is_binary(html), do: html
+
+  defp ensure_anchor_class(attrs, class) when is_binary(attrs) and is_binary(class) do
+    class = String.trim(class)
+
+    if class == "" do
+      attrs
+    else
+      case Regex.run(~r/\bclass=(["'])([^"']*)\1/, attrs) do
+        nil ->
+          attrs <> " class=\"" <> class <> "\""
+
+        [full, quote, existing] ->
+          tokens =
+            existing
+            |> String.split(~r/\s+/, trim: true)
+
+          if class in tokens do
+            attrs
+          else
+            updated = Enum.join(tokens ++ [class], " ")
+            String.replace(attrs, full, "class=" <> quote <> updated <> quote)
+          end
+      end
+    end
+  end
 end
