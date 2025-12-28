@@ -74,6 +74,34 @@ defmodule Egregoros.PipelineTest do
     assert object.local == false
   end
 
+  test "ingest accepts Like from followed actor even when not addressed directly to inbox user" do
+    {:ok, user} = Users.create_local_user("inbox-user")
+    actor_ap_id = "https://lain.com/users/lain"
+
+    assert {:ok, _} =
+             Relationships.upsert_relationship(%{
+               type: "Follow",
+               actor: user.ap_id,
+               object: actor_ap_id,
+               activity_ap_id: "https://egregoros.example/activities/follow/like-targeting"
+             })
+
+    like = %{
+      "id" => "https://lain.com/activities/6c3ae6ff-e700-4890-834a-3ce143268fa2",
+      "type" => "Like",
+      "actor" => actor_ap_id,
+      "object" => "https://clubcyberia.co/objects/c304b94e-83f9-43a5-8663-3444abb3bd57",
+      "to" => ["https://clubcyberia.co/users/get", actor_ap_id <> "/followers"],
+      "cc" => ["https://www.w3.org/ns/activitystreams#Public"]
+    }
+
+    assert {:ok, %Object{} = object} =
+             Pipeline.ingest(like, local: false, inbox_user_ap_id: user.ap_id)
+
+    assert object.type == "Like"
+    assert object.actor == actor_ap_id
+  end
+
   test "ingest stores Announce" do
     assert {:ok, %Object{} = object} = Pipeline.ingest(@announce, local: false)
     assert object.type == "Announce"

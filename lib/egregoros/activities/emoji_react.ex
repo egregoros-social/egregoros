@@ -112,10 +112,14 @@ defmodule Egregoros.Activities.EmojiReact do
 
   defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate(opts, fn inbox_user_ap_id ->
+      actor_ap_id = Map.get(activity, "actor")
       object_ap_id = Map.get(activity, "object")
 
       cond do
         InboxTargeting.addressed_to?(activity, inbox_user_ap_id) ->
+          :ok
+
+        InboxTargeting.follows?(inbox_user_ap_id, actor_ap_id) ->
           :ok
 
         InboxTargeting.object_owned_by?(object_ap_id, inbox_user_ap_id) ->
