@@ -150,10 +150,10 @@ defmodule EgregorosWeb.StatusCard do
             </span>
           </summary>
 
-          <.status_body entry={@entry} />
+          <.status_body entry={@entry} current_user={@current_user} />
         </details>
       <% else %>
-        <.status_body entry={@entry} />
+        <.status_body entry={@entry} current_user={@current_user} />
       <% end %>
 
       <div
@@ -329,6 +329,7 @@ defmodule EgregorosWeb.StatusCard do
   defp reaction_order(_reactions), do: @default_reactions
 
   attr :entry, :map, required: true
+  attr :current_user, :any, default: nil
 
   defp status_body(assigns) do
     ~H"""
@@ -339,16 +340,40 @@ defmodule EgregorosWeb.StatusCard do
     <% toggle_more_id = "#{content_id}-more" %>
     <% toggle_less_id = "#{content_id}-less" %>
     <% toggle_icon_id = "#{content_id}-icon" %>
+    <% e2ee_payload = e2ee_payload_json(@entry.object) %>
+    <% current_user_ap_id = current_user_ap_id(@current_user) %>
 
     <div
       id={content_id}
       data-role="post-content"
+      data-e2ee-dm={e2ee_payload}
+      data-current-user-ap-id={current_user_ap_id}
+      phx-hook={if is_binary(e2ee_payload), do: "E2EEDMMessage", else: nil}
       class={[
         "mt-4 text-base leading-relaxed text-slate-700 dark:text-slate-200",
+        is_binary(e2ee_payload) && "whitespace-pre-wrap",
         collapsible_content && "relative max-h-64 overflow-hidden"
       ]}
     >
-      {post_content_html(@entry.object)}
+      <%= if is_binary(e2ee_payload) do %>
+        <div data-role="e2ee-dm-body">{post_content_html(@entry.object)}</div>
+      <% else %>
+        {post_content_html(@entry.object)}
+      <% end %>
+
+      <div
+        :if={is_binary(e2ee_payload)}
+        data-role="e2ee-dm-actions"
+        class="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400"
+      >
+        <button
+          type="button"
+          data-role="e2ee-dm-unlock"
+          class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          <.icon name="hero-lock-open" class="size-4" /> Unlock
+        </button>
+      </div>
 
       <div
         :if={collapsible_content}
@@ -503,6 +528,18 @@ defmodule EgregorosWeb.StatusCard do
   end
 
   defp post_content_html(_object), do: ""
+
+  defp e2ee_payload_json(%{data: %{} = data}) do
+    case Map.get(data, "egregoros:e2ee_dm") do
+      %{} = payload when map_size(payload) > 0 -> Jason.encode!(payload)
+      _ -> nil
+    end
+  end
+
+  defp e2ee_payload_json(_object), do: nil
+
+  defp current_user_ap_id(%{ap_id: ap_id}) when is_binary(ap_id), do: ap_id
+  defp current_user_ap_id(_current_user), do: ""
 
   defp avatar_initial(name) when is_binary(name) do
     name = String.trim(name)

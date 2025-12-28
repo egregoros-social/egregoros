@@ -1381,6 +1381,472 @@ const initE2EESettings = () => {
   })
 }
 
+// ═══════════════════════════════════════════════════════════
+// E2EE DIRECT MESSAGES (client-side encryption/decryption)
+// ═══════════════════════════════════════════════════════════
+
+let e2eeStatusCache = null
+let e2eeStatusPromise = null
+
+const fetchE2EEStatus = async () => {
+  if (e2eeStatusCache) return e2eeStatusCache
+  if (e2eeStatusPromise) return e2eeStatusPromise
+
+  e2eeStatusPromise = fetch("/settings/e2ee", {
+    method: "GET",
+    credentials: "same-origin",
+    headers: {accept: "application/json"},
+  })
+    .then(async response => {
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(body?.error || "e2ee_status_failed")
+      e2eeStatusCache = body
+      return body
+    })
+    .finally(() => {
+      e2eeStatusPromise = null
+    })
+
+  return e2eeStatusPromise
+}
+
+const sliceArrayBuffer = bytes => {
+  const buffer = bytes.buffer
+  return buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+}
+
+let e2eeIdentity = null
+let e2eeUnlockPromise = null
+
+const unlockE2EEIdentity = async () => {
+  if (e2eeIdentity?.privateKey) return e2eeIdentity
+  if (e2eeUnlockPromise) return e2eeUnlockPromise
+
+  e2eeUnlockPromise = (async () => {
+    const status = await fetchE2EEStatus()
+
+    if (!status?.enabled || !status?.active_key) throw new Error("e2ee_not_enabled")
+
+    const wrapper = (status?.wrappers || []).find(w => w?.type === "webauthn_hmac_secret")
+    if (!wrapper) throw new Error("e2ee_no_passkey_wrapper")
+
+    const params = wrapper.params || {}
+    const credentialId = params.credential_id
+    const prfSalt = params.prf_salt
+    const hkdfSalt = params.hkdf_salt
+    const iv = params.iv
+    const info = params.info || "egregoros:e2ee:wrap:v1"
+
+    if (!credentialId || !prfSalt || !hkdfSalt || !iv) throw new Error("e2ee_wrapper_invalid")
+
+    const credentialBytes = base64UrlDecode(credentialId)
+    const prfSaltBytes = base64UrlDecode(prfSalt)
+
+    const assertionOptions = {
+      challenge: randomBytes(32),
+      rpId: window.location.hostname,
+      allowCredentials: [{type: "public-key", id: sliceArrayBuffer(credentialBytes)}],
+      userVerification: "required",
+      extensions: {
+        hmacGetSecret: {salt1: prfSaltBytes},
+        prf: {eval: {first: prfSaltBytes}},
+      },
+    }
+
+    let assertion
+    try {
+      assertion = await navigator.credentials.get({publicKey: assertionOptions})
+    } catch (error) {
+      console.error("e2ee unlock passkey get failed", error)
+      throw new Error("e2ee_passkey_failed")
+    }
+
+    const getExt = assertion?.getClientExtensionResults?.() || {}
+    const prfOutput = getExt.prf?.results?.first || getExt.hmacGetSecret?.output1
+
+    if (!prfOutput) {
+      console.error("e2ee unlock extension results", {getExt})
+      throw new Error("e2ee_prf_unsupported")
+    }
+
+    const hkdfSaltBytes = base64UrlDecode(hkdfSalt)
+    const ivBytes = base64UrlDecode(iv)
+    const wrappedBytes = base64UrlDecode(wrapper.wrapped_private_key)
+
+    const prfKey = await crypto.subtle.importKey("raw", prfOutput, "HKDF", false, ["deriveKey"])
+
+    const wrapKey = await crypto.subtle.deriveKey(
+      {name: "HKDF", hash: "SHA-256", salt: hkdfSaltBytes, info: utf8Bytes(info)},
+      prfKey,
+      {name: "AES-GCM", length: 256},
+      false,
+      ["decrypt"]
+    )
+
+    const plaintext = await crypto.subtle.decrypt(
+      {name: "AES-GCM", iv: ivBytes},
+      wrapKey,
+      sliceArrayBuffer(wrappedBytes)
+    )
+
+    const jwkJson = new TextDecoder().decode(new Uint8Array(plaintext))
+    const privateJwk = JSON.parse(jwkJson)
+
+    const privateKey = await crypto.subtle.importKey(
+      "jwk",
+      privateJwk,
+      {name: "ECDH", namedCurve: "P-256"},
+      false,
+      ["deriveBits"]
+    )
+
+    e2eeIdentity = {
+      kid: status.active_key.kid,
+      publicKeyJwk: status.active_key.public_key_jwk,
+      privateKey,
+    }
+
+    window.egregorosE2EE = e2eeIdentity
+    return e2eeIdentity
+  })()
+    .catch(error => {
+      e2eeIdentity = null
+      throw error
+    })
+    .finally(() => {
+      e2eeUnlockPromise = null
+    })
+
+  return e2eeUnlockPromise
+}
+
+const localHostMatches = domain => {
+  if (!domain) return false
+  const normalized = domain.trim().toLowerCase()
+  return normalized === window.location.host.toLowerCase() || normalized === window.location.hostname.toLowerCase()
+}
+
+const parseHandle = value => {
+  if (typeof value !== "string") return {nickname: null, domain: null}
+  const raw = value.trim().replace(/^@+/, "")
+  if (!raw) return {nickname: null, domain: null}
+
+  const [nickname, domain] = raw.split("@", 2)
+  return {nickname: nickname || null, domain: domain || null}
+}
+
+const stableStringify = value => {
+  if (value === null) return "null"
+  if (typeof value === "number") return Number.isFinite(value) ? JSON.stringify(value) : "null"
+  if (typeof value === "boolean") return value ? "true" : "false"
+  if (typeof value === "string") return JSON.stringify(value)
+
+  if (Array.isArray(value)) {
+    return `[${value.map(item => stableStringify(item)).join(",")}]`
+  }
+
+  if (typeof value === "object") {
+    const keys = Object.keys(value).sort()
+    const entries = keys.map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+    return `{${entries.join(",")}}`
+  }
+
+  return "null"
+}
+
+const actorKeyCache = new Map()
+
+const fetchActorE2EEKey = async (actorApId, kid) => {
+  if (!actorApId) return null
+
+  const cacheKey = `${actorApId}#${kid || ""}`
+  if (actorKeyCache.has(cacheKey)) return actorKeyCache.get(cacheKey)
+
+  const response = await fetch(actorApId, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: {accept: "application/activity+json"},
+  })
+
+  if (!response.ok) return null
+  const actor = await response.json().catch(() => null)
+  if (!actor) return null
+
+  const e2ee = actor["egregoros:e2ee"]
+  const keys = e2ee?.keys
+  if (!Array.isArray(keys) || keys.length === 0) return null
+
+  const selected = kid ? keys.find(k => k?.kid === kid) : keys[0]
+  if (!selected?.kty || !selected?.crv || !selected?.x || !selected?.y || !selected?.kid) return null
+
+  const key = {
+    kid: selected.kid,
+    jwk: {kty: selected.kty, crv: selected.crv, x: selected.x, y: selected.y},
+    fingerprint: selected.fingerprint || null,
+  }
+
+  actorKeyCache.set(cacheKey, key)
+  return key
+}
+
+const deriveDmKey = async (myPrivateKey, otherPublicKey, saltBytes, infoBytes) => {
+  const sharedBits = await crypto.subtle.deriveBits({name: "ECDH", public: otherPublicKey}, myPrivateKey, 256)
+  const hkdfKey = await crypto.subtle.importKey("raw", sharedBits, "HKDF", false, ["deriveKey"])
+
+  return crypto.subtle.deriveKey(
+    {name: "HKDF", hash: "SHA-256", salt: saltBytes, info: infoBytes},
+    hkdfKey,
+    {name: "AES-GCM", length: 256},
+    false,
+    ["encrypt", "decrypt"]
+  )
+}
+
+const encryptE2EEDM = async ({plaintext, senderApId, senderKid, senderPrivateKey, recipientApId, recipientKid, recipientJwk}) => {
+  const recipientPublicKey = await crypto.subtle.importKey(
+    "jwk",
+    recipientJwk,
+    {name: "ECDH", namedCurve: "P-256"},
+    false,
+    []
+  )
+
+  const salt = randomBytes(32)
+  const nonce = randomBytes(12)
+  const info = utf8Bytes("egregoros:e2ee:dm:v1")
+
+  const aad = {
+    sender_ap_id: senderApId,
+    recipient_ap_id: recipientApId,
+    sender_kid: senderKid,
+    recipient_kid: recipientKid,
+  }
+
+  const aadBytes = utf8Bytes(stableStringify(aad))
+
+  const key = await deriveDmKey(senderPrivateKey, recipientPublicKey, salt, info)
+
+  const ciphertext = await crypto.subtle.encrypt(
+    {name: "AES-GCM", iv: nonce, additionalData: aadBytes},
+    key,
+    utf8Bytes(plaintext)
+  )
+
+  return {
+    version: 1,
+    alg: "ECDH-P256+HKDF-SHA256+AES-256-GCM",
+    sender: {ap_id: senderApId, kid: senderKid},
+    recipient: {ap_id: recipientApId, kid: recipientKid},
+    nonce: base64UrlEncode(nonce),
+    salt: base64UrlEncode(salt),
+    aad,
+    ciphertext: base64UrlEncode(new Uint8Array(ciphertext)),
+  }
+}
+
+const decryptE2EEDM = async ({payload, myPrivateKey, otherApId, otherKid, myApId}) => {
+  const otherKey = await fetchActorE2EEKey(otherApId, otherKid)
+  if (!otherKey) throw new Error("e2ee_missing_sender_key")
+
+  const otherPublicKey = await crypto.subtle.importKey(
+    "jwk",
+    otherKey.jwk,
+    {name: "ECDH", namedCurve: "P-256"},
+    false,
+    []
+  )
+
+  const saltBytes = base64UrlDecode(payload.salt)
+  const nonceBytes = base64UrlDecode(payload.nonce)
+  const infoBytes = utf8Bytes("egregoros:e2ee:dm:v1")
+  const aadBytes = utf8Bytes(stableStringify(payload.aad || {}))
+  const ciphertextBytes = base64UrlDecode(payload.ciphertext)
+
+  const key = await deriveDmKey(myPrivateKey, otherPublicKey, saltBytes, infoBytes)
+
+  const plaintext = await crypto.subtle.decrypt(
+    {name: "AES-GCM", iv: nonceBytes, additionalData: aadBytes},
+    key,
+    sliceArrayBuffer(ciphertextBytes)
+  )
+
+  const decoded = new TextDecoder().decode(new Uint8Array(plaintext))
+  return decoded
+}
+
+const setDmE2EEFeedback = (form, message) => {
+  const el = form?.querySelector?.("[data-role='dm-e2ee-feedback']")
+  if (!el) return
+  el.textContent = message
+  el.classList.remove("hidden")
+}
+
+const clearDmE2EEFeedback = form => {
+  const el = form?.querySelector?.("[data-role='dm-e2ee-feedback']")
+  if (!el) return
+  el.textContent = ""
+  el.classList.add("hidden")
+}
+
+const E2EEDMComposer = {
+  mounted() {
+    this.submitting = false
+    this.onSubmit = async e => {
+      if (this.submitting) return
+
+      const recipientInput = this.el.querySelector("input[name='dm[recipient]']")
+      const contentInput = this.el.querySelector("textarea[name='dm[content]']")
+      const payloadInput = this.el.querySelector("[data-role='dm-e2ee-payload']")
+
+      if (!recipientInput || !contentInput || !payloadInput) return
+
+      clearDmE2EEFeedback(this.el)
+      payloadInput.value = ""
+
+      const recipientRaw = (recipientInput.value || "").trim()
+      const plaintext = (contentInput.value || "").trim()
+      if (!recipientRaw || !plaintext) return
+
+      const {nickname, domain} = parseHandle(recipientRaw)
+      if (!nickname) return
+
+      // v1: only encrypt when the recipient is local to this instance
+      if (domain && !localHostMatches(domain)) return
+
+      const recipientApId = `${window.location.origin}/users/${nickname}`
+      const recipientKey = await fetchActorE2EEKey(recipientApId, null)
+      if (!recipientKey) return
+
+      let status
+      try {
+        status = await fetchE2EEStatus()
+      } catch (error) {
+        console.error("e2ee status fetch failed", error)
+        return
+      }
+
+      if (!status?.enabled) return
+
+      e.preventDefault()
+      this.submitting = true
+      setDmE2EEFeedback(this.el, "Encrypting…")
+
+      try {
+        const identity = await unlockE2EEIdentity()
+
+        const payload = await encryptE2EEDM({
+          plaintext,
+          senderApId: this.el.dataset.userApId || "",
+          senderKid: identity.kid,
+          senderPrivateKey: identity.privateKey,
+          recipientApId,
+          recipientKid: recipientKey.kid,
+          recipientJwk: recipientKey.jwk,
+        })
+
+        payloadInput.value = JSON.stringify(payload)
+        contentInput.value = "Encrypted message"
+        setDmE2EEFeedback(this.el, "Encrypted. Sending…")
+
+        this.el.requestSubmit()
+      } catch (error) {
+        console.error("e2ee dm encrypt failed", error)
+        setDmE2EEFeedback(
+          this.el,
+          error?.message === "e2ee_prf_unsupported"
+            ? "This passkey provider does not support PRF/hmac-secret, so it can’t be used for encrypted DM key recovery."
+            : "Could not encrypt this message."
+        )
+        this.submitting = false
+      }
+    }
+
+    this.el.addEventListener("submit", this.onSubmit)
+  },
+
+  destroyed() {
+    this.el.removeEventListener("submit", this.onSubmit)
+  },
+}
+
+const E2EEDMMessage = {
+  mounted() {
+    this.decrypted = false
+    this.bodyEl = this.el.querySelector("[data-role='e2ee-dm-body']")
+    this.actionsEl = this.el.querySelector("[data-role='e2ee-dm-actions']")
+    this.unlockButton = this.el.querySelector("[data-role='e2ee-dm-unlock']")
+
+    this.onUnlock = async e => {
+      e.preventDefault()
+      try {
+        await unlockE2EEIdentity()
+        await this.tryDecrypt(true)
+      } catch (error) {
+        console.error("e2ee dm unlock failed", error)
+      }
+    }
+
+    if (this.unlockButton) this.unlockButton.addEventListener("click", this.onUnlock)
+    this.tryDecrypt(false)
+  },
+
+  updated() {
+    this.tryDecrypt(false)
+  },
+
+  destroyed() {
+    if (this.unlockButton) this.unlockButton.removeEventListener("click", this.onUnlock)
+  },
+
+  readPayload() {
+    const raw = this.el.dataset.e2eeDm
+    if (!raw) return null
+
+    try {
+      return JSON.parse(raw)
+    } catch (_error) {
+      return null
+    }
+  },
+
+  async tryDecrypt(triggeredByUser) {
+    if (this.decrypted) return
+    if (!this.bodyEl) return
+
+    const payload = this.readPayload()
+    if (!payload?.sender?.ap_id || !payload?.recipient?.ap_id) return
+
+    const myApId = this.el.dataset.currentUserApId || ""
+    if (!myApId) return
+
+    const identity = window.egregorosE2EE
+    if (!identity?.privateKey) return
+
+    const iAmSender = payload.sender.ap_id === myApId
+    const iAmRecipient = payload.recipient.ap_id === myApId
+
+    if (!iAmSender && !iAmRecipient) return
+
+    const other = iAmSender ? payload.recipient : payload.sender
+
+    try {
+      const plaintext = await decryptE2EEDM({
+        payload,
+        myPrivateKey: identity.privateKey,
+        otherApId: other.ap_id,
+        otherKid: other.kid,
+        myApId,
+      })
+
+      this.bodyEl.textContent = plaintext
+      if (this.actionsEl) this.actionsEl.classList.add("hidden")
+      this.decrypted = true
+    } catch (error) {
+      if (triggeredByUser) console.error("e2ee dm decrypt failed", error)
+    }
+  },
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
@@ -1394,6 +1860,8 @@ const liveSocket = new LiveSocket("/live", Socket, {
     EmojiPicker,
     MediaViewer,
     ReplyModal,
+    E2EEDMComposer,
+    E2EEDMMessage,
   },
 })
 

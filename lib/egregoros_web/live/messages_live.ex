@@ -167,6 +167,9 @@ defmodule EgregorosWeb.MessagesLive do
                 for={@dm_form}
                 id="dm-form"
                 phx-submit="send_dm"
+                phx-hook="E2EEDMComposer"
+                data-role="dm-composer"
+                data-user-ap-id={@current_user.ap_id}
                 class="space-y-4"
               >
                 <input
@@ -178,6 +181,12 @@ defmodule EgregorosWeb.MessagesLive do
                   aria-hidden="true"
                   tabindex="-1"
                 />
+
+                <p
+                  data-role="dm-e2ee-feedback"
+                  class="hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200"
+                >
+                </p>
 
                 <div class="space-y-2">
                   <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
