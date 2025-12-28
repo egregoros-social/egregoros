@@ -11,6 +11,7 @@ This is a **web UI** checklist for Egregoros. Items are ordered roughly by depen
 - `/` (LiveView) timeline + compose
 - `/search` (LiveView) account search + remote follow by handle
 - `/notifications` (LiveView) notifications list
+- `/messages` (LiveView) direct messages
 - `/@:nickname` (LiveView) profile view
 - `/login`, `/register`, `/settings`, `/oauth/authorize` (controllers/templates)
 
@@ -107,7 +108,7 @@ This is a **web UI** checklist for Egregoros. Items are ordered roughly by depen
 | Followers list page | DONE | Dedicated page exists (`/@:nickname/followers`) with load-more pagination + follow/unfollow buttons. |
 | Following list page | DONE | Dedicated page exists (`/@:nickname/following`) with load-more pagination + follow/unfollow buttons. |
 | Follow requests (locked accounts) | TODO | Accept/deny UI. |
-| Blocks / mutes | TODO | UI + clear state indicators. |
+| Blocks / mutes | PARTIAL | Block/mute buttons exist on profile pages; still missing a dedicated management screen/list. |
 | Relationship badges (follows you, mutuals) | TODO | Optional but useful. |
 | Profile fields (custom metadata) | TODO | Common on Mastodon/Pleroma. |
 | Profile header image | DONE | Local users can upload a header image in Settings; profile renders it when `banner_url` is present. |
@@ -116,10 +117,10 @@ This is a **web UI** checklist for Egregoros. Items are ordered roughly by depen
 | Feature | Status | Notes |
 |---|---:|---|
 | Notifications list | DONE | `/notifications` |
-| Notification types coverage | PARTIAL | Follow/like/repost covered; expand (mentions, emoji reactions, etc.). |
+| Notification types coverage | PARTIAL | Follow/like/repost/mention/emoji reactions covered; still missing follow requests, polls, reports, etc. |
 | Live updates for notifications | DONE | Notifications stream into the list while connected. |
 | Mark as read / unread | TODO | |
-| Notification filtering (mentions only, follows only, etc.) | PARTIAL | Basic client-side filters exist (all/follows/likes/reposts); still missing mentions + richer filtering options. |
+| Notification filtering (mentions only, follows only, etc.) | PARTIAL | Filters cover all/follows/likes/reposts/mentions/reactions; still missing richer filtering options. |
 
 ### Search & discovery
 | Feature | Status | Notes |
@@ -133,7 +134,7 @@ This is a **web UI** checklist for Egregoros. Items are ordered roughly by depen
 ### Messaging
 | Feature | Status | Notes |
 |---|---:|---|
-| Direct messages UI | TODO | Mastodon DMs are “direct visibility” statuses; UI still needs it. |
+| Direct messages UI | PARTIAL | `/messages` lists/sends direct visibility notes; still needs richer conversation UX + polish. |
 
 ---
 

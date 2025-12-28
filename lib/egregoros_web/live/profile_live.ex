@@ -54,6 +54,12 @@ defmodule EgregorosWeb.ProfileLive do
     follow_relationship =
       follow_relationship(current_user, profile_user)
 
+    block_relationship =
+      relationship_for("Block", current_user, profile_user)
+
+    mute_relationship =
+      relationship_for("Mute", current_user, profile_user)
+
     reply_form = Phoenix.Component.to_form(default_reply_params(), as: :reply)
 
     profile_bio_html =
@@ -76,11 +82,13 @@ defmodule EgregorosWeb.ProfileLive do
        profile_bio_html: profile_bio_html,
        notifications_count: notifications_count(current_user),
        follow_relationship: follow_relationship,
+       block_relationship: block_relationship,
+       mute_relationship: mute_relationship,
        mention_suggestions: %{},
-       reply_modal_open?: false,
-       reply_to_ap_id: nil,
-       reply_to_handle: nil,
-       reply_form: reply_form,
+        reply_modal_open?: false,
+        reply_to_ap_id: nil,
+        reply_to_handle: nil,
+        reply_form: reply_form,
        reply_media_alt: %{},
        reply_options_open?: false,
        reply_cw_open?: false,
@@ -373,6 +381,7 @@ defmodule EgregorosWeb.ProfileLive do
     with %User{} = viewer <- socket.assigns.current_user,
          %User{} = profile_user <- socket.assigns.profile_user,
          true <- viewer.id != profile_user.id,
+         nil <- socket.assigns.block_relationship,
          nil <- Relationships.get_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id),
          {:ok, _follow} <- Pipeline.ingest(Follow.build(viewer, profile_user), local: true) do
       relationship =
@@ -388,6 +397,100 @@ defmodule EgregorosWeb.ProfileLive do
     else
       nil ->
         {:noreply, put_flash(socket, :error, "Register to follow people.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("mute", _params, socket) do
+    with %User{} = viewer <- socket.assigns.current_user,
+         %User{} = profile_user <- socket.assigns.profile_user,
+         true <- viewer.id != profile_user.id,
+         {:ok, %{} = relationship} <-
+           Relationships.upsert_relationship(%{
+             type: "Mute",
+             actor: viewer.ap_id,
+             object: profile_user.ap_id,
+             activity_ap_id: nil
+           }) do
+      {:noreply,
+       socket
+       |> put_flash(:info, "Muted #{profile_user.nickname}.")
+       |> assign(mute_relationship: relationship)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to mute people.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("unmute", _params, socket) do
+    with %User{} = viewer <- socket.assigns.current_user,
+         %User{} = profile_user <- socket.assigns.profile_user,
+         true <- viewer.id != profile_user.id do
+      Relationships.delete_by_type_actor_object("Mute", viewer.ap_id, profile_user.ap_id)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "Unmuted #{profile_user.nickname}.")
+       |> assign(mute_relationship: nil)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to unmute people.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("block", _params, socket) do
+    with %User{} = viewer <- socket.assigns.current_user,
+         %User{} = profile_user <- socket.assigns.profile_user,
+         true <- viewer.id != profile_user.id,
+         {:ok, %{} = relationship} <-
+           Relationships.upsert_relationship(%{
+             type: "Block",
+             actor: viewer.ap_id,
+             object: profile_user.ap_id,
+             activity_ap_id: nil
+           }) do
+      Relationships.delete_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id)
+      Relationships.delete_by_type_actor_object("Follow", profile_user.ap_id, viewer.ap_id)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "Blocked #{profile_user.nickname}.")
+       |> assign(
+         block_relationship: relationship,
+         follow_relationship: nil,
+         followers_count: count_followers(profile_user),
+         following_count: count_following(profile_user)
+       )}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to block people.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("unblock", _params, socket) do
+    with %User{} = viewer <- socket.assigns.current_user,
+         %User{} = profile_user <- socket.assigns.profile_user,
+         true <- viewer.id != profile_user.id do
+      Relationships.delete_by_type_actor_object("Block", viewer.ap_id, profile_user.ap_id)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "Unblocked #{profile_user.nickname}.")
+       |> assign(block_relationship: nil)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to unblock people.")}
 
       _ ->
         {:noreply, socket}
@@ -621,26 +724,72 @@ defmodule EgregorosWeb.ProfileLive do
 
                   <div class="flex flex-wrap items-center gap-2">
                     <%= if @current_user && @current_user.id != @profile_user.id do %>
-                      <%= if @follow_relationship do %>
+                      <%= if @mute_relationship do %>
                         <button
                           type="button"
-                          data-role="profile-unfollow"
-                          phx-click="unfollow"
-                          phx-disable-with="Unfollowing..."
-                          class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+                          data-role="profile-unmute"
+                          phx-click="unmute"
+                          phx-disable-with="Unmuting..."
+                          class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
                         >
-                          Unfollow
+                          Unmute
                         </button>
                       <% else %>
                         <button
                           type="button"
-                          data-role="profile-follow"
-                          phx-click="follow"
-                          phx-disable-with="Following..."
-                          class="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                          data-role="profile-mute"
+                          phx-click="mute"
+                          phx-disable-with="Muting..."
+                          class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
                         >
-                          Follow
+                          Mute
                         </button>
+                      <% end %>
+
+                      <%= if @block_relationship do %>
+                        <button
+                          type="button"
+                          data-role="profile-unblock"
+                          phx-click="unblock"
+                          phx-disable-with="Unblocking..."
+                          class="inline-flex items-center justify-center rounded-full border border-red-200/80 bg-red-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-700 shadow-sm shadow-red-100/30 transition hover:-translate-y-0.5 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 dark:border-red-800/70 dark:bg-red-900/30 dark:text-red-200 dark:shadow-red-900/30 dark:hover:bg-red-900/40"
+                        >
+                          Unblock
+                        </button>
+                      <% else %>
+                        <button
+                          type="button"
+                          data-role="profile-block"
+                          phx-click="block"
+                          phx-disable-with="Blocking..."
+                          class="inline-flex items-center justify-center rounded-full border border-red-200/80 bg-red-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-700 shadow-sm shadow-red-100/30 transition hover:-translate-y-0.5 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 dark:border-red-800/70 dark:bg-red-900/30 dark:text-red-200 dark:shadow-red-900/30 dark:hover:bg-red-900/40"
+                        >
+                          Block
+                        </button>
+                      <% end %>
+
+                      <%= if !@block_relationship do %>
+                        <%= if @follow_relationship do %>
+                          <button
+                            type="button"
+                            data-role="profile-unfollow"
+                            phx-click="unfollow"
+                            phx-disable-with="Unfollowing..."
+                            class="inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 shadow-sm shadow-slate-200/20 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:shadow-slate-900/40 dark:hover:bg-slate-950"
+                          >
+                            Unfollow
+                          </button>
+                        <% else %>
+                          <button
+                            type="button"
+                            data-role="profile-follow"
+                            phx-click="follow"
+                            phx-disable-with="Following..."
+                            class="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                          >
+                            Follow
+                          </button>
+                        <% end %>
                       <% end %>
                     <% end %>
                   </div>
@@ -769,6 +918,14 @@ defmodule EgregorosWeb.ProfileLive do
 
   defp follow_relationship(%User{} = current_user, %User{} = profile_user) do
     Relationships.get_by_type_actor_object("Follow", current_user.ap_id, profile_user.ap_id)
+  end
+
+  defp relationship_for(_type, nil, _profile_user), do: nil
+  defp relationship_for(_type, _current_user, nil), do: nil
+
+  defp relationship_for(type, %User{} = current_user, %User{} = profile_user)
+       when is_binary(type) do
+    Relationships.get_by_type_actor_object(type, current_user.ap_id, profile_user.ap_id)
   end
 
   defp count_posts(nil, _viewer), do: 0

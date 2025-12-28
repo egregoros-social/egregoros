@@ -44,6 +44,73 @@ defmodule EgregorosWeb.ProfileLiveTest do
     assert has_element?(view, "button[data-role='profile-follow']")
   end
 
+  test "profile supports muting and unmuting", %{conn: conn, viewer: viewer, profile_user: profile_user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
+
+    assert Relationships.get_by_type_actor_object("Mute", viewer.ap_id, profile_user.ap_id) == nil
+
+    view
+    |> element("button[data-role='profile-mute']")
+    |> render_click()
+
+    assert Relationships.get_by_type_actor_object("Mute", viewer.ap_id, profile_user.ap_id)
+    assert has_element?(view, "button[data-role='profile-unmute']")
+
+    view
+    |> element("button[data-role='profile-unmute']")
+    |> render_click()
+
+    assert Relationships.get_by_type_actor_object("Mute", viewer.ap_id, profile_user.ap_id) == nil
+    assert has_element?(view, "button[data-role='profile-mute']")
+  end
+
+  test "profile supports blocking and unblocking", %{
+    conn: conn,
+    viewer: viewer,
+    profile_user: profile_user
+  } do
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
+
+    view
+    |> element("button[data-role='profile-follow']")
+    |> render_click()
+
+    assert Relationships.get_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id)
+
+    {:ok, _} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/activities/follow/back",
+          "type" => "Follow",
+          "actor" => profile_user.ap_id,
+          "object" => viewer.ap_id
+        },
+        local: true
+      )
+
+    assert Relationships.get_by_type_actor_object("Follow", profile_user.ap_id, viewer.ap_id)
+
+    view
+    |> element("button[data-role='profile-block']")
+    |> render_click()
+
+    assert Relationships.get_by_type_actor_object("Block", viewer.ap_id, profile_user.ap_id)
+    assert Relationships.get_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id) == nil
+    assert Relationships.get_by_type_actor_object("Follow", profile_user.ap_id, viewer.ap_id) == nil
+    assert has_element?(view, "button[data-role='profile-unblock']")
+    refute has_element?(view, "button[data-role='profile-follow']")
+
+    view
+    |> element("button[data-role='profile-unblock']")
+    |> render_click()
+
+    assert Relationships.get_by_type_actor_object("Block", viewer.ap_id, profile_user.ap_id) == nil
+    assert has_element?(view, "button[data-role='profile-block']")
+    assert has_element?(view, "button[data-role='profile-follow']")
+  end
+
   test "profile can load more posts", %{conn: conn, viewer: viewer, profile_user: profile_user} do
     for idx <- 1..25 do
       assert {:ok, _} = Pipeline.ingest(Note.build(profile_user, "Post #{idx}"), local: true)
