@@ -143,6 +143,12 @@ body {
    CUSTOM COMPONENT STYLES
    ═══════════════════════════════════════════════════════════ */
 
+/* Custom emoji should behave like inline glyphs (Tailwind preflight sets img to display:block) */
+img.emoji {
+  display: inline-block;
+  vertical-align: -0.125em;
+}
+
 /* Gradient text for branding */
 .text-gradient {
   background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
