@@ -8,6 +8,7 @@ defmodule Egregoros.Activities.EmojiReact do
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.Federation.Delivery
   alias Egregoros.InboxTargeting
+  alias Egregoros.Notifications
   alias Egregoros.Object
   alias Egregoros.Objects
   alias Egregoros.Relationships
@@ -103,11 +104,24 @@ defmodule Egregoros.Activities.EmojiReact do
         })
     end
 
+    maybe_broadcast_notification(object)
+
     if Keyword.get(opts, :local, true) do
       deliver_reaction(object)
     end
 
     :ok
+  end
+
+  defp maybe_broadcast_notification(object) do
+    with %{} = reacted_object <- Objects.get_by_ap_id(object.object),
+         %{} = target <- Users.get_by_ap_id(reacted_object.actor),
+         true <- target.local,
+         true <- target.ap_id != object.actor do
+      Notifications.broadcast(target.ap_id, object)
+    else
+      _ -> :ok
+    end
   end
 
   defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do

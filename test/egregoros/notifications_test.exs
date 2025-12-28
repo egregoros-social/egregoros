@@ -2,6 +2,7 @@ defmodule Egregoros.NotificationsTest do
   use Egregoros.DataCase, async: true
 
   alias Egregoros.Activities.Announce
+  alias Egregoros.Activities.EmojiReact
   alias Egregoros.Activities.Follow
   alias Egregoros.Activities.Like
   alias Egregoros.Notifications
@@ -35,6 +36,57 @@ defmodule Egregoros.NotificationsTest do
 
     assert Enum.map(notifications, & &1.id) |> Enum.take(2) == [announce.id, like.id]
     assert Enum.map(notifications, & &1.type) |> Enum.take(2) == ["Announce", "Like"]
+  end
+
+  test "lists emoji reactions on the user's notes" do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    {:ok, create} = Publish.post_note(alice, "hello")
+    note_ap_id = create.object
+
+    assert {:ok, react} = Pipeline.ingest(EmojiReact.build(bob, note_ap_id, "🔥"), local: true)
+
+    notifications = Notifications.list_for_user(alice, limit: 10)
+
+    assert Enum.any?(notifications, &(&1.id == react.id))
+    assert Enum.any?(notifications, &(&1.type == "EmojiReact"))
+  end
+
+  test "lists notes that mention the user" do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    {:ok, create} = Publish.post_note(bob, "@alice Hello there")
+    note_ap_id = create.object
+
+    notifications = Notifications.list_for_user(alice, limit: 10)
+
+    assert Enum.any?(notifications, &(&1.type == "Note" and &1.ap_id == note_ap_id))
+  end
+
+  test "broadcasts mention notifications to local recipients" do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    Notifications.subscribe(alice.ap_id)
+    assert {:ok, _create} = Publish.post_note(bob, "@alice hello!")
+
+    assert_receive {:notification_created, %{type: "Note", actor: actor}}, 1_000
+    assert actor == bob.ap_id
+  end
+
+  test "broadcasts emoji reaction notifications to local authors" do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    Notifications.subscribe(alice.ap_id)
+    {:ok, create} = Publish.post_note(alice, "hello")
+
+    assert {:ok, _} = Pipeline.ingest(EmojiReact.build(bob, create.object, "🔥"), local: true)
+
+    assert_receive {:notification_created, %{type: "EmojiReact", actor: actor}}, 1_000
+    assert actor == bob.ap_id
   end
 
   test "supports max_id and since_id pagination" do

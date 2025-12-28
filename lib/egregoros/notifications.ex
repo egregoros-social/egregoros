@@ -1,11 +1,11 @@
 defmodule Egregoros.Notifications do
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query, only: [from: 2, dynamic: 2]
 
   alias Egregoros.Object
   alias Egregoros.Repo
   alias Egregoros.User
 
-  @interactive_types ~w(Follow Like Announce)
+  @interactive_types ~w(Follow Like Announce EmojiReact Note)
   @topic_prefix "notifications"
 
   def subscribe(user_ap_id) when is_binary(user_ap_id) do
@@ -26,6 +26,7 @@ defmodule Egregoros.Notifications do
     limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
     max_id = opts |> Keyword.get(:max_id) |> normalize_id()
     since_id = opts |> Keyword.get(:since_id) |> normalize_id()
+    include_reactions? = opts |> Keyword.get(:include_reactions?, true) |> normalize_boolean(true)
 
     note_ap_ids =
       from(n in Object,
@@ -33,10 +34,35 @@ defmodule Egregoros.Notifications do
         select: n.ap_id
       )
 
+    interaction_types =
+      if include_reactions? do
+        ["Like", "Announce", "EmojiReact"]
+      else
+        ["Like", "Announce"]
+      end
+
+    follow_predicate =
+      dynamic([a], a.type == "Follow" and a.object == ^user.ap_id and a.actor != ^user.ap_id)
+
+    interaction_predicate =
+      dynamic(
+        [a],
+        a.type in ^interaction_types and a.object in subquery(note_ap_ids) and a.actor != ^user.ap_id
+      )
+
+    mention_predicate =
+      dynamic(
+        [a],
+        a.type == "Note" and a.actor != ^user.ap_id and
+          (fragment("? @> ?", a.data, ^%{"to" => [user.ap_id]}) or
+             fragment("? @> ?", a.data, ^%{"cc" => [user.ap_id]}))
+      )
+
+    predicate = dynamic([a], ^follow_predicate or ^interaction_predicate or ^mention_predicate)
+
     from(a in Object,
       where:
-        (a.type == "Follow" and a.object == ^user.ap_id) or
-          (a.type in ["Like", "Announce"] and a.object in subquery(note_ap_ids)),
+        ^predicate,
       order_by: [desc: a.id],
       limit: ^limit
     )
@@ -91,4 +117,16 @@ defmodule Egregoros.Notifications do
   end
 
   defp normalize_id(_), do: nil
+
+  defp normalize_boolean(value, _default) when is_boolean(value), do: value
+
+  defp normalize_boolean(value, default) when is_binary(value) do
+    case String.trim(String.downcase(value)) do
+      "true" -> true
+      "false" -> false
+      _ -> default
+    end
+  end
+
+  defp normalize_boolean(_value, default), do: default
 end

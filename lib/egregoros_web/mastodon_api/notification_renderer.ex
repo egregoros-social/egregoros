@@ -11,6 +11,7 @@ defmodule EgregorosWeb.MastodonAPI.NotificationRenderer do
       case activity.type do
         "Like" -> Objects.get_by_ap_id(activity.object)
         "Announce" -> Objects.get_by_ap_id(activity.object)
+        "Note" -> activity
         _ -> nil
       end
 
@@ -26,6 +27,7 @@ defmodule EgregorosWeb.MastodonAPI.NotificationRenderer do
   defp mastodon_type("Follow"), do: "follow"
   defp mastodon_type("Like"), do: "favourite"
   defp mastodon_type("Announce"), do: "reblog"
+  defp mastodon_type("Note"), do: "mention"
   defp mastodon_type(type) when is_binary(type), do: String.downcase(type)
   defp mastodon_type(_), do: "unknown"
 

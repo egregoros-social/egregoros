@@ -194,6 +194,15 @@ a.mention-link:hover {
   display: none;
 }
 
+[data-role="notifications-list"][data-filter="mentions"] [data-role="notification"]:not([data-type="Note"]) {
+  display: none;
+}
+
+[data-role="notifications-list"][data-filter="reactions"]
+  [data-role="notification"]:not([data-type="EmojiReact"]) {
+  display: none;
+}
+
 /* ═══════════════════════════════════════════════════════════
    SCROLLBAR STYLING
    ═══════════════════════════════════════════════════════════ */

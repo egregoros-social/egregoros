@@ -13,7 +13,8 @@ defmodule EgregorosWeb.MastodonAPI.NotificationsController do
       Notifications.list_for_user(user,
         limit: pagination.limit + 1,
         max_id: pagination.max_id,
-        since_id: pagination.since_id
+        since_id: pagination.since_id,
+        include_reactions?: false
       )
 
     has_more? = length(activities) > pagination.limit

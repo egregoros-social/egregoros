@@ -98,7 +98,7 @@ defmodule EgregorosWeb.NotificationsLive do
   def handle_event("set_notifications_filter", %{"filter" => filter}, socket) do
     filter = filter |> to_string() |> String.trim()
 
-    if filter in ~w(all follows likes reposts) do
+    if filter in ~w(all follows likes reposts mentions reactions) do
       {:noreply, assign(socket, notifications_filter: filter)}
     else
       {:noreply, socket}
@@ -154,6 +154,18 @@ defmodule EgregorosWeb.NotificationsLive do
                 current={@notifications_filter}
                 label="Reposts"
                 icon="hero-arrow-path"
+              />
+              <.filter_button
+                filter="mentions"
+                current={@notifications_filter}
+                label="Mentions"
+                icon="hero-at-symbol"
+              />
+              <.filter_button
+                filter="reactions"
+                current={@notifications_filter}
+                label="Reactions"
+                icon="hero-face-smile"
               />
             </div>
           </.card>
@@ -309,6 +321,21 @@ defmodule EgregorosWeb.NotificationsLive do
         "Announce" ->
           {"hero-arrow-path", "#{actor.display_name} reposted your post",
            note_preview(notification.object)}
+
+        "EmojiReact" ->
+          emoji = notification.data |> Map.get("content") |> to_string() |> String.trim()
+
+          message =
+            if emoji == "" do
+              "#{actor.display_name} reacted to your post"
+            else
+              "#{actor.display_name} reacted #{emoji} to your post"
+            end
+
+          {"hero-face-smile", message, note_preview(notification.object)}
+
+        "Note" ->
+          {"hero-at-symbol", "#{actor.display_name} mentioned you", note_preview(notification.ap_id)}
 
         _ ->
           {"hero-bell", "#{actor.display_name} sent activity", nil}

@@ -8,12 +8,16 @@ defmodule Egregoros.Activities.Note do
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.Federation.ThreadDiscovery
   alias Egregoros.InboxTargeting
+  alias Egregoros.Notifications
   alias Egregoros.Objects
   alias Egregoros.Timeline
   alias Egregoros.User
+  alias Egregoros.Users
   alias EgregorosWeb.Endpoint
 
   def type, do: "Note"
+
+  @as_public "https://www.w3.org/ns/activitystreams#Public"
 
   @primary_key false
   embedded_schema do
@@ -93,9 +97,37 @@ defmodule Egregoros.Activities.Note do
 
   def side_effects(object, opts) do
     Timeline.broadcast_post(object)
+    maybe_broadcast_mentions(object)
     _ = ThreadDiscovery.enqueue(object, opts)
     :ok
   end
+
+  defp maybe_broadcast_mentions(%{actor: actor_ap_id, data: %{} = data} = object)
+       when is_binary(actor_ap_id) do
+    data
+    |> recipient_actor_ids()
+    |> Enum.each(fn recipient_ap_id ->
+      case Users.get_by_ap_id(recipient_ap_id) do
+        %User{local: true, ap_id: ap_id} when ap_id != actor_ap_id ->
+          Notifications.broadcast(ap_id, object)
+
+        _ ->
+          :ok
+      end
+    end)
+  end
+
+  defp maybe_broadcast_mentions(_object), do: :ok
+
+  defp recipient_actor_ids(%{} = data) do
+    ((data |> Map.get("to", []) |> List.wrap()) ++ (data |> Map.get("cc", []) |> List.wrap()))
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == "" or &1 == @as_public or String.ends_with?(&1, "/followers")))
+    |> Enum.uniq()
+  end
+
+  defp recipient_actor_ids(_data), do: []
 
   defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate(opts, fn inbox_user_ap_id ->
