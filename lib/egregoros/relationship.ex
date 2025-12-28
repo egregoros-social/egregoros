@@ -15,7 +15,7 @@ defmodule Egregoros.Relationship do
   def changeset(relationship, attrs) do
     relationship
     |> cast(attrs, [:type, :actor, :object, :activity_ap_id])
-    |> validate_required([:type, :actor, :object, :activity_ap_id])
+    |> validate_required([:type, :actor, :object])
     |> unique_constraint([:type, :actor, :object], name: :relationships_type_actor_object_index)
   end
 end
