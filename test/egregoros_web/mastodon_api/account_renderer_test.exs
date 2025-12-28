@@ -92,4 +92,51 @@ defmodule EgregorosWeb.MastodonAPI.AccountRendererTest do
 
     assert rendered["acct"] == "bob@remote.example:8443"
   end
+
+  test "includes custom emoji metadata for display names" do
+    {:ok, user} =
+      Users.create_user(%{
+        nickname: "bob",
+        ap_id: "https://remote.example/users/bob",
+        inbox: "https://remote.example/users/bob/inbox",
+        outbox: "https://remote.example/users/bob/outbox",
+        public_key: "PUB",
+        private_key: nil,
+        local: false,
+        name: ":linux: Bob",
+        emojis: [%{shortcode: "linux", url: "/emoji/linux.png"}]
+      })
+
+    rendered = AccountRenderer.render_account(user)
+
+    assert rendered["display_name"] == ":linux: Bob"
+
+    assert [
+             %{
+               "shortcode" => "linux",
+               "url" => "https://remote.example/emoji/linux.png",
+               "static_url" => "https://remote.example/emoji/linux.png",
+               "visible_in_picker" => false
+             }
+           ] = rendered["emojis"]
+  end
+
+  test "filters unsafe custom emoji urls in account rendering" do
+    {:ok, user} =
+      Users.create_user(%{
+        nickname: "bob",
+        ap_id: "https://remote.example/users/bob",
+        inbox: "https://remote.example/users/bob/inbox",
+        outbox: "https://remote.example/users/bob/outbox",
+        public_key: "PUB",
+        private_key: nil,
+        local: false,
+        name: ":hack: Bob",
+        emojis: [%{shortcode: "hack", url: "javascript:alert(1)"}]
+      })
+
+    rendered = AccountRenderer.render_account(user)
+
+    assert rendered["emojis"] == []
+  end
 end

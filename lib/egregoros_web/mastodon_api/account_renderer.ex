@@ -3,6 +3,7 @@ defmodule EgregorosWeb.MastodonAPI.AccountRenderer do
   alias Egregoros.HTML
   alias Egregoros.Objects
   alias Egregoros.Relationships
+  alias Egregoros.SafeURL
   alias Egregoros.User
   alias EgregorosWeb.ProfilePaths
   alias EgregorosWeb.URL
@@ -94,7 +95,7 @@ defmodule EgregorosWeb.MastodonAPI.AccountRenderer do
       "following_count" => following_count,
       "statuses_count" => statuses_count,
       "last_status_at" => nil,
-      "emojis" => [],
+      "emojis" => emojis(user),
       "fields" => [],
       "source" => %{
         "note" => user.bio || "",
@@ -133,4 +134,65 @@ defmodule EgregorosWeb.MastodonAPI.AccountRenderer do
   end
 
   defp format_datetime(_), do: DateTime.utc_now() |> DateTime.to_iso8601()
+
+  defp emojis(%User{} = user) do
+    user
+    |> Map.get(:emojis, [])
+    |> List.wrap()
+    |> Enum.map(&render_custom_emoji(user, &1))
+    |> Enum.filter(&is_map/1)
+  end
+
+  defp emojis(_), do: []
+
+  defp render_custom_emoji(%User{} = user, %{shortcode: shortcode, url: url}) do
+    render_custom_emoji(user, %{"shortcode" => shortcode, "url" => url})
+  end
+
+  defp render_custom_emoji(%User{} = user, %{"shortcode" => shortcode, "url" => url})
+       when is_binary(shortcode) and is_binary(url) do
+    shortcode =
+      shortcode
+      |> String.trim()
+      |> String.trim(":")
+
+    url = resolve_url(url, user.ap_id)
+
+    if shortcode != "" and is_binary(url) and SafeURL.validate_http_url_no_dns(url) == :ok do
+      %{
+        "shortcode" => shortcode,
+        "url" => url,
+        "static_url" => url,
+        "visible_in_picker" => false
+      }
+    end
+  end
+
+  defp render_custom_emoji(_user, _emoji), do: nil
+
+  defp resolve_url(url, base) when is_binary(url) and is_binary(base) do
+    url = String.trim(url)
+
+    cond do
+      url == "" ->
+        nil
+
+      String.starts_with?(url, ["http://", "https://"]) ->
+        url
+
+      true ->
+        case URI.parse(base) do
+          %URI{scheme: scheme, host: host}
+          when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+            base
+            |> URI.merge(url)
+            |> URI.to_string()
+
+          _ ->
+            nil
+        end
+    end
+  end
+
+  defp resolve_url(_url, _base), do: nil
 end
