@@ -239,6 +239,17 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert has_element?(view, "[data-role='reply-modal-target']", "Replying to @alice")
   end
 
+  test "reply composer popovers are not clipped by overflow hidden", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
+    uuid = uuid_from_ap_id(parent.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
+
+    assert has_element?(view, "#reply-modal [data-role='compose-editor'][class*='overflow-visible']")
+    refute has_element?(view, "#reply-modal [data-role='compose-editor'][class*='overflow-hidden']")
+  end
+
   test "status cards render modal reply controls when signed in", %{conn: conn, user: user} do
     assert {:ok, note} = Pipeline.ingest(Note.build(user, "Replyable"), local: true)
     uuid = uuid_from_ap_id(note.ap_id)

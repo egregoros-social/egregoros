@@ -66,7 +66,7 @@ defmodule EgregorosWeb.Composer do
         phx-hook="ComposeMentions"
         data-mention-scope={@id_prefix}
         phx-drop-target={@upload.ref}
-        class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/70 shadow-sm shadow-slate-200/20 transition focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:shadow-slate-900/30 dark:focus-within:border-slate-400 dark:focus-within:ring-slate-600"
+        class="overflow-visible rounded-2xl border border-slate-200/80 bg-white/70 shadow-sm shadow-slate-200/20 transition focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:shadow-slate-900/30 dark:focus-within:border-slate-400 dark:focus-within:ring-slate-600"
       >
         <div class="flex flex-wrap gap-2 px-4 pt-4">
           <div class="relative">
