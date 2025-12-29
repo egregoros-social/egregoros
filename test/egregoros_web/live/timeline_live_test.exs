@@ -232,6 +232,27 @@ defmodule EgregorosWeb.TimelineLiveTest do
     assert has_element?(view, "#compose-options[data-state='open']")
   end
 
+  test "compose uses dedicated visibility and language menus separate from advanced options", %{
+    conn: conn,
+    user: user
+  } do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "button[data-role='compose-visibility-pill']")
+
+    assert has_element?(
+             view,
+             "[data-role='compose-visibility-menu'] input[name='post[visibility]']"
+           )
+
+    assert has_element?(view, "button[data-role='compose-language-pill']")
+    assert has_element?(view, "[data-role='compose-language-menu'] input[name='post[language]']")
+
+    refute has_element?(view, "#compose-options select[name='post[visibility]']")
+    refute has_element?(view, "#compose-options input[name='post[language]']")
+  end
+
   test "posting rejects content longer than 5000 characters", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")

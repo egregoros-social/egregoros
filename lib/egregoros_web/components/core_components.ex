@@ -253,7 +253,7 @@ defmodule EgregorosWeb.CoreComponents do
         data-role="compose-emoji-menu"
         data-state="closed"
         class={[
-          "absolute left-0 top-full z-30 mt-2 hidden w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-800",
+          "absolute left-0 bottom-full z-30 mb-2 hidden w-64 rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-800",
           "focus-within:ring-2 focus-within:ring-violet-500"
         ]}
       >

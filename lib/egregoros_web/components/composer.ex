@@ -32,6 +32,9 @@ defmodule EgregorosWeb.Composer do
       |> assign_new(:options_state_id, fn -> "#{assigns.id_prefix}-options-state" end)
       |> assign_new(:cw_id, fn -> "#{assigns.id_prefix}-cw" end)
       |> assign_new(:options_id, fn -> "#{assigns.id_prefix}-options" end)
+      |> assign_new(:visibility_menu_id, fn -> "#{assigns.id_prefix}-visibility-menu" end)
+      |> assign_new(:language_menu_id, fn -> "#{assigns.id_prefix}-language-menu" end)
+      |> assign_new(:language_input_id, fn -> "#{assigns.id_prefix}-language-input" end)
       |> assign_new(:emoji_picker_id, fn -> "#{assigns.id_prefix}-emoji-picker" end)
       |> assign_new(:media_input_id, fn -> "#{assigns.id_prefix}-media-input" end)
       |> assign_new(:content_id, fn -> "#{assigns.id_prefix}-content" end)
@@ -66,27 +69,175 @@ defmodule EgregorosWeb.Composer do
         class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/70 shadow-sm shadow-slate-200/20 transition focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:shadow-slate-900/30 dark:focus-within:border-slate-400 dark:focus-within:ring-slate-600"
       >
         <div class="flex flex-wrap gap-2 px-4 pt-4">
-          <button
-            type="button"
-            data-role="compose-visibility-pill"
-            phx-click={toggle_options_js(@options_id, @options_state_id)}
-            class="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-            aria-label="Post visibility"
-          >
-            <.icon name="hero-globe-alt" class="size-4 opacity-80" />
-            {visibility_label(Map.get(@form.params || %{}, "visibility"))}
-          </button>
+          <div class="relative">
+            <button
+              type="button"
+              data-role="compose-visibility-pill"
+              phx-click={toggle_menu_js(@visibility_menu_id)}
+              class="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+              aria-label="Post visibility"
+              aria-expanded="false"
+            >
+              <.icon name="hero-globe-alt" class="size-4 opacity-80" />
+              <span data-role="compose-visibility-label">
+                {visibility_label(Map.get(@form.params || %{}, "visibility"))}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            data-role="compose-language-pill"
-            phx-click={toggle_options_js(@options_id, @options_state_id)}
-            class="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
-            aria-label="Post language"
-          >
-            <.icon name="hero-language" class="size-4 opacity-80" />
-            {language_label(Map.get(@form.params || %{}, "language"))}
-          </button>
+            <div
+              id={@visibility_menu_id}
+              data-role="compose-visibility-menu"
+              data-state="closed"
+              phx-click-away={close_menu_js(@visibility_menu_id)}
+              phx-window-keydown={close_menu_js(@visibility_menu_id)}
+              phx-key="escape"
+              class="absolute left-0 top-full z-40 mt-2 hidden w-72 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xl shadow-slate-900/10 dark:border-slate-700/80 dark:bg-slate-950 dark:shadow-slate-950/40"
+            >
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Visibility
+              </p>
+
+              <% current_visibility =
+                (@form.params || %{})
+                |> Map.get("visibility", "public")
+                |> to_string()
+                |> String.trim() %>
+
+              <div class="mt-3 space-y-1">
+                <label
+                  class="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-200 dark:hover:bg-white/10"
+                  phx-click={close_menu_js(@visibility_menu_id)}
+                >
+                  <input
+                    type="radio"
+                    class="sr-only"
+                    name={"#{@param_prefix}[visibility]"}
+                    value="public"
+                    checked={current_visibility == "public"}
+                  />
+                  <span class="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                    <.icon name="hero-globe-alt" class="size-4" />
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block font-semibold text-slate-900 dark:text-white">Public</span>
+                    <span class="block text-xs text-slate-500 dark:text-slate-400">
+                      Anyone can see this post.
+                    </span>
+                  </span>
+                </label>
+
+                <label
+                  class="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-200 dark:hover:bg-white/10"
+                  phx-click={close_menu_js(@visibility_menu_id)}
+                >
+                  <input
+                    type="radio"
+                    class="sr-only"
+                    name={"#{@param_prefix}[visibility]"}
+                    value="unlisted"
+                    checked={current_visibility == "unlisted"}
+                  />
+                  <span class="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                    <.icon name="hero-link" class="size-4" />
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block font-semibold text-slate-900 dark:text-white">Unlisted</span>
+                    <span class="block text-xs text-slate-500 dark:text-slate-400">
+                      Not shown on public timelines.
+                    </span>
+                  </span>
+                </label>
+
+                <label
+                  class="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-200 dark:hover:bg-white/10"
+                  phx-click={close_menu_js(@visibility_menu_id)}
+                >
+                  <input
+                    type="radio"
+                    class="sr-only"
+                    name={"#{@param_prefix}[visibility]"}
+                    value="private"
+                    checked={current_visibility == "private"}
+                  />
+                  <span class="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                    <.icon name="hero-lock-closed" class="size-4" />
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block font-semibold text-slate-900 dark:text-white">Followers</span>
+                    <span class="block text-xs text-slate-500 dark:text-slate-400">
+                      Only your followers can see this.
+                    </span>
+                  </span>
+                </label>
+
+                <label
+                  class="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-200 dark:hover:bg-white/10"
+                  phx-click={close_menu_js(@visibility_menu_id)}
+                >
+                  <input
+                    type="radio"
+                    class="sr-only"
+                    name={"#{@param_prefix}[visibility]"}
+                    value="direct"
+                    checked={current_visibility == "direct"}
+                  />
+                  <span class="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                    <.icon name="hero-envelope" class="size-4" />
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block font-semibold text-slate-900 dark:text-white">Direct</span>
+                    <span class="block text-xs text-slate-500 dark:text-slate-400">
+                      Only mentioned recipients can see this.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="relative">
+            <button
+              type="button"
+              data-role="compose-language-pill"
+              phx-click={toggle_menu_js(@language_menu_id)}
+              class="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:bg-slate-950"
+              aria-label="Post language"
+              aria-expanded="false"
+            >
+              <.icon name="hero-language" class="size-4 opacity-80" />
+              <span data-role="compose-language-label">
+                {language_label(Map.get(@form.params || %{}, "language"))}
+              </span>
+            </button>
+
+            <div
+              id={@language_menu_id}
+              data-role="compose-language-menu"
+              data-state="closed"
+              phx-click-away={close_menu_js(@language_menu_id)}
+              phx-window-keydown={close_menu_js(@language_menu_id)}
+              phx-key="escape"
+              class="absolute left-0 top-full z-40 mt-2 hidden w-72 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xl shadow-slate-900/10 dark:border-slate-700/80 dark:bg-slate-950 dark:shadow-slate-950/40"
+            >
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Language
+              </p>
+
+              <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Optional. Leave blank for automatic detection.
+              </p>
+
+              <input
+                id={@language_input_id}
+                type="text"
+                name={"#{@param_prefix}[language]"}
+                value={Map.get(@form.params || %{}, "language", "")}
+                placeholder="Auto (e.g. en)"
+                phx-debounce="blur"
+                class="mt-3 w-full rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700/80 dark:bg-slate-950/60 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-600"
+              />
+            </div>
+          </div>
         </div>
 
         <div
@@ -197,26 +348,6 @@ defmodule EgregorosWeb.Composer do
           ]}
         >
           <div class="grid gap-4">
-            <.input
-              type="select"
-              field={@form[:visibility]}
-              label="Visibility"
-              options={[
-                Public: "public",
-                Unlisted: "unlisted",
-                Private: "private",
-                Direct: "direct"
-              ]}
-            />
-
-            <.input
-              type="text"
-              field={@form[:language]}
-              label="Language"
-              placeholder="Optional (e.g. en)"
-              phx-debounce="blur"
-            />
-
             <.input
               type="checkbox"
               field={@form[:sensitive]}
@@ -412,6 +543,16 @@ defmodule EgregorosWeb.Composer do
   defp toggle_options_js(options_id, options_state_id) when is_binary(options_id) do
     JS.toggle_class("hidden", to: "##{options_id}")
     |> JS.toggle_attribute({"value", "true", "false"}, to: "##{options_state_id}")
+  end
+
+  defp toggle_menu_js(menu_id) when is_binary(menu_id) do
+    JS.toggle_class("hidden", to: "##{menu_id}")
+    |> JS.toggle_attribute({"data-state", "open", "closed"}, to: "##{menu_id}")
+  end
+
+  defp close_menu_js(menu_id) when is_binary(menu_id) do
+    JS.add_class("hidden", to: "##{menu_id}")
+    |> JS.set_attribute({"data-state", "closed"}, to: "##{menu_id}")
   end
 
   defp toggle_cw_js(cw_id) when is_binary(cw_id) do
