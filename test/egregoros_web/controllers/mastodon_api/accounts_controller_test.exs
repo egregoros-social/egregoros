@@ -336,6 +336,36 @@ defmodule EgregorosWeb.MastodonAPI.AccountsControllerTest do
     assert Egregoros.Objects.get_by_type_actor_object("Follow", user.ap_id, target.ap_id)
   end
 
+  test "POST /api/v1/accounts/:id/follow requests to follow remote accounts until accepted", %{
+    conn: conn
+  } do
+    {:ok, user} = Users.create_local_user("local")
+
+    {:ok, target} =
+      Users.create_user(%{
+        nickname: "bob",
+        ap_id: "https://remote.example/users/bob",
+        inbox: "https://remote.example/users/bob/inbox",
+        outbox: "https://remote.example/users/bob/outbox",
+        public_key: "remote-key",
+        private_key: nil,
+        local: false
+      })
+
+    Egregoros.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    conn = post(conn, "/api/v1/accounts/#{target.id}/follow")
+    response = json_response(conn, 200)
+
+    assert response["id"] == Integer.to_string(target.id)
+    assert response["following"] == false
+    assert response["requested"] == true
+
+    assert Egregoros.Relationships.get_by_type_actor_object("Follow", user.ap_id, target.ap_id) == nil
+    assert Egregoros.Relationships.get_by_type_actor_object("FollowRequest", user.ap_id, target.ap_id)
+  end
+
   test "POST /api/v1/accounts/:id/unfollow creates undo activity", %{conn: conn} do
     {:ok, user} = Users.create_local_user("local")
     {:ok, target} = Users.create_local_user("charlie")
@@ -360,6 +390,47 @@ defmodule EgregorosWeb.MastodonAPI.AccountsControllerTest do
     assert response["following"] == false
 
     assert Egregoros.Objects.get_by_type_actor_object("Undo", user.ap_id, follow.ap_id)
+  end
+
+  test "POST /api/v1/accounts/:id/unfollow cancels pending follow requests to remote accounts", %{
+    conn: conn
+  } do
+    {:ok, user} = Users.create_local_user("local")
+
+    {:ok, target} =
+      Users.create_user(%{
+        nickname: "bob",
+        ap_id: "https://remote.example/users/bob",
+        inbox: "https://remote.example/users/bob/inbox",
+        outbox: "https://remote.example/users/bob/outbox",
+        public_key: "remote-key",
+        private_key: nil,
+        local: false
+      })
+
+    Egregoros.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    {:ok, follow} =
+      Egregoros.Pipeline.ingest(
+        %{
+          "id" => "https://example.com/activities/follow/remote",
+          "type" => "Follow",
+          "actor" => user.ap_id,
+          "object" => target.ap_id
+        },
+        local: true
+      )
+
+    assert Egregoros.Relationships.get_by_type_actor_object("FollowRequest", user.ap_id, target.ap_id)
+
+    conn = post(conn, "/api/v1/accounts/#{target.id}/unfollow")
+    response = json_response(conn, 200)
+
+    assert response["following"] == false
+    assert response["requested"] == false
+    assert Egregoros.Objects.get_by_type_actor_object("Undo", user.ap_id, follow.ap_id)
+    assert Egregoros.Relationships.get_by_type_actor_object("FollowRequest", user.ap_id, target.ap_id) == nil
   end
 
   test "POST /api/v1/accounts/:id/unfollow undoes the latest follow relationship", %{conn: conn} do

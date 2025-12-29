@@ -54,6 +54,9 @@ defmodule EgregorosWeb.ProfileLive do
     follow_relationship =
       follow_relationship(current_user, profile_user)
 
+    follow_request_relationship =
+      follow_request_relationship(current_user, profile_user)
+
     block_relationship =
       relationship_for("Block", current_user, profile_user)
 
@@ -82,6 +85,7 @@ defmodule EgregorosWeb.ProfileLive do
        profile_bio_html: profile_bio_html,
        notifications_count: notifications_count(current_user),
        follow_relationship: follow_relationship,
+       follow_request_relationship: follow_request_relationship,
        block_relationship: block_relationship,
        mute_relationship: mute_relationship,
        mention_suggestions: %{},
@@ -384,14 +388,22 @@ defmodule EgregorosWeb.ProfileLive do
          nil <- socket.assigns.block_relationship,
          nil <- Relationships.get_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id),
          {:ok, _follow} <- Pipeline.ingest(Follow.build(viewer, profile_user), local: true) do
-      relationship =
-        Relationships.get_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id)
+      relationship = follow_relationship(viewer, profile_user)
+      follow_request = follow_request_relationship(viewer, profile_user)
+
+      message =
+        cond do
+          relationship != nil -> "Following #{profile_user.nickname}."
+          follow_request != nil -> "Follow request sent to #{profile_user.nickname}."
+          true -> "Followed #{profile_user.nickname}."
+        end
 
       {:noreply,
        socket
-       |> put_flash(:info, "Following #{profile_user.nickname}.")
+       |> put_flash(:info, message)
        |> assign(
          follow_relationship: relationship,
+         follow_request_relationship: follow_request,
          followers_count: count_followers(profile_user)
        )}
     else
@@ -508,6 +520,30 @@ defmodule EgregorosWeb.ProfileLive do
        |> put_flash(:info, "Unfollowed #{profile_user.nickname}.")
        |> assign(
          follow_relationship: nil,
+         follow_request_relationship: follow_request_relationship(viewer, profile_user),
+         followers_count: count_followers(profile_user)
+       )}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, "Register to unfollow people.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("unfollow_request", _params, socket) do
+    with %User{} = viewer <- socket.assigns.current_user,
+         %User{} = profile_user <- socket.assigns.profile_user,
+         %{} = relationship <- socket.assigns.follow_request_relationship,
+         follow_ap_id when is_binary(follow_ap_id) and follow_ap_id != "" <- relationship.activity_ap_id,
+         {:ok, _undo} <- Pipeline.ingest(Undo.build(viewer, follow_ap_id), local: true) do
+      {:noreply,
+       socket
+       |> put_flash(:info, "Cancelled follow request to #{profile_user.nickname}.")
+       |> assign(
+         follow_relationship: follow_relationship(viewer, profile_user),
+         follow_request_relationship: nil,
          followers_count: count_followers(profile_user)
        )}
     else
@@ -780,15 +816,27 @@ defmodule EgregorosWeb.ProfileLive do
                             Unfollow
                           </button>
                         <% else %>
-                          <button
-                            type="button"
-                            data-role="profile-follow"
-                            phx-click="follow"
-                            phx-disable-with="Following..."
-                            class="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-                          >
-                            Follow
-                          </button>
+                          <%= if @follow_request_relationship do %>
+                            <button
+                              type="button"
+                              data-role="profile-unfollow-request"
+                              phx-click="unfollow_request"
+                              phx-disable-with="Cancelling..."
+                              class="inline-flex items-center justify-center rounded-full border border-amber-200/80 bg-amber-50 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-800 shadow-sm shadow-amber-100/40 transition hover:-translate-y-0.5 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 dark:border-amber-800/60 dark:bg-amber-900/30 dark:text-amber-100 dark:shadow-amber-900/30 dark:hover:bg-amber-900/40"
+                            >
+                              Requested
+                            </button>
+                          <% else %>
+                            <button
+                              type="button"
+                              data-role="profile-follow"
+                              phx-click="follow"
+                              phx-disable-with="Following..."
+                              class="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                            >
+                              Follow
+                            </button>
+                          <% end %>
                         <% end %>
                       <% end %>
                     <% end %>
@@ -918,6 +966,13 @@ defmodule EgregorosWeb.ProfileLive do
 
   defp follow_relationship(%User{} = current_user, %User{} = profile_user) do
     Relationships.get_by_type_actor_object("Follow", current_user.ap_id, profile_user.ap_id)
+  end
+
+  defp follow_request_relationship(nil, _profile_user), do: nil
+  defp follow_request_relationship(_current_user, nil), do: nil
+
+  defp follow_request_relationship(%User{} = current_user, %User{} = profile_user) do
+    Relationships.get_by_type_actor_object("FollowRequest", current_user.ap_id, profile_user.ap_id)
   end
 
   defp relationship_for(_type, nil, _profile_user), do: nil

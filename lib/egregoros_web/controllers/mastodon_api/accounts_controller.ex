@@ -169,21 +169,34 @@ defmodule EgregorosWeb.MastodonAPI.AccountsController do
 
   def unfollow(conn, %{"id" => id}) do
     with %{} = target <- Users.get(id),
-         %{} =
-           relationship <-
-           Relationships.get_by_type_actor_object(
-             "Follow",
-             conn.assigns.current_user.ap_id,
-             target.ap_id
-           ),
+         %{} = relationship <-
+           Relationships.get_by_type_actor_object("Follow", conn.assigns.current_user.ap_id, target.ap_id) ||
+             Relationships.get_by_type_actor_object(
+               "FollowRequest",
+               conn.assigns.current_user.ap_id,
+               target.ap_id
+             ),
+         follow_activity_ap_id
+         when is_binary(follow_activity_ap_id) and follow_activity_ap_id != "" <-
+           follow_ap_id(relationship, conn.assigns.current_user, target),
          {:ok, _undo} <-
-           Pipeline.ingest(Undo.build(conn.assigns.current_user, relationship.activity_ap_id),
-             local: true
-           ) do
+           Pipeline.ingest(Undo.build(conn.assigns.current_user, follow_activity_ap_id), local: true) do
       json(conn, RelationshipRenderer.render_relationship(conn.assigns.current_user, target))
     else
       nil -> send_resp(conn, 404, "Not Found")
       {:error, _} -> send_resp(conn, 422, "Unprocessable Entity")
+    end
+  end
+
+  defp follow_ap_id(%{activity_ap_id: ap_id}, _actor, _target)
+       when is_binary(ap_id) and ap_id != "" do
+    ap_id
+  end
+
+  defp follow_ap_id(_relationship, actor, target) do
+    case Objects.get_by_type_actor_object("Follow", actor.ap_id, target.ap_id) do
+      %{ap_id: ap_id} when is_binary(ap_id) and ap_id != "" -> ap_id
+      _ -> nil
     end
   end
 

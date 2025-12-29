@@ -9,6 +9,10 @@ defmodule EgregorosWeb.MastodonAPI.RelationshipRenderer do
     followed_by? =
       Relationships.get_by_type_actor_object("Follow", target.ap_id, actor.ap_id) != nil
 
+    requested? =
+      not following? and
+        Relationships.get_by_type_actor_object("FollowRequest", actor.ap_id, target.ap_id) != nil
+
     blocking? =
       Relationships.get_by_type_actor_object("Block", actor.ap_id, target.ap_id) != nil
 
@@ -29,7 +33,7 @@ defmodule EgregorosWeb.MastodonAPI.RelationshipRenderer do
       "blocked_by" => blocked_by?,
       "muting" => muting?,
       "muting_notifications" => false,
-      "requested" => false,
+      "requested" => requested?,
       "domain_blocking" => false,
       "endorsed" => false,
       "note" => ""

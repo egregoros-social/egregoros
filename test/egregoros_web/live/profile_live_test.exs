@@ -44,6 +44,40 @@ defmodule EgregorosWeb.ProfileLiveTest do
     assert has_element?(view, "button[data-role='profile-follow']")
   end
 
+  test "profile shows follow requests for remote accounts until accepted", %{conn: conn, viewer: viewer} do
+    {:ok, remote} =
+      Users.create_user(%{
+        nickname: "bob",
+        ap_id: "https://remote.example/users/bob",
+        inbox: "https://remote.example/users/bob/inbox",
+        outbox: "https://remote.example/users/bob/outbox",
+        public_key: "remote-key",
+        private_key: nil,
+        local: false
+      })
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{remote.nickname}@remote.example")
+
+    assert Relationships.get_by_type_actor_object("FollowRequest", viewer.ap_id, remote.ap_id) == nil
+    assert has_element?(view, "button[data-role='profile-follow']")
+
+    view
+    |> element("button[data-role='profile-follow']")
+    |> render_click()
+
+    assert Relationships.get_by_type_actor_object("Follow", viewer.ap_id, remote.ap_id) == nil
+    assert Relationships.get_by_type_actor_object("FollowRequest", viewer.ap_id, remote.ap_id)
+    assert has_element?(view, "button[data-role='profile-unfollow-request']")
+
+    view
+    |> element("button[data-role='profile-unfollow-request']")
+    |> render_click()
+
+    assert Relationships.get_by_type_actor_object("FollowRequest", viewer.ap_id, remote.ap_id) == nil
+    assert has_element?(view, "button[data-role='profile-follow']")
+  end
+
   test "profile supports muting and unmuting", %{conn: conn, viewer: viewer, profile_user: profile_user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
     {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
