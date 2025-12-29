@@ -129,6 +129,8 @@ defmodule EgregorosWeb.TimelineLiveTest do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")
 
+    assert has_element?(view, "#timeline-form[phx-hook='ComposeSettings']")
+
     assert has_element?(
              view,
              "textarea[data-role='compose-content'][phx-hook='ComposeCharCounter'][data-max-chars='5000']"

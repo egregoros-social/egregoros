@@ -45,6 +45,7 @@ defmodule EgregorosWeb.Composer do
     <.form
       for={@form}
       id={@id}
+      phx-hook="ComposeSettings"
       phx-change={@change_event}
       phx-submit={@submit_event}
       class={["mt-6 space-y-3", @class]}

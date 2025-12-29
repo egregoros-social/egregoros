@@ -198,6 +198,8 @@ defmodule EgregorosWeb.StatusLiveTest do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
 
+    assert has_element?(view, "#reply-modal-form[phx-hook='ComposeSettings']")
+
     assert has_element?(
              view,
              "textarea[data-role='compose-content'][phx-hook='ComposeCharCounter'][data-max-chars='5000']"
