@@ -138,6 +138,58 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert has_element?(view, "[data-role='thread-descendant'][data-depth='2']", "Child")
   end
 
+  test "thread view updates when new replies arrive", %{conn: conn, user: user} do
+    assert {:ok, root} = Pipeline.ingest(Note.build(user, "Root"), local: true)
+    uuid = uuid_from_ap_id(root.ap_id)
+
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
+    assert has_element?(view, "[data-role='thread-replies-empty']", "No replies yet.")
+
+    assert {:ok, _reply} =
+             Pipeline.ingest(
+               Note.build(user, "Live reply") |> Map.put("inReplyTo", root.ap_id),
+               local: true
+             )
+
+    _ = :sys.get_state(view.pid)
+
+    refute has_element?(view, "[data-role='thread-replies-empty']")
+    assert has_element?(view, "article[data-role='status-card']", "Live reply")
+  end
+
+  test "thread view updates when missing ancestors are ingested", %{conn: conn, user: user} do
+    parent_ap_id = "https://remote.example/objects/parent"
+
+    assert {:ok, reply} =
+             Pipeline.ingest(
+               Note.build(user, "Reply") |> Map.put("inReplyTo", parent_ap_id),
+               local: true
+             )
+
+    uuid = uuid_from_ap_id(reply.ap_id)
+
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
+    refute render(view) =~ "Remote parent"
+    refute has_element?(view, "[data-role='thread-ancestors']")
+
+    assert {:ok, _remote_parent} =
+             Pipeline.ingest(
+               %{
+                 "id" => parent_ap_id,
+                 "type" => "Note",
+                 "attributedTo" => "https://remote.example/users/bob",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "cc" => [],
+                 "content" => "<p>Remote parent</p>"
+               },
+               local: false
+             )
+
+    _ = :sys.get_state(view.pid)
+
+    assert has_element?(view, "[data-role='thread-ancestors']", "Remote parent")
+  end
+
   test "renders an empty replies state when the thread has no replies", %{conn: conn, user: user} do
     assert {:ok, note} = Pipeline.ingest(Note.build(user, "Lonely post"), local: true)
     uuid = uuid_from_ap_id(note.ap_id)
@@ -182,7 +234,9 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert {:ok, view, _html} = live(conn, "/@bob@remote.example/#{remote_parent.id}?reply=true")
 
     view
-    |> form("#reply-modal-form", reply: %{content: "Remote reply", in_reply_to: remote_parent.ap_id})
+    |> form("#reply-modal-form",
+      reply: %{content: "Remote reply", in_reply_to: remote_parent.ap_id}
+    )
     |> render_submit()
 
     assert has_element?(view, "article", "Remote reply")
@@ -619,7 +673,9 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert render_upload(upload, "photo.png", 10) =~ "10%"
 
     view
-    |> form("#reply-modal-form", reply: %{content: "Reply while uploading", in_reply_to: note.ap_id})
+    |> form("#reply-modal-form",
+      reply: %{content: "Reply while uploading", in_reply_to: note.ap_id}
+    )
     |> render_submit()
 
     assert render(view) =~ "Wait for attachments to finish uploading."

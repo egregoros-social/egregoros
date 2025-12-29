@@ -8,6 +8,7 @@ defmodule EgregorosWeb.StatusLive do
   alias Egregoros.Notifications
   alias Egregoros.Objects
   alias Egregoros.Publish
+  alias Egregoros.Timeline
   alias Egregoros.User
   alias Egregoros.Users
   alias EgregorosWeb.MentionAutocomplete
@@ -19,6 +20,10 @@ defmodule EgregorosWeb.StatusLive do
 
   @impl true
   def mount(%{"nickname" => nickname, "uuid" => uuid} = params, session, socket) do
+    if connected?(socket) do
+      Timeline.subscribe()
+    end
+
     current_user =
       case Map.get(session, "user_id") do
         nil -> nil
@@ -122,6 +127,22 @@ defmodule EgregorosWeb.StatusLive do
       |> maybe_redirect_to_canonical_permalink(params)
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_info({:post_created, %Egregoros.Object{} = object}, socket) do
+    socket =
+      if thread_relevant?(socket, object) do
+        refresh_thread(socket)
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_info(_message, socket) do
+    {:noreply, socket}
   end
 
   @impl true
@@ -773,6 +794,103 @@ defmodule EgregorosWeb.StatusLive do
       _ ->
         socket
     end
+  end
+
+  defp thread_relevant?(socket, %Egregoros.Object{} = object) do
+    thread_ap_ids = thread_object_ap_ids(socket.assigns)
+
+    object_ap_id =
+      object
+      |> Map.get(:ap_id)
+      |> to_string()
+      |> String.trim()
+
+    in_reply_to =
+      object
+      |> Map.get(:data, %{})
+      |> Map.get("inReplyTo")
+      |> in_reply_to_ap_id()
+
+    cond do
+      object_ap_id != "" and object_ap_id in thread_ap_ids ->
+        true
+
+      is_binary(in_reply_to) and in_reply_to in thread_ap_ids ->
+        true
+
+      object_ap_id != "" and object_ap_id in thread_parent_ap_ids(socket.assigns) ->
+        true
+
+      true ->
+        false
+    end
+  end
+
+  defp thread_relevant?(_socket, _object), do: false
+
+  defp thread_object_ap_ids(%{status: %{object: %{ap_id: ap_id}}} = assigns) do
+    ap_id = ap_id |> to_string() |> String.trim()
+
+    ancestors =
+      assigns
+      |> Map.get(:ancestors, [])
+      |> Enum.map(fn
+        %{object: %{ap_id: ap_id}} -> ap_id |> to_string() |> String.trim()
+        _ -> ""
+      end)
+
+    descendants =
+      assigns
+      |> Map.get(:descendants, [])
+      |> Enum.map(fn
+        %{entry: %{object: %{ap_id: ap_id}}} -> ap_id |> to_string() |> String.trim()
+        _ -> ""
+      end)
+
+    [ap_id | ancestors ++ descendants]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp thread_object_ap_ids(_assigns), do: []
+
+  defp thread_parent_ap_ids(%{} = assigns) do
+    assigns
+    |> thread_objects()
+    |> Enum.map(fn %{data: data} -> data |> Map.get("inReplyTo") |> in_reply_to_ap_id() end)
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp thread_parent_ap_ids(_assigns), do: []
+
+  defp thread_objects(%{} = assigns) do
+    status_object =
+      case Map.get(assigns, :status) do
+        %{object: %{} = object} -> object
+        _ -> nil
+      end
+
+    ancestor_objects =
+      assigns
+      |> Map.get(:ancestors, [])
+      |> Enum.map(fn
+        %{object: %{} = object} -> object
+        _ -> nil
+      end)
+
+    descendant_objects =
+      assigns
+      |> Map.get(:descendants, [])
+      |> Enum.map(fn
+        %{entry: %{object: %{} = object}} -> object
+        _ -> nil
+      end)
+
+    [status_object | ancestor_objects ++ descendant_objects]
+    |> Enum.reject(&is_nil/1)
   end
 
   defp decorate_descendants(%{} = note, current_user) do
