@@ -104,93 +104,16 @@ defmodule EgregorosWeb.Composer do
                 |> String.trim() %>
 
               <div class="mt-3 space-y-1">
-                <label
-                  class="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-200 dark:hover:bg-white/10"
-                  phx-click={close_menu_js(@visibility_menu_id)}
-                >
-                  <input
-                    type="radio"
-                    class="sr-only"
-                    name={"#{@param_prefix}[visibility]"}
-                    value="public"
-                    checked={current_visibility == "public"}
-                  />
-                  <span class="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
-                    <.icon name="hero-globe-alt" class="size-4" />
-                  </span>
-                  <span class="min-w-0">
-                    <span class="block font-semibold text-slate-900 dark:text-white">Public</span>
-                    <span class="block text-xs text-slate-500 dark:text-slate-400">
-                      Anyone can see this post.
-                    </span>
-                  </span>
-                </label>
-
-                <label
-                  class="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-200 dark:hover:bg-white/10"
-                  phx-click={close_menu_js(@visibility_menu_id)}
-                >
-                  <input
-                    type="radio"
-                    class="sr-only"
-                    name={"#{@param_prefix}[visibility]"}
-                    value="unlisted"
-                    checked={current_visibility == "unlisted"}
-                  />
-                  <span class="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
-                    <.icon name="hero-link" class="size-4" />
-                  </span>
-                  <span class="min-w-0">
-                    <span class="block font-semibold text-slate-900 dark:text-white">Unlisted</span>
-                    <span class="block text-xs text-slate-500 dark:text-slate-400">
-                      Not shown on public timelines.
-                    </span>
-                  </span>
-                </label>
-
-                <label
-                  class="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-200 dark:hover:bg-white/10"
-                  phx-click={close_menu_js(@visibility_menu_id)}
-                >
-                  <input
-                    type="radio"
-                    class="sr-only"
-                    name={"#{@param_prefix}[visibility]"}
-                    value="private"
-                    checked={current_visibility == "private"}
-                  />
-                  <span class="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
-                    <.icon name="hero-lock-closed" class="size-4" />
-                  </span>
-                  <span class="min-w-0">
-                    <span class="block font-semibold text-slate-900 dark:text-white">Followers</span>
-                    <span class="block text-xs text-slate-500 dark:text-slate-400">
-                      Only your followers can see this.
-                    </span>
-                  </span>
-                </label>
-
-                <label
-                  class="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-200 dark:hover:bg-white/10"
-                  phx-click={close_menu_js(@visibility_menu_id)}
-                >
-                  <input
-                    type="radio"
-                    class="sr-only"
-                    name={"#{@param_prefix}[visibility]"}
-                    value="direct"
-                    checked={current_visibility == "direct"}
-                  />
-                  <span class="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
-                    <.icon name="hero-envelope" class="size-4" />
-                  </span>
-                  <span class="min-w-0">
-                    <span class="block font-semibold text-slate-900 dark:text-white">Direct</span>
-                    <span class="block text-xs text-slate-500 dark:text-slate-400">
-                      Only mentioned recipients can see this.
-                    </span>
-                  </span>
-                </label>
+                <.visibility_option
+                  :for={option <- visibility_options()}
+                  menu_id={@visibility_menu_id}
+                  param_prefix={@param_prefix}
+                  current={current_visibility}
+                  value={option.value}
+                  title={option.title}
+                  description={option.description}
+                  icon={option.icon}
+                />
               </div>
             </div>
           </div>
@@ -590,11 +513,74 @@ defmodule EgregorosWeb.Composer do
   defp upload_entries(%Phoenix.LiveView.UploadConfig{} = upload), do: upload.entries
   defp upload_entries(_upload), do: []
 
+  attr :menu_id, :string, required: true
+  attr :param_prefix, :string, required: true
+  attr :current, :string, required: true
+  attr :value, :string, required: true
+  attr :title, :string, required: true
+  attr :description, :string, required: true
+  attr :icon, :string, required: true
+
+  def visibility_option(assigns) do
+    ~H"""
+    <label
+      class="flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-200 dark:hover:bg-white/10"
+      phx-click={close_menu_js(@menu_id)}
+    >
+      <input
+        type="radio"
+        class="sr-only"
+        name={"#{@param_prefix}[visibility]"}
+        value={@value}
+        checked={@current == @value}
+      />
+      <span class="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+        <.icon name={@icon} class="size-5" />
+      </span>
+      <span class="min-w-0">
+        <span class="block font-semibold text-slate-900 dark:text-white">{@title}</span>
+        <span class="block text-xs text-slate-500 dark:text-slate-400">
+          {@description}
+        </span>
+      </span>
+    </label>
+    """
+  end
+
+  defp visibility_options do
+    [
+      %{
+        value: "public",
+        title: "Public",
+        description: "Anyone can see this post.",
+        icon: "hero-globe-alt"
+      },
+      %{
+        value: "unlisted",
+        title: "Unlisted",
+        description: "Not shown on public timelines.",
+        icon: "hero-link"
+      },
+      %{
+        value: "private",
+        title: "Followers",
+        description: "Only your followers can see this.",
+        icon: "hero-lock-closed"
+      },
+      %{
+        value: "direct",
+        title: "Direct",
+        description: "Only mentioned recipients.",
+        icon: "hero-envelope"
+      }
+    ]
+  end
+
   defp visibility_label(visibility) when is_binary(visibility) do
     case String.trim(visibility) do
       "public" -> "Public"
       "unlisted" -> "Unlisted"
-      "private" -> "Private"
+      "private" -> "Followers"
       "direct" -> "Direct"
       _ -> "Public"
     end

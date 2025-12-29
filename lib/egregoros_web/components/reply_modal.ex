@@ -44,7 +44,7 @@ defmodule EgregorosWeb.ReplyModal do
       <.focus_wrap
         id={"#{@id}-dialog"}
         phx-click-away={close_js(@id, @close_event)}
-        class="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-white/80 bg-white/95 p-6 shadow-2xl shadow-slate-900/20 dark:border-slate-700/70 dark:bg-slate-950/80 dark:shadow-slate-900/50"
+        class="relative w-full max-w-2xl overflow-visible rounded-3xl border border-white/80 bg-white/95 p-6 shadow-2xl shadow-slate-900/20 dark:border-slate-700/70 dark:bg-slate-950/80 dark:shadow-slate-900/50"
       >
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">

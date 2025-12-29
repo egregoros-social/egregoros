@@ -246,8 +246,40 @@ defmodule EgregorosWeb.StatusLiveTest do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
 
-    assert has_element?(view, "#reply-modal [data-role='compose-editor'][class*='overflow-visible']")
-    refute has_element?(view, "#reply-modal [data-role='compose-editor'][class*='overflow-hidden']")
+    assert has_element?(
+             view,
+             "#reply-modal [data-role='compose-editor'][class*='overflow-visible']"
+           )
+
+    refute has_element?(
+             view,
+             "#reply-modal [data-role='compose-editor'][class*='overflow-hidden']"
+           )
+  end
+
+  test "reply modal dialog wrapper does not clip popovers", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
+    uuid = uuid_from_ap_id(parent.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
+
+    refute has_element?(view, "#reply-modal-dialog[class*='overflow-hidden']")
+  end
+
+  test "visibility menu uses consistent icon sizing", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
+    uuid = uuid_from_ap_id(parent.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
+
+    menu = "#reply-modal [data-role='compose-visibility-menu']"
+
+    assert has_element?(view, "#{menu} span.hero-globe-alt.size-5")
+    assert has_element?(view, "#{menu} span.hero-link.size-5")
+    assert has_element?(view, "#{menu} span.hero-lock-closed.size-5")
+    assert has_element?(view, "#{menu} span.hero-envelope.size-5")
   end
 
   test "status cards render modal reply controls when signed in", %{conn: conn, user: user} do
