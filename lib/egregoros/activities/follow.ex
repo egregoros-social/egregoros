@@ -93,11 +93,15 @@ defmodule Egregoros.Activities.Follow do
        when is_binary(object_ap_id) and is_list(opts) do
     if Keyword.get(opts, :local, true) do
       case Users.get_by_ap_id(object_ap_id) do
+        %User{local: true, locked: true} -> "FollowRequest"
         %User{local: true} -> "Follow"
         _ -> "FollowRequest"
       end
     else
-      "Follow"
+      case Users.get_by_ap_id(object_ap_id) do
+        %User{local: true, locked: true} -> "FollowRequest"
+        _ -> "Follow"
+      end
     end
   end
 
@@ -123,7 +127,8 @@ defmodule Egregoros.Activities.Follow do
 
   defp accept_follow(object) do
     with %{} = target <- Users.get_by_ap_id(object.object),
-         true <- target.local do
+         true <- target.local,
+         false <- target.locked do
       accept = Accept.build(target, object)
       _ = Pipeline.ingest(accept, local: true)
       :ok

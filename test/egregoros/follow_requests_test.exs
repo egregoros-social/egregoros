@@ -89,5 +89,19 @@ defmodule Egregoros.FollowRequestsTest do
     assert Relationships.get_by_type_actor_object("Follow", alice.ap_id, bob.ap_id) == nil
     assert Objects.get_by_ap_id(follow_object.ap_id) == nil
   end
-end
 
+  test "following a locked local user creates a follow request until accepted" do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+    {:ok, bob} = Users.update_profile(bob, %{locked: true})
+
+    {:ok, follow_object} = Pipeline.ingest(Follow.build(alice, bob), local: true)
+
+    assert Relationships.get_by_type_actor_object("Follow", alice.ap_id, bob.ap_id) == nil
+
+    assert %{activity_ap_id: activity_ap_id} =
+             Relationships.get_by_type_actor_object("FollowRequest", alice.ap_id, bob.ap_id)
+
+    assert activity_ap_id == follow_object.ap_id
+  end
+end
