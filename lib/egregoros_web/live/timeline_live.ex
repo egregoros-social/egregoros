@@ -44,6 +44,8 @@ defmodule EgregorosWeb.TimelineLive do
         compose_options_open?: false,
         compose_cw_open?: false,
         reply_modal_open?: false,
+        reply_to_ap_id: nil,
+        reply_to_handle: nil,
         reply_form: reply_form,
         reply_media_alt: %{},
         reply_options_open?: false,
@@ -182,6 +184,14 @@ defmodule EgregorosWeb.TimelineLive do
       |> Map.delete(scope)
 
     {:noreply, assign(socket, mention_suggestions: mention_suggestions)}
+  end
+
+  def handle_event("open_compose", _params, socket) do
+    {:noreply, assign(socket, compose_open?: true)}
+  end
+
+  def handle_event("close_compose", _params, socket) do
+    {:noreply, assign(socket, compose_open?: false)}
   end
 
   def handle_event("toggle_compose_cw", _params, socket) do
@@ -325,12 +335,50 @@ defmodule EgregorosWeb.TimelineLive do
     end
   end
 
+  def handle_event(
+        "open_reply_modal",
+        %{"in_reply_to" => in_reply_to, "actor_handle" => actor_handle},
+        socket
+      ) do
+    if socket.assigns.current_user do
+      in_reply_to = in_reply_to |> to_string() |> String.trim()
+      actor_handle = actor_handle |> to_string() |> String.trim()
+
+      if in_reply_to == "" do
+        {:noreply, socket}
+      else
+        reply_params =
+          default_post_params()
+          |> Map.put("in_reply_to", in_reply_to)
+
+        socket =
+          socket
+          |> cancel_all_uploads(:reply_media)
+          |> assign(
+            reply_modal_open?: true,
+            reply_to_ap_id: in_reply_to,
+            reply_to_handle: actor_handle,
+            reply_form: Phoenix.Component.to_form(reply_params, as: :reply),
+            reply_media_alt: %{},
+            reply_options_open?: false,
+            reply_cw_open?: false
+          )
+
+        {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("close_reply_modal", _params, socket) do
     socket =
       socket
       |> cancel_all_uploads(:reply_media)
       |> assign(
         reply_modal_open?: false,
+        reply_to_ap_id: nil,
+        reply_to_handle: nil,
         reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
         reply_media_alt: %{},
         reply_options_open?: false,
@@ -377,10 +425,10 @@ defmodule EgregorosWeb.TimelineLive do
 
       user ->
         in_reply_to =
-          reply_params
-          |> Map.get("in_reply_to", "")
-          |> to_string()
-          |> String.trim()
+          case socket.assigns.reply_to_ap_id do
+            ap_id when is_binary(ap_id) -> String.trim(ap_id)
+            _ -> reply_params |> Map.get("in_reply_to", "") |> to_string() |> String.trim()
+          end
 
         if in_reply_to != "" do
           reply_params = Map.merge(default_post_params(), reply_params)
@@ -467,16 +515,18 @@ defmodule EgregorosWeb.TimelineLive do
                          language: language
                        ) do
                     {:ok, _reply} ->
-                    {:noreply,
-                     socket
-                     |> put_flash(:info, "Reply posted.")
-                     |> assign(
-                       reply_modal_open?: false,
-                        reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
-                        reply_media_alt: %{},
-                        reply_options_open?: false,
-                        reply_cw_open?: false
-                      )
+                      {:noreply,
+                       socket
+                       |> put_flash(:info, "Reply posted.")
+                       |> assign(
+                         reply_modal_open?: false,
+                         reply_to_ap_id: nil,
+                         reply_to_handle: nil,
+                         reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
+                         reply_media_alt: %{},
+                         reply_options_open?: false,
+                         reply_cw_open?: false
+                       )
                        |> push_event("reply_modal_close", %{})}
 
                     {:error, :too_long} ->
@@ -703,7 +753,7 @@ defmodule EgregorosWeb.TimelineLive do
               <button
                 type="button"
                 data-role="compose-close"
-                phx-click={close_compose_js()}
+                phx-click={close_compose_js() |> JS.push("close_compose")}
                 class="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
                 aria-label="Close composer"
               >
@@ -870,7 +920,7 @@ defmodule EgregorosWeb.TimelineLive do
             "fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm lg:hidden",
             !@compose_open? && "hidden"
           ]}
-          phx-click={close_compose_js()}
+          phx-click={close_compose_js() |> JS.push("close_compose")}
           aria-hidden={!@compose_open?}
         >
         </div>
@@ -881,7 +931,7 @@ defmodule EgregorosWeb.TimelineLive do
           id="compose-open-button"
           data-role="compose-open"
           data-state={if @compose_open?, do: "hidden", else: "visible"}
-          phx-click={open_compose_js()}
+          phx-click={open_compose_js() |> JS.push("open_compose")}
           class={[
             "fixed bottom-24 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white lg:hidden",
             @compose_open? && "hidden"
@@ -897,6 +947,7 @@ defmodule EgregorosWeb.TimelineLive do
         form={@reply_form}
         upload={@uploads.reply_media}
         media_alt={@reply_media_alt}
+        reply_to_handle={@reply_to_handle}
         mention_suggestions={@mention_suggestions}
         options_open?={@reply_options_open?}
         cw_open?={@reply_cw_open?}

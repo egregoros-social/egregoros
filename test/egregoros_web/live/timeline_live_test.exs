@@ -326,27 +326,23 @@ defmodule EgregorosWeb.TimelineLiveTest do
     assert has_element?(view, "[data-role='timeline-current']", "public")
   end
 
-  test "compose sheet open/close controls are client-only", %{conn: conn, user: user} do
+  test "compose sheet can be opened and closed", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")
 
-    open_html =
-      view
-      |> element("button[data-role='compose-open']")
-      |> render()
+    assert has_element?(view, "#compose-overlay[data-state='closed']")
 
-    assert open_html =~ "remove_class"
-    assert open_html =~ "#compose-panel"
-    refute open_html =~ "open_compose"
+    view
+    |> element("button[data-role='compose-open']")
+    |> render_click()
 
-    close_html =
-      view
-      |> element("button[data-role='compose-close']")
-      |> render()
+    assert has_element?(view, "#compose-overlay[data-state='open']")
 
-    assert close_html =~ "add_class"
-    assert close_html =~ "#compose-overlay"
-    refute close_html =~ "close_compose"
+    view
+    |> element("button[data-role='compose-close']")
+    |> render_click()
+
+    assert has_element?(view, "#compose-overlay[data-state='closed']")
   end
 
   test "public timeline sanitizes remote html content", %{conn: conn} do
@@ -406,6 +402,36 @@ defmodule EgregorosWeb.TimelineLiveTest do
     refute html =~ "?reply=true"
   end
 
+  test "reply modal can be opened from a post card", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Reply target"), local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    assert has_element?(view, "#reply-modal[data-role='reply-modal'][data-state='closed']")
+
+    view
+    |> element("#post-#{parent.id} button[data-role='reply']")
+    |> render_click()
+
+    assert has_element?(view, "#reply-modal[data-role='reply-modal'][data-state='open']")
+
+    assert has_element?(
+             view,
+             "input[data-role='reply-in-reply-to'][value='#{parent.ap_id}']"
+           )
+
+    assert has_element?(view, "[data-role='reply-modal-target']", "Replying to @alice")
+
+    view
+    |> element("#reply-modal [data-role='reply-modal-close']")
+    |> render_click()
+
+    assert has_element?(view, "#reply-modal[data-role='reply-modal'][data-state='closed']")
+
+    assert has_element?(view, "input[data-role='reply-in-reply-to'][value='']")
+  end
+
   test "signed-in users can reply from the timeline", %{conn: conn, user: user} do
     assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Parent post"), local: true)
 
@@ -413,7 +439,11 @@ defmodule EgregorosWeb.TimelineLiveTest do
     {:ok, view, _html} = live(conn, "/")
 
     view
-    |> form("#reply-modal-form", reply: %{content: "A reply", in_reply_to: parent.ap_id})
+    |> element("#post-#{parent.id} button[data-role='reply']")
+    |> render_click()
+
+    view
+    |> form("#reply-modal-form", reply: %{content: "A reply"})
     |> render_submit()
 
     [reply] = Objects.list_replies_to(parent.ap_id, limit: 1)

@@ -94,6 +94,8 @@ defmodule EgregorosWeb.ProfileLive do
        follows_you?: follows_you?,
        mention_suggestions: %{},
        reply_modal_open?: false,
+       reply_to_ap_id: nil,
+       reply_to_handle: nil,
        reply_form: reply_form,
        reply_media_alt: %{},
        reply_options_open?: false,
@@ -163,12 +165,50 @@ defmodule EgregorosWeb.ProfileLive do
     {:noreply, assign(socket, mention_suggestions: mention_suggestions)}
   end
 
+  def handle_event(
+        "open_reply_modal",
+        %{"in_reply_to" => in_reply_to, "actor_handle" => actor_handle},
+        socket
+      ) do
+    if socket.assigns.current_user do
+      in_reply_to = in_reply_to |> to_string() |> String.trim()
+      actor_handle = actor_handle |> to_string() |> String.trim()
+
+      if in_reply_to == "" do
+        {:noreply, socket}
+      else
+        reply_params =
+          default_reply_params()
+          |> Map.put("in_reply_to", in_reply_to)
+
+        socket =
+          socket
+          |> cancel_all_uploads(:reply_media)
+          |> assign(
+            reply_modal_open?: true,
+            reply_to_ap_id: in_reply_to,
+            reply_to_handle: actor_handle,
+            reply_form: Phoenix.Component.to_form(reply_params, as: :reply),
+            reply_media_alt: %{},
+            reply_options_open?: false,
+            reply_cw_open?: false
+          )
+
+        {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("close_reply_modal", _params, socket) do
     socket =
       socket
       |> cancel_all_uploads(:reply_media)
       |> assign(
         reply_modal_open?: false,
+        reply_to_ap_id: nil,
+        reply_to_handle: nil,
         reply_form: Phoenix.Component.to_form(default_reply_params(), as: :reply),
         reply_media_alt: %{},
         reply_options_open?: false,
@@ -215,10 +255,10 @@ defmodule EgregorosWeb.ProfileLive do
 
       user ->
         in_reply_to =
-          reply_params
-          |> Map.get("in_reply_to", "")
-          |> to_string()
-          |> String.trim()
+          case socket.assigns.reply_to_ap_id do
+            ap_id when is_binary(ap_id) -> String.trim(ap_id)
+            _ -> reply_params |> Map.get("in_reply_to", "") |> to_string() |> String.trim()
+          end
 
         if in_reply_to != "" do
           reply_params = Map.merge(default_reply_params(), reply_params)
@@ -310,6 +350,8 @@ defmodule EgregorosWeb.ProfileLive do
                        |> put_flash(:info, "Reply posted.")
                        |> assign(
                          reply_modal_open?: false,
+                         reply_to_ap_id: nil,
+                         reply_to_handle: nil,
                          reply_form:
                            Phoenix.Component.to_form(default_reply_params(), as: :reply),
                          reply_media_alt: %{},
@@ -936,6 +978,7 @@ defmodule EgregorosWeb.ProfileLive do
         form={@reply_form}
         upload={@uploads.reply_media}
         media_alt={@reply_media_alt}
+        reply_to_handle={@reply_to_handle}
         mention_suggestions={@mention_suggestions}
         options_open?={@reply_options_open?}
         cw_open?={@reply_cw_open?}

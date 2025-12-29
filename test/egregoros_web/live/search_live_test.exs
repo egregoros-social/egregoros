@@ -100,7 +100,11 @@ defmodule EgregorosWeb.SearchLiveTest do
     {:ok, view, _html} = live(conn, "/search?q=parent")
 
     view
-    |> form("#reply-modal-form", reply: %{content: "A reply", in_reply_to: parent.ap_id})
+    |> element("#search-post-#{parent.id} button[data-role='reply']")
+    |> render_click()
+
+    view
+    |> form("#reply-modal-form", reply: %{content: "A reply"})
     |> render_submit()
 
     [reply] = Objects.list_replies_to(parent.ap_id, limit: 1)

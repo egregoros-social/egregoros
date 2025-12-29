@@ -28,6 +28,7 @@ custom classes must fully style the input
 ### JS and CSS guidelines
 
 - **JavaScript style preference:** avoid `class` and `function foo() {}` declarations; prefer arrow functions (`const foo = () => { ... }`). Exception: Phoenix LiveView hooks require `this` binding, so hook callbacks should use method syntax (`mounted() { ... }`, etc.) while inner helpers remain arrow functions.
+- **LiveView UI state:** keep patch-sensitive UI state (e.g. modals/sheets open/closed, selected reply target) **server-authoritative** so re-renders don’t fight the client and LiveView tests can cover behavior. Use `JS.*` commands / hooks only for **optimistic, instant UX** (no-lag), and still push an event to the server so it can reconcile and persist state.
 - **Use Tailwind CSS classes and custom CSS rules** to create polished, responsive, and visually stunning interfaces.
 - Tailwindcss v4 **no longer needs a tailwind.config.js** and uses a new import syntax in `app.css`:
 

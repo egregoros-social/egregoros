@@ -173,6 +173,12 @@ defmodule EgregorosWeb.StatusCard do
                     actor_handle: @entry.actor.handle
                   }
                 )
+                |> JS.push("open_reply_modal",
+                  value: %{
+                    "in_reply_to" => @entry.object.ap_id,
+                    "actor_handle" => @entry.actor.handle
+                  }
+                )
               }
               class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 dark:hover:text-white"
               aria-label="Reply"
