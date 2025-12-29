@@ -146,6 +146,8 @@ defmodule EgregorosWeb.Router do
     post "/follows", FollowsController, :create
     post "/accounts/:id/follow", AccountsController, :follow
     post "/accounts/:id/unfollow", AccountsController, :unfollow
+    post "/follow_requests/:id/authorize", FollowRequestsController, :authorize
+    post "/follow_requests/:id/reject", FollowRequestsController, :reject
   end
 
   scope "/api/v1", EgregorosWeb.MastodonAPI do
@@ -162,7 +164,7 @@ defmodule EgregorosWeb.Router do
     get "/favourites", EmptyListController, :index
     get "/blocks", BlocksController, :index
     get "/mutes", MutesController, :index
-    get "/follow_requests", EmptyListController, :index
+    get "/follow_requests", FollowRequestsController, :index
     get "/markers", MarkersController, :index
     get "/statuses/:id/favourited_by", StatusesController, :favourited_by
     get "/statuses/:id/reblogged_by", StatusesController, :reblogged_by
