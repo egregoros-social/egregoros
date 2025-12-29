@@ -52,12 +52,16 @@ defmodule EgregorosWeb.ReplyModal do
               Reply
             </p>
 
+            <% has_target? = is_binary(@reply_to_handle) and @reply_to_handle != "" %>
+
             <p
-              :if={is_binary(@reply_to_handle) and @reply_to_handle != ""}
               data-role="reply-modal-target"
-              class="mt-2 truncate text-sm font-semibold text-slate-800 dark:text-slate-100"
+              class={[
+                "mt-2 truncate text-sm font-semibold text-slate-800 dark:text-slate-100",
+                !has_target? && "hidden"
+              ]}
             >
-              Replying to {@reply_to_handle}
+              Replying to <span data-role="reply-modal-target-handle">{@reply_to_handle}</span>
             </p>
           </div>
 
@@ -88,7 +92,18 @@ defmodule EgregorosWeb.ReplyModal do
           toggle_cw_event={@toggle_cw_event}
           submit_label="Reply"
           class="mt-0"
-        />
+        >
+          <:extra_fields>
+            <input
+              type="text"
+              name="reply[in_reply_to]"
+              value={Map.get(@form.params || %{}, "in_reply_to", "")}
+              data-role="reply-in-reply-to"
+              class="hidden"
+              autocomplete="off"
+            />
+          </:extra_fields>
+        </Composer.composer_form>
       </.focus_wrap>
     </div>
     """

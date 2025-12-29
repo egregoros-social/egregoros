@@ -155,7 +155,7 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
 
     view
-    |> form("#reply-modal-form", reply: %{content: "A reply"})
+    |> form("#reply-modal-form", reply: %{content: "A reply", in_reply_to: parent.ap_id})
     |> render_submit()
 
     assert has_element?(view, "article", "A reply")
@@ -182,7 +182,7 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert {:ok, view, _html} = live(conn, "/@bob@remote.example/#{remote_parent.id}?reply=true")
 
     view
-    |> form("#reply-modal-form", reply: %{content: "Remote reply"})
+    |> form("#reply-modal-form", reply: %{content: "Remote reply", in_reply_to: remote_parent.ap_id})
     |> render_submit()
 
     assert has_element?(view, "article", "Remote reply")
@@ -291,10 +291,15 @@ defmodule EgregorosWeb.StatusLiveTest do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
 
-    assert has_element?(
-             view,
-             "button[data-role='reply'][phx-value-in_reply_to][phx-value-actor_handle]"
-           )
+    assert has_element?(view, "#post-#{note.id} button[data-role='reply']")
+
+    html =
+      view
+      |> element("#post-#{note.id} button[data-role='reply']")
+      |> render()
+
+    assert html =~ "egregoros:reply-open"
+    assert html =~ note.ap_id
 
     assert has_element?(view, "#reply-modal[data-role='reply-modal'][data-state='closed']")
   end
@@ -347,7 +352,7 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert render_upload(upload, "photo.png") =~ "100%"
 
     view
-    |> form("#reply-modal-form", reply: %{content: "Reply with media"})
+    |> form("#reply-modal-form", reply: %{content: "Reply with media", in_reply_to: parent.ap_id})
     |> render_submit()
 
     [reply] = Objects.list_replies_to(parent.ap_id, limit: 1)
@@ -544,15 +549,7 @@ defmodule EgregorosWeb.StatusLiveTest do
     uuid = uuid_from_ap_id(note.ap_id)
 
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
-    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
-
-    assert has_element?(view, "#reply-modal[data-role='reply-modal'][data-state='closed']")
-
-    _html =
-      render_hook(view, "open_reply_modal", %{
-        "in_reply_to" => note.ap_id,
-        "actor_handle" => "@alice"
-      })
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
 
     assert has_element?(view, "#reply-modal[data-role='reply-modal'][data-state='open']")
 
@@ -622,7 +619,7 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert render_upload(upload, "photo.png", 10) =~ "10%"
 
     view
-    |> form("#reply-modal-form", reply: %{content: "Reply while uploading"})
+    |> form("#reply-modal-form", reply: %{content: "Reply while uploading", in_reply_to: note.ap_id})
     |> render_submit()
 
     assert render(view) =~ "Wait for attachments to finish uploading."
@@ -657,7 +654,7 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert render_upload(upload, "photo.png") =~ "100%"
 
     view
-    |> form("#reply-modal-form", reply: %{content: "Reply with media"})
+    |> form("#reply-modal-form", reply: %{content: "Reply with media", in_reply_to: note.ap_id})
     |> render_submit()
 
     assert render(view) =~ "Could not upload attachment."
@@ -671,7 +668,7 @@ defmodule EgregorosWeb.StatusLiveTest do
     assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}?reply=true")
 
     view
-    |> form("#reply-modal-form", reply: %{content: ""})
+    |> form("#reply-modal-form", reply: %{content: "", in_reply_to: note.ap_id})
     |> render_submit()
 
     assert render(view) =~ "Reply can&#39;t be empty."

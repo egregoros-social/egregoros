@@ -818,8 +818,14 @@ const ReplyModal = {
   mounted() {
     this.lastFocused = null
 
-    this.onOpen = () => {
+    this.onOpen = e => {
       this.lastFocused = document.activeElement
+
+      const detail = e?.detail || {}
+      const inReplyTo = detail.in_reply_to || detail.inReplyTo || ""
+      const actorHandle = detail.actor_handle || detail.actorHandle || ""
+      this.setReplyTarget({inReplyTo, actorHandle})
+
       this.open()
       this.focusTextarea()
     }
@@ -867,7 +873,39 @@ const ReplyModal = {
     this.el.classList.add("hidden")
     this.el.dataset.state = "closed"
     this.el.setAttribute("aria-hidden", "true")
+    this.clearReplyTarget()
     this.restoreFocus()
+  },
+
+  setReplyTarget({inReplyTo, actorHandle}) {
+    const input = this.el.querySelector("input[data-role='reply-in-reply-to']")
+    if (input) input.value = String(inReplyTo || "")
+
+    const wrapper = this.el.querySelector("[data-role='reply-modal-target']")
+    const handleEl = this.el.querySelector("[data-role='reply-modal-target-handle']")
+    if (!wrapper || !handleEl) return
+
+    const handle = String(actorHandle || "").trim()
+
+    if (handle) {
+      handleEl.textContent = handle
+      wrapper.classList.remove("hidden")
+    } else {
+      handleEl.textContent = ""
+      wrapper.classList.add("hidden")
+    }
+  },
+
+  clearReplyTarget() {
+    const input = this.el.querySelector("input[data-role='reply-in-reply-to']")
+    if (input) input.value = ""
+
+    const wrapper = this.el.querySelector("[data-role='reply-modal-target']")
+    const handleEl = this.el.querySelector("[data-role='reply-modal-target-handle']")
+    if (!wrapper || !handleEl) return
+
+    handleEl.textContent = ""
+    wrapper.classList.add("hidden")
   },
 
   restoreFocus() {

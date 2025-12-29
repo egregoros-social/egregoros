@@ -44,8 +44,6 @@ defmodule EgregorosWeb.TimelineLive do
         compose_options_open?: false,
         compose_cw_open?: false,
         reply_modal_open?: false,
-        reply_to_ap_id: nil,
-        reply_to_handle: nil,
         reply_form: reply_form,
         reply_media_alt: %{},
         reply_options_open?: false,
@@ -335,38 +333,12 @@ defmodule EgregorosWeb.TimelineLive do
     end
   end
 
-  def handle_event("open_reply_modal", %{"in_reply_to" => in_reply_to} = params, socket) do
-    in_reply_to = in_reply_to |> to_string() |> String.trim()
-    actor_handle = params |> Map.get("actor_handle", "") |> to_string() |> String.trim()
-
-    socket =
-      socket
-      |> cancel_all_uploads(:reply_media)
-      |> assign(
-        reply_modal_open?: true,
-        reply_to_ap_id: in_reply_to,
-        reply_to_handle: actor_handle,
-        reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
-        reply_media_alt: %{},
-        reply_options_open?: false,
-        reply_cw_open?: false
-      )
-
-    {:noreply, socket}
-  end
-
-  def handle_event("open_reply_modal", _params, socket) do
-    {:noreply, socket}
-  end
-
   def handle_event("close_reply_modal", _params, socket) do
     socket =
       socket
       |> cancel_all_uploads(:reply_media)
       |> assign(
         reply_modal_open?: false,
-        reply_to_ap_id: nil,
-        reply_to_handle: nil,
         reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
         reply_media_alt: %{},
         reply_options_open?: false,
@@ -412,9 +384,13 @@ defmodule EgregorosWeb.TimelineLive do
         {:noreply, put_flash(socket, :error, "Register to reply.")}
 
       user ->
-        in_reply_to = socket.assigns.reply_to_ap_id
+        in_reply_to =
+          reply_params
+          |> Map.get("in_reply_to", "")
+          |> to_string()
+          |> String.trim()
 
-        if is_binary(in_reply_to) and String.trim(in_reply_to) != "" do
+        if in_reply_to != "" do
           reply_params = Map.merge(default_post_params(), reply_params)
           content = reply_params |> Map.get("content", "") |> to_string()
           media_alt = Map.get(reply_params, "media_alt", %{})
@@ -499,18 +475,16 @@ defmodule EgregorosWeb.TimelineLive do
                          language: language
                        ) do
                     {:ok, _reply} ->
-                      {:noreply,
-                       socket
-                       |> put_flash(:info, "Reply posted.")
-                       |> assign(
-                         reply_modal_open?: false,
-                         reply_to_ap_id: nil,
-                         reply_to_handle: nil,
-                         reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
-                         reply_media_alt: %{},
-                         reply_options_open?: false,
-                         reply_cw_open?: false
-                       )
+                    {:noreply,
+                     socket
+                     |> put_flash(:info, "Reply posted.")
+                     |> assign(
+                       reply_modal_open?: false,
+                        reply_form: Phoenix.Component.to_form(default_post_params(), as: :reply),
+                        reply_media_alt: %{},
+                        reply_options_open?: false,
+                        reply_cw_open?: false
+                      )
                        |> push_event("reply_modal_close", %{})}
 
                     {:error, :too_long} ->
@@ -931,7 +905,6 @@ defmodule EgregorosWeb.TimelineLive do
         form={@reply_form}
         upload={@uploads.reply_media}
         media_alt={@reply_media_alt}
-        reply_to_handle={@reply_to_handle}
         mention_suggestions={@mention_suggestions}
         options_open?={@reply_options_open?}
         cw_open?={@reply_cw_open?}

@@ -35,7 +35,6 @@ defmodule EgregorosWeb.StatusLive do
       end
 
     reply_modal_open? = truthy?(Map.get(params, "reply")) and not is_nil(current_user)
-    reply_form = Phoenix.Component.to_form(default_reply_params(), as: :reply)
 
     {status_entry, ancestor_entries, descendant_entries} =
       case object do
@@ -55,19 +54,21 @@ defmodule EgregorosWeb.StatusLive do
           {nil, [], []}
       end
 
-    reply_to_ap_id =
-      if reply_modal_open? and status_entry do
-        status_entry.object.ap_id
-      else
-        nil
-      end
-
     reply_to_handle =
       if reply_modal_open? and status_entry do
         status_entry.actor.handle
       else
         nil
       end
+
+    reply_params =
+      if reply_modal_open? and status_entry do
+        default_reply_params() |> Map.put("in_reply_to", status_entry.object.ap_id)
+      else
+        default_reply_params()
+      end
+
+    reply_form = Phoenix.Component.to_form(reply_params, as: :reply)
 
     socket =
       socket
@@ -80,7 +81,6 @@ defmodule EgregorosWeb.StatusLive do
         ancestors: ancestor_entries,
         descendants: descendant_entries,
         reply_modal_open?: reply_modal_open?,
-        reply_to_ap_id: reply_to_ap_id,
         reply_to_handle: reply_to_handle,
         reply_form: reply_form,
         reply_media_alt: %{},
@@ -240,32 +240,8 @@ defmodule EgregorosWeb.StatusLive do
         {:noreply, put_flash(socket, :error, "Register to delete posts.")}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "Could not delete post.")}
+      {:noreply, put_flash(socket, :error, "Could not delete post.")}
     end
-  end
-
-  def handle_event("open_reply_modal", %{"in_reply_to" => in_reply_to} = params, socket) do
-    in_reply_to = in_reply_to |> to_string() |> String.trim()
-    actor_handle = params |> Map.get("actor_handle", "") |> to_string() |> String.trim()
-
-    socket =
-      socket
-      |> cancel_all_uploads(:reply_media)
-      |> assign(
-        reply_modal_open?: true,
-        reply_to_ap_id: in_reply_to,
-        reply_to_handle: actor_handle,
-        reply_form: Phoenix.Component.to_form(default_reply_params(), as: :reply),
-        reply_media_alt: %{},
-        reply_options_open?: false,
-        reply_cw_open?: false
-      )
-
-    {:noreply, socket}
-  end
-
-  def handle_event("open_reply_modal", _params, socket) do
-    {:noreply, socket}
   end
 
   def handle_event("close_reply_modal", _params, socket) do
@@ -274,7 +250,6 @@ defmodule EgregorosWeb.StatusLive do
       |> cancel_all_uploads(:reply_media)
       |> assign(
         reply_modal_open?: false,
-        reply_to_ap_id: nil,
         reply_to_handle: nil,
         reply_form: Phoenix.Component.to_form(default_reply_params(), as: :reply),
         reply_media_alt: %{},
@@ -323,9 +298,14 @@ defmodule EgregorosWeb.StatusLive do
       socket.assigns.reply_cw_open? ||
         reply_params |> Map.get("spoiler_text", "") |> to_string() |> String.trim() != ""
 
+    in_reply_to =
+      reply_params
+      |> Map.get("in_reply_to", "")
+      |> to_string()
+      |> String.trim()
+
     with %User{} = user <- socket.assigns.current_user,
-         in_reply_to when is_binary(in_reply_to) <- socket.assigns.reply_to_ap_id,
-         true <- String.trim(in_reply_to) != "" do
+         true <- in_reply_to != "" do
       upload = socket.assigns.uploads.reply_media
 
       cond do
@@ -396,13 +376,12 @@ defmodule EgregorosWeb.StatusLive do
                      language: language
                    ) do
                 {:ok, _create} ->
-                  {:noreply,
+                 {:noreply,
                    socket
                    |> put_flash(:info, "Reply posted.")
                    |> refresh_thread()
                    |> assign(
                      reply_modal_open?: false,
-                     reply_to_ap_id: nil,
                      reply_to_handle: nil,
                      reply_form: Phoenix.Component.to_form(default_reply_params(), as: :reply),
                      reply_media_alt: %{},
