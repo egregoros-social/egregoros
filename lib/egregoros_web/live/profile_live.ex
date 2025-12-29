@@ -63,6 +63,9 @@ defmodule EgregorosWeb.ProfileLive do
     mute_relationship =
       relationship_for("Mute", current_user, profile_user)
 
+    follows_you? =
+      follows_you?(current_user, profile_user)
+
     reply_form = Phoenix.Component.to_form(default_reply_params(), as: :reply)
 
     profile_bio_html =
@@ -88,11 +91,12 @@ defmodule EgregorosWeb.ProfileLive do
        follow_request_relationship: follow_request_relationship,
        block_relationship: block_relationship,
        mute_relationship: mute_relationship,
+       follows_you?: follows_you?,
        mention_suggestions: %{},
-        reply_modal_open?: false,
-        reply_to_ap_id: nil,
-        reply_to_handle: nil,
-        reply_form: reply_form,
+       reply_modal_open?: false,
+       reply_to_ap_id: nil,
+       reply_to_handle: nil,
+       reply_form: reply_form,
        reply_media_alt: %{},
        reply_options_open?: false,
        reply_cw_open?: false,
@@ -536,7 +540,8 @@ defmodule EgregorosWeb.ProfileLive do
     with %User{} = viewer <- socket.assigns.current_user,
          %User{} = profile_user <- socket.assigns.profile_user,
          %{} = relationship <- socket.assigns.follow_request_relationship,
-         follow_ap_id when is_binary(follow_ap_id) and follow_ap_id != "" <- relationship.activity_ap_id,
+         follow_ap_id when is_binary(follow_ap_id) and follow_ap_id != "" <-
+           relationship.activity_ap_id,
          {:ok, _undo} <- Pipeline.ingest(Undo.build(viewer, follow_ap_id), local: true) do
       {:noreply,
        socket
@@ -756,6 +761,31 @@ defmodule EgregorosWeb.ProfileLive do
                     >
                       {@profile_handle}
                     </p>
+
+                    <div
+                      :if={
+                        @follows_you? && @current_user && @profile_user &&
+                          @current_user.id != @profile_user.id
+                      }
+                      class="mt-3 flex flex-wrap items-center gap-2"
+                      data-role="profile-badges"
+                    >
+                      <span
+                        :if={@follows_you? && @follow_relationship}
+                        data-role="profile-mutual"
+                        class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
+                      >
+                        Mutual
+                      </span>
+
+                      <span
+                        :if={@follows_you? && !@follow_relationship}
+                        data-role="profile-follows-you"
+                        class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      >
+                        Follows you
+                      </span>
+                    </div>
                   </div>
 
                   <div class="flex flex-wrap items-center gap-2">
@@ -968,11 +998,27 @@ defmodule EgregorosWeb.ProfileLive do
     Relationships.get_by_type_actor_object("Follow", current_user.ap_id, profile_user.ap_id)
   end
 
+  defp follows_you?(nil, _profile_user), do: false
+  defp follows_you?(_current_user, nil), do: false
+
+  defp follows_you?(%User{} = current_user, %User{} = profile_user) do
+    if current_user.id == profile_user.id do
+      false
+    else
+      Relationships.get_by_type_actor_object("Follow", profile_user.ap_id, current_user.ap_id) !=
+        nil
+    end
+  end
+
   defp follow_request_relationship(nil, _profile_user), do: nil
   defp follow_request_relationship(_current_user, nil), do: nil
 
   defp follow_request_relationship(%User{} = current_user, %User{} = profile_user) do
-    Relationships.get_by_type_actor_object("FollowRequest", current_user.ap_id, profile_user.ap_id)
+    Relationships.get_by_type_actor_object(
+      "FollowRequest",
+      current_user.ap_id,
+      profile_user.ap_id
+    )
   end
 
   defp relationship_for(_type, nil, _profile_user), do: nil

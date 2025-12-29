@@ -44,7 +44,10 @@ defmodule EgregorosWeb.ProfileLiveTest do
     assert has_element?(view, "button[data-role='profile-follow']")
   end
 
-  test "profile shows follow requests for remote accounts until accepted", %{conn: conn, viewer: viewer} do
+  test "profile shows follow requests for remote accounts until accepted", %{
+    conn: conn,
+    viewer: viewer
+  } do
     {:ok, remote} =
       Users.create_user(%{
         nickname: "bob",
@@ -59,7 +62,9 @@ defmodule EgregorosWeb.ProfileLiveTest do
     conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
     {:ok, view, _html} = live(conn, "/@#{remote.nickname}@remote.example")
 
-    assert Relationships.get_by_type_actor_object("FollowRequest", viewer.ap_id, remote.ap_id) == nil
+    assert Relationships.get_by_type_actor_object("FollowRequest", viewer.ap_id, remote.ap_id) ==
+             nil
+
     assert has_element?(view, "button[data-role='profile-follow']")
 
     view
@@ -74,11 +79,66 @@ defmodule EgregorosWeb.ProfileLiveTest do
     |> element("button[data-role='profile-unfollow-request']")
     |> render_click()
 
-    assert Relationships.get_by_type_actor_object("FollowRequest", viewer.ap_id, remote.ap_id) == nil
+    assert Relationships.get_by_type_actor_object("FollowRequest", viewer.ap_id, remote.ap_id) ==
+             nil
+
     assert has_element?(view, "button[data-role='profile-follow']")
   end
 
-  test "profile supports muting and unmuting", %{conn: conn, viewer: viewer, profile_user: profile_user} do
+  test "profile shows follows-you badge when profile user follows the viewer", %{
+    conn: conn,
+    viewer: viewer,
+    profile_user: profile_user
+  } do
+    {:ok, _} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/activities/follow/back",
+          "type" => "Follow",
+          "actor" => profile_user.ap_id,
+          "object" => viewer.ap_id
+        },
+        local: true
+      )
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
+
+    assert has_element?(view, "[data-role='profile-follows-you']", "Follows you")
+  end
+
+  test "profile shows mutual badge when both accounts follow each other", %{
+    conn: conn,
+    viewer: viewer,
+    profile_user: profile_user
+  } do
+    {:ok, _} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/activities/follow/back",
+          "type" => "Follow",
+          "actor" => profile_user.ap_id,
+          "object" => viewer.ap_id
+        },
+        local: true
+      )
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
+
+    view
+    |> element("button[data-role='profile-follow']")
+    |> render_click()
+
+    assert has_element?(view, "[data-role='profile-mutual']", "Mutual")
+    refute has_element?(view, "[data-role='profile-follows-you']")
+  end
+
+  test "profile supports muting and unmuting", %{
+    conn: conn,
+    viewer: viewer,
+    profile_user: profile_user
+  } do
     conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
     {:ok, view, _html} = live(conn, "/@#{profile_user.nickname}")
 
@@ -131,8 +191,13 @@ defmodule EgregorosWeb.ProfileLiveTest do
     |> render_click()
 
     assert Relationships.get_by_type_actor_object("Block", viewer.ap_id, profile_user.ap_id)
-    assert Relationships.get_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id) == nil
-    assert Relationships.get_by_type_actor_object("Follow", profile_user.ap_id, viewer.ap_id) == nil
+
+    assert Relationships.get_by_type_actor_object("Follow", viewer.ap_id, profile_user.ap_id) ==
+             nil
+
+    assert Relationships.get_by_type_actor_object("Follow", profile_user.ap_id, viewer.ap_id) ==
+             nil
+
     assert has_element?(view, "button[data-role='profile-unblock']")
     refute has_element?(view, "button[data-role='profile-follow']")
 
@@ -140,7 +205,9 @@ defmodule EgregorosWeb.ProfileLiveTest do
     |> element("button[data-role='profile-unblock']")
     |> render_click()
 
-    assert Relationships.get_by_type_actor_object("Block", viewer.ap_id, profile_user.ap_id) == nil
+    assert Relationships.get_by_type_actor_object("Block", viewer.ap_id, profile_user.ap_id) ==
+             nil
+
     assert has_element?(view, "button[data-role='profile-block']")
     assert has_element?(view, "button[data-role='profile-follow']")
   end
