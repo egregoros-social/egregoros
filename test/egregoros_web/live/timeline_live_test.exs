@@ -557,6 +557,38 @@ defmodule EgregorosWeb.TimelineLiveTest do
            )
   end
 
+  test "interaction buttons dispatch optimistic toggle events", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    view
+    |> form("#timeline-form", post: %{content: "Hello world"})
+    |> render_submit()
+
+    [note] = Objects.list_notes()
+
+    like_html =
+      view
+      |> element("#post-#{note.id} button[data-role='like']")
+      |> render()
+
+    assert like_html =~ "egregoros:optimistic-toggle"
+
+    repost_html =
+      view
+      |> element("#post-#{note.id} button[data-role='repost']")
+      |> render()
+
+    assert repost_html =~ "egregoros:optimistic-toggle"
+
+    reaction_html =
+      view
+      |> element("#post-#{note.id} button[data-role='reaction'][data-emoji='🔥']")
+      |> render()
+
+    assert reaction_html =~ "egregoros:optimistic-toggle"
+  end
+
   test "bookmarking a post toggles a local bookmark", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")

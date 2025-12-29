@@ -203,16 +203,16 @@ defmodule EgregorosWeb.StatusCard do
           <button
             type="button"
             data-role="like"
-            phx-click="toggle_like"
-            phx-value-id={@entry.object.id}
-            phx-disable-with="..."
             aria-pressed={@entry.liked?}
+            data-pressed={if @entry.liked?, do: "true", else: "false"}
+            phx-click={
+              JS.dispatch("egregoros:optimistic-toggle", detail: %{kind: "like"})
+              |> JS.push("toggle_like", value: %{"id" => @entry.object.id})
+            }
             class={[
               "inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium shadow-sm transition",
-              @entry.liked? &&
-                "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-700/50 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50",
-              !@entry.liked? &&
-                "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 dark:hover:text-white"
+              "data-[pressed=true]:border-rose-200 data-[pressed=true]:bg-rose-50 data-[pressed=true]:text-rose-700 data-[pressed=true]:hover:bg-rose-100 data-[pressed=true]:dark:border-rose-700/50 data-[pressed=true]:dark:bg-rose-900/30 data-[pressed=true]:dark:text-rose-300 data-[pressed=true]:dark:hover:bg-rose-900/50",
+              "data-[pressed=false]:border-slate-200 data-[pressed=false]:bg-white data-[pressed=false]:text-slate-600 data-[pressed=false]:hover:bg-slate-50 data-[pressed=false]:hover:text-slate-900 data-[pressed=false]:dark:border-slate-600 data-[pressed=false]:dark:bg-slate-700 data-[pressed=false]:dark:text-slate-300 data-[pressed=false]:dark:hover:bg-slate-600 data-[pressed=false]:dark:hover:text-white"
             ]}
           >
             <.icon
@@ -228,16 +228,16 @@ defmodule EgregorosWeb.StatusCard do
           <button
             type="button"
             data-role="repost"
-            phx-click="toggle_repost"
-            phx-value-id={@entry.object.id}
-            phx-disable-with="..."
             aria-pressed={@entry.reposted?}
+            data-pressed={if @entry.reposted?, do: "true", else: "false"}
+            phx-click={
+              JS.dispatch("egregoros:optimistic-toggle", detail: %{kind: "repost"})
+              |> JS.push("toggle_repost", value: %{"id" => @entry.object.id})
+            }
             class={[
               "inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium shadow-sm transition",
-              @entry.reposted? &&
-                "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700/50 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50",
-              !@entry.reposted? &&
-                "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 dark:hover:text-white"
+              "data-[pressed=true]:border-emerald-200 data-[pressed=true]:bg-emerald-50 data-[pressed=true]:text-emerald-700 data-[pressed=true]:hover:bg-emerald-100 data-[pressed=true]:dark:border-emerald-700/50 data-[pressed=true]:dark:bg-emerald-900/30 data-[pressed=true]:dark:text-emerald-300 data-[pressed=true]:dark:hover:bg-emerald-900/50",
+              "data-[pressed=false]:border-slate-200 data-[pressed=false]:bg-white data-[pressed=false]:text-slate-600 data-[pressed=false]:hover:bg-slate-50 data-[pressed=false]:hover:text-slate-900 data-[pressed=false]:dark:border-slate-600 data-[pressed=false]:dark:bg-slate-700 data-[pressed=false]:dark:text-slate-300 data-[pressed=false]:dark:hover:bg-slate-600 data-[pressed=false]:dark:hover:text-white"
             ]}
           >
             <.icon
@@ -259,17 +259,21 @@ defmodule EgregorosWeb.StatusCard do
               type="button"
               data-role="reaction"
               data-emoji={emoji}
-              phx-click="toggle_reaction"
-              phx-value-id={@entry.object.id}
-              phx-value-emoji={emoji}
-              phx-disable-with="..."
               aria-pressed={reaction.reacted?}
+              data-pressed={if reaction.reacted?, do: "true", else: "false"}
+              phx-click={
+                JS.dispatch("egregoros:optimistic-toggle", detail: %{kind: "reaction"})
+                |> JS.push("toggle_reaction",
+                  value: %{
+                    "id" => @entry.object.id,
+                    "emoji" => emoji
+                  }
+                )
+              }
               class={[
                 "inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium shadow-sm transition",
-                reaction.reacted? &&
-                  "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700/50 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50",
-                !reaction.reacted? &&
-                  "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 dark:hover:text-white"
+                "data-[pressed=true]:border-emerald-200 data-[pressed=true]:bg-emerald-50 data-[pressed=true]:text-emerald-700 data-[pressed=true]:hover:bg-emerald-100 data-[pressed=true]:dark:border-emerald-700/50 data-[pressed=true]:dark:bg-emerald-900/30 data-[pressed=true]:dark:text-emerald-300 data-[pressed=true]:dark:hover:bg-emerald-900/50",
+                "data-[pressed=false]:border-slate-200 data-[pressed=false]:bg-white data-[pressed=false]:text-slate-600 data-[pressed=false]:hover:bg-slate-50 data-[pressed=false]:hover:text-slate-900 data-[pressed=false]:dark:border-slate-600 data-[pressed=false]:dark:bg-slate-700 data-[pressed=false]:dark:text-slate-300 data-[pressed=false]:dark:hover:bg-slate-600 data-[pressed=false]:dark:hover:text-white"
               ]}
             >
               <span class="text-base leading-none">{emoji}</span>
@@ -304,7 +308,13 @@ defmodule EgregorosWeb.StatusCard do
                   data-role="reaction-picker-option"
                   data-emoji={emoji}
                   phx-click={
-                    JS.push("toggle_reaction", value: %{id: @entry.object.id, emoji: emoji})
+                    JS.dispatch("egregoros:optimistic-toggle", detail: %{kind: "reaction"})
+                    |> JS.push("toggle_reaction",
+                      value: %{
+                        "id" => @entry.object.id,
+                        "emoji" => emoji
+                      }
+                    )
                     |> JS.remove_attribute("open", to: "#reaction-picker-#{@entry.object.id}")
                   }
                   class="inline-flex cursor-pointer h-9 w-9 items-center justify-center rounded-lg text-xl transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:hover:bg-slate-700"

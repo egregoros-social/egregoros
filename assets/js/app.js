@@ -2030,6 +2030,78 @@ window.addEventListener("egregoros:copy", async e => {
   }
 })
 
+const togglePressedAttrs = (el, nextPressed) => {
+  if (!el) return
+  const value = nextPressed ? "true" : "false"
+  el.setAttribute("aria-pressed", value)
+  el.setAttribute("data-pressed", value)
+}
+
+const updateCounter = (buttonEl, delta) => {
+  if (!buttonEl) return
+  const counter = buttonEl.querySelector("span.tabular-nums")
+  if (!counter) return
+
+  const current = parseInt(String(counter.textContent || "0").trim(), 10)
+  if (!Number.isFinite(current)) return
+
+  const next = Math.max(0, current + delta)
+  counter.textContent = String(next)
+}
+
+const updateSrLabel = (buttonEl, text) => {
+  if (!buttonEl) return
+  const label = buttonEl.querySelector("span.sr-only")
+  if (!label) return
+  label.textContent = text
+}
+
+window.addEventListener("egregoros:optimistic-toggle", e => {
+  const kind = e?.detail?.kind
+  const target = e?.target
+  if (!kind || !(target instanceof HTMLElement)) return
+
+  if (kind === "like") {
+    const button = target.closest("button[data-role='like']")
+    if (!button) return
+
+    const pressed = button.getAttribute("data-pressed") === "true"
+    const nextPressed = !pressed
+    togglePressedAttrs(button, nextPressed)
+    updateSrLabel(button, nextPressed ? "Unlike" : "Like")
+    updateCounter(button, nextPressed ? 1 : -1)
+    return
+  }
+
+  if (kind === "repost") {
+    const button = target.closest("button[data-role='repost']")
+    if (!button) return
+
+    const pressed = button.getAttribute("data-pressed") === "true"
+    const nextPressed = !pressed
+    togglePressedAttrs(button, nextPressed)
+    updateSrLabel(button, nextPressed ? "Unrepost" : "Repost")
+    updateCounter(button, nextPressed ? 1 : -1)
+    return
+  }
+
+  if (kind === "reaction") {
+    const source = target.closest("[data-emoji]")
+    const emoji = source?.dataset?.emoji
+    if (!emoji) return
+
+    const card = target.closest("article[data-role='status-card']")
+    const button = card?.querySelector(`button[data-role='reaction'][data-emoji='${CSS.escape(emoji)}']`)
+
+    if (!button) return
+
+    const pressed = button.getAttribute("data-pressed") === "true"
+    const nextPressed = !pressed
+    togglePressedAttrs(button, nextPressed)
+    updateCounter(button, nextPressed ? 1 : -1)
+  }
+})
+
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
