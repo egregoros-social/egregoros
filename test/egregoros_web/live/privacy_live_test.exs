@@ -40,7 +40,9 @@ defmodule EgregorosWeb.PrivacyLiveTest do
     {:ok, view, _html} = live(conn, "/settings/privacy")
 
     assert has_element?(view, "#mute-#{mute.id}")
+    assert has_element?(view, "#mute-#{mute.id} [data-role='privacy-target-handle']", "@bob")
     assert has_element?(view, "#block-#{block.id}")
+    assert has_element?(view, "#block-#{block.id} [data-role='privacy-target-handle']", "@carol")
   end
 
   test "mutes can be removed from the privacy screen", %{conn: conn, alice: alice, mute: mute} do

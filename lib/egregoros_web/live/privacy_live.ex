@@ -7,6 +7,8 @@ defmodule EgregorosWeb.PrivacyLive do
   alias Egregoros.Repo
   alias Egregoros.User
   alias Egregoros.Users
+  alias EgregorosWeb.URL
+  alias EgregorosWeb.ViewModels.Actor, as: ActorVM
 
   @impl true
   def mount(_params, session, socket) do
@@ -16,13 +18,17 @@ defmodule EgregorosWeb.PrivacyLive do
         id -> Users.get(id)
       end
 
+    mutes = list_relationships("Mute", current_user)
+    blocks = list_relationships("Block", current_user)
+
     {:ok,
      socket
      |> assign(
        current_user: current_user,
        notifications_count: notifications_count(current_user),
-       mutes: list_relationships("Mute", current_user),
-       blocks: list_relationships("Block", current_user)
+       mutes: mutes,
+       blocks: blocks,
+       targets_by_ap_id: target_cards(mutes ++ blocks)
      )}
   end
 
@@ -42,15 +48,46 @@ defmodule EgregorosWeb.PrivacyLive do
          true <- relationship.type == type,
          true <- relationship.actor == current_user.ap_id,
          {:ok, _relationship} <- Repo.delete(relationship) do
-      assign(
-        socket,
+      socket
+      |> assign(
         key,
         Enum.reject(Map.get(socket.assigns, key, []), &(&1.id == relationship_id))
       )
+      |> refresh_targets()
     else
       _ -> socket
     end
   end
+
+  defp refresh_targets(socket) do
+    mutes = Map.get(socket.assigns, :mutes, [])
+    blocks = Map.get(socket.assigns, :blocks, [])
+    assign(socket, :targets_by_ap_id, target_cards(mutes ++ blocks))
+  end
+
+  defp target_cards(relationships) when is_list(relationships) do
+    ap_ids =
+      relationships
+      |> Enum.map(& &1.object)
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    ap_ids
+    |> Users.list_by_ap_ids()
+    |> Map.new(fn user ->
+      {user.ap_id,
+       %{
+         display_name: user.name || user.nickname || user.ap_id,
+         handle: ActorVM.handle(user, user.ap_id),
+         avatar_url: URL.absolute(user.avatar_url, user.ap_id),
+         emojis: Map.get(user, :emojis, [])
+       }}
+    end)
+  end
+
+  defp target_cards(_relationships), do: %{}
 
   defp list_relationships(_type, nil), do: []
 
@@ -117,9 +154,28 @@ defmodule EgregorosWeb.PrivacyLive do
                     id={"mute-#{mute.id}"}
                     class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm shadow-sm shadow-slate-200/10 dark:border-slate-700/70 dark:bg-slate-950/50 dark:shadow-slate-900/30"
                   >
-                    <span class="min-w-0 truncate text-slate-700 dark:text-slate-200">
-                      {mute.object}
-                    </span>
+                    <% target = Map.get(@targets_by_ap_id, mute.object) %>
+                    <div class="flex min-w-0 items-center gap-3">
+                      <.avatar
+                        size="xs"
+                        name={Map.get(target || %{}, :display_name, mute.object)}
+                        src={Map.get(target || %{}, :avatar_url)}
+                      />
+                      <div class="min-w-0">
+                        <p class="truncate font-semibold text-slate-900 dark:text-white">
+                          {emoji_inline(
+                            Map.get(target || %{}, :display_name, mute.object),
+                            Map.get(target || %{}, :emojis, [])
+                          )}
+                        </p>
+                        <p
+                          data-role="privacy-target-handle"
+                          class="truncate text-xs text-slate-500 dark:text-slate-400"
+                        >
+                          {Map.get(target || %{}, :handle, mute.object)}
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       data-role="privacy-unmute"
@@ -153,9 +209,28 @@ defmodule EgregorosWeb.PrivacyLive do
                     id={"block-#{block.id}"}
                     class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 text-sm shadow-sm shadow-slate-200/10 dark:border-slate-700/70 dark:bg-slate-950/50 dark:shadow-slate-900/30"
                   >
-                    <span class="min-w-0 truncate text-slate-700 dark:text-slate-200">
-                      {block.object}
-                    </span>
+                    <% target = Map.get(@targets_by_ap_id, block.object) %>
+                    <div class="flex min-w-0 items-center gap-3">
+                      <.avatar
+                        size="xs"
+                        name={Map.get(target || %{}, :display_name, block.object)}
+                        src={Map.get(target || %{}, :avatar_url)}
+                      />
+                      <div class="min-w-0">
+                        <p class="truncate font-semibold text-slate-900 dark:text-white">
+                          {emoji_inline(
+                            Map.get(target || %{}, :display_name, block.object),
+                            Map.get(target || %{}, :emojis, [])
+                          )}
+                        </p>
+                        <p
+                          data-role="privacy-target-handle"
+                          class="truncate text-xs text-slate-500 dark:text-slate-400"
+                        >
+                          {Map.get(target || %{}, :handle, block.object)}
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       data-role="privacy-unblock"
