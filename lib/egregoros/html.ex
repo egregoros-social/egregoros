@@ -258,7 +258,7 @@ defmodule Egregoros.HTML do
   defp linkify_match(match, mention_hrefs) when is_binary(match) and is_map(mention_hrefs) do
     cond do
       String.starts_with?(match, "@") ->
-        linkify_prefixed(match, &mention_href(&1, mention_hrefs), "mention-link")
+        linkify_mention(match, mention_hrefs)
 
       String.starts_with?(match, "#") ->
         linkify_prefixed(match, &hashtag_href/1)
@@ -283,6 +283,50 @@ defmodule Egregoros.HTML do
       :error -> escape(token)
     end
   end
+
+  defp linkify_mention(token, mention_hrefs)
+       when is_binary(token) and is_map(mention_hrefs) do
+    {core, trailing} = split_trailing_punctuation(token, @mention_trailing)
+
+    case mention_href(core, mention_hrefs) do
+      {:ok, href} ->
+        [mention_markup(href, core), escape(trailing)]
+
+      :error ->
+        escape(token)
+    end
+  end
+
+  defp linkify_mention(token, _mention_hrefs) when is_binary(token), do: escape(token)
+  defp linkify_mention(_token, _mention_hrefs), do: ""
+
+  defp mention_markup(href, "@" <> handle)
+       when is_binary(href) and is_binary(handle) and handle != "" do
+    href = href |> escape_binary() |> IO.iodata_to_binary()
+    handle = handle |> escape_binary() |> IO.iodata_to_binary()
+
+    "<span class=\"h-card\"><a href=\"" <>
+      href <>
+      "\" class=\"u-url mention mention-link\" rel=\"ugc\">@<span>" <>
+      handle <>
+      "</span></a></span>"
+  end
+
+  defp mention_markup(href, token) when is_binary(href) and is_binary(token) do
+    token =
+      token
+      |> String.trim()
+      |> String.trim_leading("@")
+
+    if token == "" do
+      anchor(href, token, "mention-link")
+    else
+      mention_markup(href, "@" <> token)
+    end
+  end
+
+  defp mention_markup(_href, token) when is_binary(token), do: escape(token)
+  defp mention_markup(_href, _token), do: ""
 
   defp emojify_token(token, emoji_map) when is_binary(token) and is_map(emoji_map) do
     if map_size(emoji_map) == 0 or not String.contains?(token, ":") do

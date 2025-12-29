@@ -280,7 +280,7 @@ defmodule Egregoros.HTMLTest do
       href = "#{EgregorosWeb.Endpoint.url()}/@alice"
 
       assert safe =~
-               ~r/<a[^>]*href="#{Regex.escape(href)}"[^>]*class="mention-link"[^>]*>@alice<\/a>/
+               ~r/<a[^>]*href="#{Regex.escape(href)}"[^>]*class="[^"]*u-url[^"]*mention[^"]*mention-link[^"]*"[^>]*>@<span>alice<\/span><\/a>/
     end
 
     test "linkifies remote @mentions in plain text" do
@@ -288,7 +288,7 @@ defmodule Egregoros.HTMLTest do
       href = "#{EgregorosWeb.Endpoint.url()}/@bob@example.com"
 
       assert safe =~
-               ~r/<a[^>]*href="#{Regex.escape(href)}"[^>]*class="mention-link"[^>]*>@bob@example\.com<\/a>/
+               ~r/<a[^>]*href="#{Regex.escape(href)}"[^>]*class="[^"]*u-url[^"]*mention[^"]*mention-link[^"]*"[^>]*>@<span>bob@example\.com<\/span><\/a>/
     end
 
     test "rewrites mention links in ActivityPub html when tag href differs from content href" do
@@ -322,15 +322,15 @@ defmodule Egregoros.HTMLTest do
 
     test "keeps trailing punctuation outside mention links" do
       safe = HTML.to_safe_html("hi @alice,", format: :text)
-      assert safe =~ ">@alice</a>,"
+      assert safe =~ "</a></span>,"
     end
 
     test "linkifies @mentions inside surrounding punctuation" do
       safe = HTML.to_safe_html("hi (@alice)", format: :text)
 
-      assert safe =~ "(<a "
+      assert safe =~ "(<span"
       assert safe =~ ~s(href="#{EgregorosWeb.Endpoint.url()}/@alice")
-      assert safe =~ ">@alice</a>)"
+      assert safe =~ "@<span>alice</span></a></span>)"
     end
 
     test "linkifies multiple @mentions inside the same token" do
@@ -339,17 +339,17 @@ defmodule Egregoros.HTMLTest do
       alice_href = "#{EgregorosWeb.Endpoint.url()}/@alice"
       bob_href = "#{EgregorosWeb.Endpoint.url()}/@bob@example.com"
 
-      assert safe =~ "(<a "
+      assert safe =~ "(<span"
 
       assert safe =~
-               ~r/<a[^>]*href="#{Regex.escape(alice_href)}"[^>]*class="mention-link"[^>]*>@alice<\/a>/
+               ~r/<a[^>]*href="#{Regex.escape(alice_href)}"[^>]*class="[^"]*u-url[^"]*mention[^"]*mention-link[^"]*"[^>]*>@<span>alice<\/span><\/a>/
 
-      assert safe =~ ">@alice</a>,<a"
+      assert safe =~ "</a></span>,<span"
 
       assert safe =~
-               ~r/<a[^>]*href="#{Regex.escape(bob_href)}"[^>]*class="mention-link"[^>]*>@bob@example\.com<\/a>/
+               ~r/<a[^>]*href="#{Regex.escape(bob_href)}"[^>]*class="[^"]*u-url[^"]*mention[^"]*mention-link[^"]*"[^>]*>@<span>bob@example\.com<\/span><\/a>/
 
-      assert safe =~ ">@bob@example.com</a>)"
+      assert safe =~ "@<span>bob@example.com</span></a></span>)"
     end
 
     test "linkifies hashtags in plain text" do
