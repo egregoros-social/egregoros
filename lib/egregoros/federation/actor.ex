@@ -167,6 +167,7 @@ defmodule Egregoros.Federation.Actor do
           |> maybe_put_string(:name, Map.get(actor, "name"))
           |> maybe_put_string(:bio, Map.get(actor, "summary"))
           |> maybe_put_icon(actor, id)
+          |> maybe_put_image(actor, id)
           |> maybe_put_emojis(actor, id)
 
         {:ok, attrs}
@@ -214,6 +215,15 @@ defmodule Egregoros.Federation.Actor do
   end
 
   defp maybe_put_icon(attrs, _actor, _actor_id), do: attrs
+
+  defp maybe_put_image(attrs, actor, actor_id) when is_map(attrs) and is_map(actor) do
+    case image_url(actor, actor_id) do
+      url when is_binary(url) and url != "" -> Map.put(attrs, :banner_url, url)
+      _ -> attrs
+    end
+  end
+
+  defp maybe_put_image(attrs, _actor, _actor_id), do: attrs
 
   defp maybe_put_emojis(attrs, actor, actor_id) when is_map(attrs) and is_map(actor) do
     emojis =
@@ -286,6 +296,25 @@ defmodule Egregoros.Federation.Actor do
   end
 
   defp icon_url(_actor, _actor_id), do: nil
+
+  defp image_url(%{} = actor, actor_id) when is_binary(actor_id) do
+    actor
+    |> Map.get("image")
+    |> extract_url()
+    |> resolve_url(actor_id)
+    |> case do
+      url when is_binary(url) ->
+        case SafeURL.validate_http_url(url) do
+          :ok -> url
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp image_url(_actor, _actor_id), do: nil
 
   defp extract_url(url) when is_binary(url), do: url
   defp extract_url(%{"href" => href}) when is_binary(href), do: href

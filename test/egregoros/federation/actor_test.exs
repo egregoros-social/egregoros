@@ -28,6 +28,7 @@ defmodule Egregoros.Federation.ActorTest do
            "inbox" => actor_url <> "/inbox",
            "outbox" => actor_url <> "/outbox",
            "icon" => %{"url" => "https://remote.example/media/avatar.png"},
+           "image" => %{"url" => "https://remote.example/media/banner.png"},
            "publicKey" => %{
              "id" => actor_url <> "#main-key",
              "owner" => actor_url,
@@ -48,6 +49,7 @@ defmodule Egregoros.Federation.ActorTest do
     assert user.name == "Alice"
     assert user.bio == "bio"
     assert user.avatar_url == "https://remote.example/media/avatar.png"
+    assert user.banner_url == "https://remote.example/media/banner.png"
 
     assert Users.get_by_ap_id(actor_url)
   end
