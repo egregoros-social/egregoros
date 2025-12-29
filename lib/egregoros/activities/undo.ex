@@ -198,6 +198,15 @@ defmodule Egregoros.Activities.Undo do
         :ok
     end
 
+    case Relationships.get_by_type_actor_object("FollowRequest", actor, object) do
+      %{activity_ap_id: ^target_ap_id} ->
+        _ = Relationships.delete_by_type_actor_object("FollowRequest", actor, object)
+        :ok
+
+      _ ->
+        :ok
+    end
+
     Objects.delete_object(target_activity)
   end
 

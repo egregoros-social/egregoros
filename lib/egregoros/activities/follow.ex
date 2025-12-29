@@ -68,9 +68,11 @@ defmodule Egregoros.Activities.Follow do
   end
 
   def side_effects(object, opts) do
+    relationship_type = relationship_type(object, opts)
+
     _ =
       Relationships.upsert_relationship(%{
-        type: object.type,
+        type: relationship_type,
         actor: object.actor,
         object: object.object,
         activity_ap_id: object.ap_id
@@ -86,6 +88,20 @@ defmodule Egregoros.Activities.Follow do
 
     :ok
   end
+
+  defp relationship_type(%{type: "Follow", object: object_ap_id}, opts)
+       when is_binary(object_ap_id) and is_list(opts) do
+    if Keyword.get(opts, :local, true) do
+      case Users.get_by_ap_id(object_ap_id) do
+        %User{local: true} -> "Follow"
+        _ -> "FollowRequest"
+      end
+    else
+      "Follow"
+    end
+  end
+
+  defp relationship_type(_object, _opts), do: "Follow"
 
   defp maybe_broadcast_notification(object) do
     with %{} = target <- Users.get_by_ap_id(object.object),

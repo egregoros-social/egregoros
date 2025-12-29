@@ -10,6 +10,7 @@ defmodule Egregoros.Activities.Accept do
   alias Egregoros.InboxTargeting
   alias Egregoros.Object
   alias Egregoros.Objects
+  alias Egregoros.Relationships
   alias Egregoros.User
   alias Egregoros.Users
   alias EgregorosWeb.Endpoint
@@ -52,12 +53,71 @@ defmodule Egregoros.Activities.Accept do
   end
 
   def side_effects(object, opts) do
+    _ = apply_follow_accept(object)
+
     if Keyword.get(opts, :local, true) do
       deliver_accept(object)
     end
 
     :ok
   end
+
+  defp apply_follow_accept(%Object{} = accept_object) do
+    follow_object =
+      case accept_object.object do
+        follow_ap_id when is_binary(follow_ap_id) ->
+          Objects.get_by_ap_id(follow_ap_id)
+
+        _ ->
+          nil
+      end
+
+    follow_data =
+      cond do
+        match?(%Object{type: "Follow"}, follow_object) ->
+          follow_object.data
+
+        is_map(accept_object.data["object"]) ->
+          accept_object.data["object"]
+
+        true ->
+          nil
+      end
+
+    case follow_data do
+      %{"type" => "Follow", "actor" => actor, "object" => target} ->
+        actor_ap_id = extract_id(actor)
+        target_ap_id = extract_id(target)
+
+        activity_ap_id =
+          case follow_object do
+            %Object{type: "Follow"} = stored_follow -> stored_follow.ap_id
+            _ -> Map.get(follow_data, "id")
+          end
+
+        if is_binary(actor_ap_id) and actor_ap_id != "" and is_binary(target_ap_id) and
+             target_ap_id != "" do
+          _ =
+            Relationships.upsert_relationship(%{
+              type: "Follow",
+              actor: actor_ap_id,
+              object: target_ap_id,
+              activity_ap_id: activity_ap_id
+            })
+
+          _ = Relationships.delete_by_type_actor_object("FollowRequest", actor_ap_id, target_ap_id)
+        end
+
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp extract_id(%{"id" => id}) when is_binary(id), do: id
+  defp extract_id(id) when is_binary(id), do: id
+  defp extract_id(_), do: nil
 
   defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate(opts, fn inbox_user_ap_id ->
