@@ -138,9 +138,9 @@ No new “drop everything” issues found beyond the items already tracked in `s
   - Keep returning the WebSocket base URL (no `/api/v1/streaming`), matching Mastodon’s `streaming_api_base_url`; clients append the streaming path.
   - Code: `lib/egregoros_web/controllers/mastodon_api/instance_controller.ex`.
 
-- **Account statuses visibility is conservative**:
-  - `lib/egregoros_web/controllers/mastodon_api/accounts_controller.ex` uses `Objects.list_public_statuses_by_actor/2` for `/api/v1/accounts/:id/statuses` even when authenticated.
-  - This avoids leaks but may diverge from user expectations (followers-only/profile-visible posts won’t show via API even when the viewer is allowed).
+- [x] **Account statuses visibility is conservative**:
+  - `/api/v1/accounts/:id/statuses` now supports optional auth and returns statuses visible to the viewer (e.g. followers-only for followers), while staying safe for unauthenticated requests.
+  - Code: `lib/egregoros/objects.ex`, `lib/egregoros_web/controllers/mastodon_api/accounts_controller.ex`, `lib/egregoros_web/router.ex`.
 
 - [x] **Registration flags are consistent**:
   - `nodeinfo` now reports `openRegistrations: true` when registrations are enabled (aligned with Mastodon instance endpoints).

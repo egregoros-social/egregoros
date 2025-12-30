@@ -58,6 +58,39 @@ defmodule EgregorosWeb.MastodonAPI.AccountsControllerTest do
     refute Enum.any?(response, &(&1["content"] == "<p>Secret DM</p>"))
   end
 
+  test "GET /api/v1/accounts/:id/statuses includes followers-only statuses when authenticated as a follower",
+       %{conn: conn} do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    {:ok, _} = Publish.post_note(alice, "Hello public")
+    {:ok, _} = Publish.post_note(alice, "Followers only", visibility: "private")
+
+    assert {:ok, _} =
+             Relationships.upsert_relationship(%{
+               type: "Follow",
+               actor: bob.ap_id,
+               object: alice.ap_id
+             })
+
+    conn = get(conn, "/api/v1/accounts/#{alice.id}/statuses")
+    response = json_response(conn, 200)
+
+    assert Enum.any?(response, &(&1["content"] == "<p>Hello public</p>"))
+    refute Enum.any?(response, &(&1["content"] == "<p>Followers only</p>"))
+
+    Egregoros.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, bob} end)
+
+    conn =
+      build_conn()
+      |> put_req_header("authorization", "Bearer token")
+      |> get("/api/v1/accounts/#{alice.id}/statuses")
+
+    response = json_response(conn, 200)
+    assert Enum.any?(response, &(&1["content"] == "<p>Followers only</p>"))
+  end
+
   test "GET /api/v1/accounts/:id/statuses with pinned=true only returns pinned statuses", %{
     conn: conn
   } do

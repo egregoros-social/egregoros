@@ -86,12 +86,13 @@ defmodule EgregorosWeb.MastodonAPI.AccountsController do
 
       user ->
         pagination = Pagination.parse(params)
+        viewer = conn.assigns[:current_user]
 
         objects =
           if pinned_only?(params) do
             []
           else
-            Objects.list_public_statuses_by_actor(user.ap_id,
+            Objects.list_visible_statuses_by_actor(user.ap_id, viewer,
               limit: pagination.limit + 1,
               max_id: pagination.max_id,
               since_id: pagination.since_id
