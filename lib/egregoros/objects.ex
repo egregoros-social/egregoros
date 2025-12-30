@@ -247,6 +247,44 @@ defmodule Egregoros.Objects do
     |> Repo.all()
   end
 
+  def list_public_statuses_by_hashtag(tag, opts \\ [])
+
+  def list_public_statuses_by_hashtag(tag, opts) when is_binary(tag) and is_list(opts) do
+    tag =
+      tag
+      |> String.trim()
+      |> String.trim_leading("#")
+
+    if tag == "" do
+      []
+    else
+      limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
+      max_id = Keyword.get(opts, :max_id)
+      since_id = Keyword.get(opts, :since_id)
+      local_only? = Keyword.get(opts, :local, false) == true
+      remote_only? = Keyword.get(opts, :remote, false) == true
+      only_media? = Keyword.get(opts, :only_media, false) == true
+
+      pattern = "%#" <> tag <> "%"
+
+      from(o in Object,
+        where: o.type in ^@status_types,
+        order_by: [desc: o.id],
+        limit: ^limit
+      )
+      |> where_announces_have_object()
+      |> where_publicly_listed()
+      |> where_hashtag_pattern(pattern)
+      |> maybe_where_origin(local_only?, remote_only?)
+      |> maybe_where_only_media_with_reblog(only_media?)
+      |> maybe_where_max_id(max_id)
+      |> maybe_where_since_id(since_id)
+      |> Repo.all()
+    end
+  end
+
+  def list_public_statuses_by_hashtag(_tag, _opts), do: []
+
   def publicly_visible?(%Object{data: %{} = data}) do
     to = data |> Map.get("to", []) |> List.wrap()
     cc = data |> Map.get("cc", []) |> List.wrap()
@@ -318,6 +356,26 @@ defmodule Egregoros.Objects do
 
   defp maybe_where_only_media(query, _only_media?), do: query
 
+  defp maybe_where_only_media_with_reblog(query, true) do
+    from([o, reblog] in query,
+      where:
+        (o.type == "Note" and
+           fragment(
+             "jsonb_typeof(?->'attachment') = 'array' AND jsonb_array_length(?->'attachment') > 0",
+             o.data,
+             o.data
+           )) or
+          (o.type == "Announce" and
+             fragment(
+               "jsonb_typeof(?->'attachment') = 'array' AND jsonb_array_length(?->'attachment') > 0",
+               reblog.data,
+               reblog.data
+             ))
+    )
+  end
+
+  defp maybe_where_only_media_with_reblog(query, _only_media?), do: query
+
   defp recipient?(%Object{data: %{} = data}, recipient) when is_binary(recipient) do
     recipient = String.trim(recipient)
 
@@ -354,6 +412,16 @@ defmodule Egregoros.Objects do
   end
 
   defp followers_visible?(_object, _user_ap_id), do: false
+
+  defp where_hashtag_pattern(query, pattern) when is_binary(pattern) do
+    from([o, reblog] in query,
+      where:
+        (o.type == "Note" and fragment("?->>'content' ILIKE ?", o.data, ^pattern)) or
+          (o.type == "Announce" and fragment("?->>'content' ILIKE ?", reblog.data, ^pattern))
+    )
+  end
+
+  defp where_hashtag_pattern(query, _pattern), do: query
 
   def list_home_notes(actor_ap_id) when is_binary(actor_ap_id) do
     list_home_notes(actor_ap_id, limit: 20)

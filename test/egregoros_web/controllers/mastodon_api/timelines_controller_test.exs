@@ -170,6 +170,61 @@ defmodule EgregorosWeb.MastodonAPI.TimelinesControllerTest do
     assert Enum.at(response, 0)["content"] == "<p>First post</p>"
   end
 
+  test "GET /api/v1/timelines/tag/:hashtag returns latest tagged statuses", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+    {:ok, _} = Publish.post_note(user, "First #linux")
+    {:ok, _} = Publish.post_note(user, "Second #linux")
+    {:ok, _} = Publish.post_note(user, "Other #other")
+
+    conn = get(conn, "/api/v1/timelines/tag/linux")
+    response = json_response(conn, 200)
+
+    assert length(response) == 2
+    assert Enum.at(response, 0)["content"] =~ "#linux"
+    assert Enum.at(response, 1)["content"] =~ "#linux"
+  end
+
+  test "GET /api/v1/timelines/tag/:hashtag does not include direct or unlisted statuses", %{
+    conn: conn
+  } do
+    {:ok, user} = Users.create_local_user("local")
+
+    {:ok, _} = Publish.post_note(user, "Hello #linux")
+    {:ok, _} = Publish.post_note(user, "Secret #linux", visibility: "direct")
+    {:ok, _} = Publish.post_note(user, "Unlisted #linux", visibility: "unlisted")
+
+    conn = get(conn, "/api/v1/timelines/tag/linux")
+    response = json_response(conn, 200)
+
+    assert Enum.any?(response, &(&1["content"] =~ "Hello"))
+    refute Enum.any?(response, &(&1["content"] =~ "Secret"))
+    refute Enum.any?(response, &(&1["content"] =~ "Unlisted"))
+  end
+
+  test "GET /api/v1/timelines/tag/:hashtag with local=true only includes local statuses", %{
+    conn: conn
+  } do
+    {:ok, user} = Users.create_local_user("local")
+    {:ok, _} = Publish.post_note(user, "Local #linux")
+
+    remote_note = %{
+      "id" => "https://remote.example/objects/" <> Ecto.UUID.generate(),
+      "type" => "Note",
+      "attributedTo" => "https://remote.example/users/alice",
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => [],
+      "content" => "Remote #linux"
+    }
+
+    assert {:ok, _} = Pipeline.ingest(remote_note, local: false)
+
+    conn = get(conn, "/api/v1/timelines/tag/linux", %{"local" => "true"})
+    response = json_response(conn, 200)
+
+    assert Enum.any?(response, &(&1["content"] =~ "Local"))
+    refute Enum.any?(response, &(&1["content"] =~ "Remote"))
+  end
+
   test "GET /api/v1/timelines/home returns latest statuses", %{conn: conn} do
     {:ok, user} = Users.create_local_user("local")
 

@@ -186,6 +186,7 @@ defmodule EgregorosWeb.Router do
     get "/trends/links", TrendsController, :links
     get "/trends/statuses", TrendsController, :statuses
     get "/timelines/public", TimelinesController, :public
+    get "/timelines/tag/:hashtag", TimelinesController, :tag
     get "/directory", EmptyListController, :index
     get "/accounts/lookup", AccountsController, :lookup
     get "/accounts/:id", AccountsController, :show
