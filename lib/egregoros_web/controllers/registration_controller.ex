@@ -3,6 +3,7 @@ defmodule EgregorosWeb.RegistrationController do
 
   alias Egregoros.User
   alias Egregoros.Users
+  alias EgregorosWeb.ReturnTo
 
   def new(conn, params) do
     return_to = params |> Map.get("return_to", "") |> to_string()
@@ -59,7 +60,7 @@ defmodule EgregorosWeb.RegistrationController do
       true ->
         case Users.register_local_user(%{nickname: nickname, email: email, password: password}) do
           {:ok, %User{} = user} ->
-            redirect_to = safe_return_to(return_to) || ~p"/"
+            redirect_to = ReturnTo.safe_return_to(return_to) || ~p"/"
 
             conn
             |> put_session(:user_id, user.id)
@@ -86,20 +87,5 @@ defmodule EgregorosWeb.RegistrationController do
     |> clear_session()
     |> configure_session(drop: true)
     |> redirect(to: ~p"/")
-  end
-
-  defp safe_return_to(return_to) when is_binary(return_to) do
-    return_to = String.trim(return_to)
-
-    cond do
-      return_to == "" ->
-        nil
-
-      String.starts_with?(return_to, "/") and not String.starts_with?(return_to, "//") ->
-        return_to
-
-      true ->
-        nil
-    end
   end
 end

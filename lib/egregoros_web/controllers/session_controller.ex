@@ -2,6 +2,7 @@ defmodule EgregorosWeb.SessionController do
   use EgregorosWeb, :controller
 
   alias Egregoros.Users
+  alias EgregorosWeb.ReturnTo
 
   def new(conn, params) do
     return_to = params |> Map.get("return_to", "") |> to_string()
@@ -27,7 +28,7 @@ defmodule EgregorosWeb.SessionController do
 
     case Users.authenticate_local_user(nickname, password) do
       {:ok, user} ->
-        redirect_to = safe_return_to(return_to) || ~p"/"
+        redirect_to = ReturnTo.safe_return_to(return_to) || ~p"/"
 
         conn
         |> put_session(:user_id, user.id)
@@ -43,22 +44,7 @@ defmodule EgregorosWeb.SessionController do
 
   def create(conn, _params) do
     conn
-    |> put_status(:unprocessable_entity)
-    |> text("Unprocessable Entity")
-  end
-
-  defp safe_return_to(return_to) when is_binary(return_to) do
-    return_to = String.trim(return_to)
-
-    cond do
-      return_to == "" ->
-        nil
-
-      String.starts_with?(return_to, "/") and not String.starts_with?(return_to, "//") ->
-        return_to
-
-      true ->
-        nil
-    end
+      |> put_status(:unprocessable_entity)
+      |> text("Unprocessable Entity")
   end
 end

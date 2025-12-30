@@ -7,6 +7,7 @@ defmodule EgregorosWeb.PasskeysController do
   alias Egregoros.Repo
   alias Egregoros.User
   alias Egregoros.Users
+  alias EgregorosWeb.ReturnTo
 
   def registration_options(conn, params) do
     nickname = params |> Map.get("nickname", "") |> to_string() |> String.trim()
@@ -68,7 +69,7 @@ defmodule EgregorosWeb.PasskeysController do
              public_key: public_key,
              sign_count: sign_count
            }) do
-      redirect_to = safe_return_to(return_to) || "/"
+      redirect_to = ReturnTo.safe_return_to(return_to) || "/"
 
       conn
       |> clear_passkey_registration_session()
@@ -124,7 +125,7 @@ defmodule EgregorosWeb.PasskeysController do
              sign_count: merged_sign_count(stored.sign_count, sign_count),
              last_used_at: DateTime.utc_now()
            }) do
-      redirect_to = safe_return_to(return_to) || "/"
+      redirect_to = ReturnTo.safe_return_to(return_to) || "/"
 
       conn
       |> clear_passkey_authentication_session()
@@ -206,20 +207,4 @@ defmodule EgregorosWeb.PasskeysController do
     end
   end
 
-  defp safe_return_to(return_to) when is_binary(return_to) do
-    return_to = String.trim(return_to)
-
-    cond do
-      return_to == "" ->
-        nil
-
-      String.starts_with?(return_to, "/") and not String.starts_with?(return_to, "//") ->
-        return_to
-
-      true ->
-        nil
-    end
-  end
-
-  defp safe_return_to(_return_to), do: nil
 end
