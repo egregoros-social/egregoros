@@ -181,6 +181,10 @@ defmodule EgregorosWeb.Router do
     get "/instance", InstanceController, :show
     get "/instance/peers", InstanceController, :peers
     get "/custom_emojis", CustomEmojisController, :index
+    get "/trends", TrendsController, :index
+    get "/trends/tags", TrendsController, :tags
+    get "/trends/links", TrendsController, :links
+    get "/trends/statuses", TrendsController, :statuses
     get "/timelines/public", TimelinesController, :public
     get "/directory", EmptyListController, :index
     get "/accounts/lookup", AccountsController, :lookup
