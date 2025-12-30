@@ -27,6 +27,7 @@ This is a short follow-up pass focused on **maintainability / DRY**, plus a quic
   - This can turn *double-escaped* entities back into active entities *after* sanitization.
   - Example payload inside otherwise-valid HTML: `<p>&amp;#x3C;script&amp;#x3E;alert(1)&amp;#x3C;/script&amp;#x3E;</p>`
     - Current output becomes `<p>&#x3C;script&#x3E;alert(1)&#x3C;/script&#x3E;</p>`, which renders as an actual `<script>` tag if inserted via `Phoenix.HTML.raw/1`.
+  - Repro (dev): `mix run -e 'IO.puts(Egregoros.HTML.to_safe_html("<p>&amp;#x3C;script&amp;#x3E;alert(1)&amp;#x3C;/script&amp;#x3E;</p>", format: :html))'`
   - Code: `lib/egregoros/html.ex` (`sanitize/2`).
   - Notes / fix direction:
     - Remove the global `&amp;` → `&` rewrite.
