@@ -4,9 +4,13 @@ defmodule Egregoros.Workers.FetchThreadAncestors do
     max_attempts: 3,
     unique: [period: 60 * 60, keys: [:start_ap_id]]
 
+  import Ecto.Query, only: [from: 2]
+
   alias Egregoros.Federation.ObjectFetcher
   alias Egregoros.Object
   alias Egregoros.Objects
+  alias Egregoros.Repo
+  alias Egregoros.Timeline
 
   @default_max_depth 20
   @max_depth_limit 50
@@ -28,7 +32,10 @@ defmodule Egregoros.Workers.FetchThreadAncestors do
           |> Enum.filter(&is_binary/1)
           |> MapSet.new()
 
-        fetch_ancestors(start_for_ancestors, visited, max_depth)
+        with :ok <- fetch_ancestors(start_for_ancestors, visited, max_depth) do
+          broadcast_pending_announces(start_ap_id)
+          :ok
+        end
 
       nil ->
         case ObjectFetcher.fetch_and_ingest(start_ap_id) do
@@ -40,7 +47,10 @@ defmodule Egregoros.Workers.FetchThreadAncestors do
               |> Enum.filter(&is_binary/1)
               |> MapSet.new()
 
-            fetch_ancestors(start_for_ancestors, visited, max_depth)
+            with :ok <- fetch_ancestors(start_for_ancestors, visited, max_depth) do
+              broadcast_pending_announces(start_ap_id)
+              :ok
+            end
 
           {:error, reason} ->
             {:error, reason}
@@ -100,6 +110,30 @@ defmodule Egregoros.Workers.FetchThreadAncestors do
   end
 
   defp fetch_ancestors(_object, _visited, _remaining), do: :ok
+
+  defp broadcast_pending_announces(start_ap_id) when is_binary(start_ap_id) do
+    start_ap_id = String.trim(start_ap_id)
+
+    if start_ap_id != "" do
+      start_ap_id
+      |> pending_announces()
+      |> Enum.each(&Timeline.broadcast_post/1)
+    end
+
+    :ok
+  end
+
+  defp broadcast_pending_announces(_start_ap_id), do: :ok
+
+  defp pending_announces(object_ap_id) when is_binary(object_ap_id) do
+    from(o in Object,
+      where: o.type == "Announce" and o.object == ^object_ap_id,
+      order_by: [asc: o.id]
+    )
+    |> Repo.all()
+  end
+
+  defp pending_announces(_object_ap_id), do: []
 
   defp in_reply_to_ap_id(value) when is_binary(value), do: value
   defp in_reply_to_ap_id(%{"id" => id}) when is_binary(id), do: id

@@ -108,7 +108,14 @@ defmodule Egregoros.Activities.Announce do
       })
 
     maybe_broadcast_notification(object)
-    Timeline.broadcast_post(object)
+
+    should_broadcast? =
+      Keyword.get(opts, :local, true) or
+        (is_binary(object.object) and Objects.get_by_ap_id(object.object) != nil)
+
+    if should_broadcast? do
+      Timeline.broadcast_post(object)
+    end
 
     if Keyword.get(opts, :local, true) do
       deliver_to_followers(object)
