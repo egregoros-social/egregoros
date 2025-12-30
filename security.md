@@ -10,6 +10,9 @@ This file tracks known security gaps and their remediation status.
 - [x] **Only serve local objects at `/objects/:uuid`**: return 404 when a stored object is not `local: true` (defense-in-depth against poisoned `ap_id`s).
 - [x] **Actor fetch integrity**: require fetched actor JSON `"id"` to match the requested actor URL (prevents actor poisoning).
 
+## High priority (XSS / content rendering)
+- [ ] **XSS via HTML entity unescaping after sanitization**: `Egregoros.HTML.sanitize/2` does a global `&amp;` → `&` rewrite after scrubbing, which can re-activate double-escaped entities inside otherwise-valid HTML (e.g. `<p>&amp;#x3C;script...`). This can turn into an actual `<script>` when rendered with `Phoenix.HTML.raw/1`. Fix by removing the global rewrite and adding regression tests for `&amp;#x3C;` / `&amp;#60;` payloads.
+
 ## Medium priority (web UI hardening)
 - [x] **CSRF-safe logout**: use POST logout behind CSRF protection (prevents third-party logout CSRF).
 - [x] **Avoid unsafe share links**: do not render share/copy links for remote objects with non-HTTP(S) IDs (prevents `javascript:`/`data:` link injection).

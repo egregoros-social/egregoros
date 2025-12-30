@@ -17,6 +17,46 @@ Since the 2025-12-29 audit, the following items have been addressed:
 - [x] OAuth token storage hardened and query-param bearer tokens removed (except streaming).
 - [x] Attachments with unsafe media URLs are filtered from UI/Mastodon status rendering.
 
+## Addendum (2025-12-30)
+
+This is a short follow-up pass focused on **maintainability / DRY**, plus a quick scan for **privacy/security** regressions.
+
+### CRITICAL (new)
+
+- **XSS via HTML entity unescaping after sanitization**: `Egregoros.HTML.sanitize/2` does a global `String.replace(content, "&amp;", "&")` after scrubbing.
+  - This can turn *double-escaped* entities back into active entities *after* sanitization.
+  - Example payload inside otherwise-valid HTML: `<p>&amp;#x3C;script&amp;#x3E;alert(1)&amp;#x3C;/script&amp;#x3E;</p>`
+    - Current output becomes `<p>&#x3C;script&#x3E;alert(1)&#x3C;/script&#x3E;</p>`, which renders as an actual `<script>` tag if inserted via `Phoenix.HTML.raw/1`.
+  - Code: `lib/egregoros/html.ex` (`sanitize/2`).
+  - Notes / fix direction:
+    - Remove the global `&amp;` → `&` rewrite.
+    - If we want to normalize double-escaped text like `there&amp;#39;s`, do it *before* sanitization in a targeted/whitelisted way (or decode entities to Unicode before escaping), and add regression tests for `&amp;#x3C;` / `&amp;#60;` style payloads.
+
+### LOW (new)
+
+- **Reply target visibility is not enforced in Mastodon create flow**: `StatusesController.resolve_in_reply_to/1` resolves `in_reply_to_id` to an `ap_id` without checking `Objects.visible_to?/2` for the posting user.
+  - This is likely not exploitable for content disclosure (the client already needs the ID), but it can create “phantom” replies to objects the poster cannot view.
+  - Code: `lib/egregoros_web/controllers/mastodon_api/statuses_controller.ex`.
+
+### Maintainability / DRY opportunities (new)
+
+- **Duplicate `truthy?/1` helpers** across LiveViews and controllers; consider centralizing a small helper (e.g. `EgregorosWeb.Param.truthy?/1`) to keep semantics consistent.
+  - Code: multiple `*_live.ex` and `TimelinesController`.
+- **Activity modules repeat common helpers** (`parse_datetime/1`, `maybe_put/3`, and related small normalizers) across `Egregoros.Activities.*` modules.
+  - Consider a tiny shared helper module (e.g. `Egregoros.Activities.Helpers`) so each activity module stays “one file per activity type” but avoids copy/paste drift.
+- **`safe_return_to/1` is duplicated** in session/registration controllers; could be shared.
+  - Code: `lib/egregoros_web/controllers/session_controller.ex`, `lib/egregoros_web/controllers/registration_controller.ex`.
+- **`fallback_username/1` is duplicated** across renderers/controllers; consider centralizing to avoid subtle differences in parsing.
+  - Code: `StatusesController`, `StatusRenderer`, `NotificationRenderer`.
+- **OAuth token fields are digests but named like raw tokens**: `oauth_tokens.token` and `oauth_tokens.refresh_token` store digests, but the field names don’t make that obvious.
+  - This is correct security-wise, but it’s easy to accidentally misuse/log. Consider renaming the DB columns or clearly documenting the invariant.
+  - Code: `lib/egregoros/oauth.ex`, `lib/egregoros/oauth/token.ex`.
+- **Timestamp type inconsistency**: `Relationship` uses `timestamps(type: :utc_datetime)` while most other schemas use `:utc_datetime_usec`.
+  - Consider standardizing for consistency and easier ordering/debugging.
+  - Code: `lib/egregoros/relationship.ex`.
+- **`assets/js/app.js` is becoming a “god file”** as hooks/features accumulate; consider splitting hooks into small modules under `assets/js/hooks/*` and importing them into `app.js`.
+  - This keeps a single bundle while making hooks easier to test/review.
+
 ## Security / privacy (new findings)
 
 ### CRITICAL
