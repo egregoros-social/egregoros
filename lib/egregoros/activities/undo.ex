@@ -12,6 +12,7 @@ defmodule Egregoros.Activities.Undo do
   alias Egregoros.Object
   alias Egregoros.Objects
   alias Egregoros.Relationships
+  alias Egregoros.Timeline
   alias Egregoros.User
   alias Egregoros.Users
   alias EgregorosWeb.Endpoint
@@ -224,6 +225,7 @@ defmodule Egregoros.Activities.Undo do
         :ok
     end
 
+    _ = maybe_broadcast_post_update(object)
     Objects.delete_object(target_activity)
   end
 
@@ -249,10 +251,22 @@ defmodule Egregoros.Activities.Undo do
       end
     end
 
+    _ = maybe_broadcast_post_update(object)
     Objects.delete_object(target_activity)
   end
 
   defp undo_target(_), do: :ok
+
+  defp maybe_broadcast_post_update(object_ap_id) when is_binary(object_ap_id) do
+    with %Object{} = object <- Objects.get_by_ap_id(object_ap_id),
+         "Note" <- object.type do
+      Timeline.broadcast_post_updated(object)
+    else
+      _ -> :ok
+    end
+  end
+
+  defp maybe_broadcast_post_update(_object_ap_id), do: :ok
 
   defp maybe_copy_addressing(activity, %{"to" => to} = target_data) when is_list(to) do
     activity

@@ -728,6 +728,23 @@ defmodule EgregorosWeb.TimelineLive do
   end
 
   @impl true
+  def handle_info({:post_updated, post}, socket) do
+    if include_post?(
+         post,
+         socket.assigns.timeline,
+         socket.assigns.current_user,
+         socket.assigns.home_actor_ids
+       ) do
+      {:noreply,
+       stream_insert(socket, :posts, StatusVM.decorate(post, socket.assigns.current_user),
+         update_only: true
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>

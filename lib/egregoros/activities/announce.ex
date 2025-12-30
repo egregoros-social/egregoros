@@ -107,6 +107,7 @@ defmodule Egregoros.Activities.Announce do
         activity_ap_id: object.ap_id
       })
 
+    maybe_broadcast_post_update(object)
     maybe_broadcast_notification(object)
 
     should_broadcast? =
@@ -122,6 +123,15 @@ defmodule Egregoros.Activities.Announce do
     end
 
     :ok
+  end
+
+  defp maybe_broadcast_post_update(object) do
+    with %Object{} = announced_object <- Objects.get_by_ap_id(object.object),
+         "Note" <- announced_object.type do
+      Timeline.broadcast_post_updated(announced_object)
+    else
+      _ -> :ok
+    end
   end
 
   defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do

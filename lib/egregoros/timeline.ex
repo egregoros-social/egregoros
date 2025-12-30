@@ -56,6 +56,17 @@ defmodule Egregoros.Timeline do
 
   def broadcast_post(_object), do: :ok
 
+  def broadcast_post_updated(%Egregoros.Object{} = object) do
+    broadcast_topics_for_object(object)
+    |> Enum.each(fn topic ->
+      Phoenix.PubSub.broadcast(Egregoros.PubSub, topic, {:post_updated, object})
+    end)
+
+    :ok
+  end
+
+  def broadcast_post_updated(_object), do: :ok
+
   def reset do
     Objects.delete_all_notes()
   end

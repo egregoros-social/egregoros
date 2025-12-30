@@ -146,6 +146,18 @@ defmodule EgregorosWeb.StatusLive do
     {:noreply, socket}
   end
 
+  @impl true
+  def handle_info({:post_updated, %Egregoros.Object{} = object}, socket) do
+    socket =
+      if thread_relevant?(socket, object) do
+        refresh_thread(socket)
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
   def handle_info(_message, socket) do
     {:noreply, socket}
   end

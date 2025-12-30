@@ -12,6 +12,7 @@ defmodule Egregoros.Activities.Like do
   alias Egregoros.Object
   alias Egregoros.Objects
   alias Egregoros.Relationships
+  alias Egregoros.Timeline
   alias Egregoros.User
   alias Egregoros.Users
   alias Egregoros.Workers.FetchThreadAncestors
@@ -100,6 +101,7 @@ defmodule Egregoros.Activities.Like do
         activity_ap_id: object.ap_id
       })
 
+    maybe_broadcast_post_update(object)
     maybe_broadcast_notification(object)
 
     if Keyword.get(opts, :local, true) do
@@ -168,6 +170,15 @@ defmodule Egregoros.Activities.Like do
          true <- target.local,
          true <- target.ap_id != object.actor do
       Notifications.broadcast(target.ap_id, object)
+    else
+      _ -> :ok
+    end
+  end
+
+  defp maybe_broadcast_post_update(object) do
+    with %Object{} = liked_object <- Objects.get_by_ap_id(object.object),
+         "Note" <- liked_object.type do
+      Timeline.broadcast_post_updated(liked_object)
     else
       _ -> :ok
     end
