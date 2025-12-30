@@ -59,6 +59,18 @@ defmodule Egregoros.Media do
 
   def attachments_from_ids(_user, _ids), do: {:ok, []}
 
+  def local_href_visible_to?(href, user) when is_binary(href) do
+    case get_local_media_by_href(href) do
+      %Object{} = media ->
+        visible_to_user?(media, user)
+
+      _ ->
+        false
+    end
+  end
+
+  def local_href_visible_to?(_href, _user), do: false
+
   defp parse_ids(ids) when is_list(ids) do
     parsed =
       Enum.map(ids, fn
@@ -105,4 +117,55 @@ defmodule Egregoros.Media do
   end
 
   defp activity_type(_), do: "Document"
+
+  defp get_local_media_by_href(href) when is_binary(href) do
+    href = String.trim(href)
+    absolute = URL.absolute(href)
+
+    from(o in Object,
+      where:
+        o.local == true and o.type in ^@allowed_types and
+          (fragment("? @> ?", o.data, ^%{"url" => [%{"href" => href}]}) or
+             fragment("? @> ?", o.data, ^%{"url" => [%{"href" => absolute}]})),
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  defp get_local_media_by_href(_href), do: nil
+
+  defp visible_to_user?(%Object{} = media, %User{} = user) do
+    if media.actor == user.ap_id do
+      true
+    else
+      visible_via_attached_note?(media, user)
+    end
+  end
+
+  defp visible_to_user?(%Object{} = media, nil) do
+    visible_via_attached_note?(media, nil)
+  end
+
+  defp visible_to_user?(%Object{} = media, _other) do
+    visible_via_attached_note?(media, nil)
+  end
+
+  defp visible_via_attached_note?(%Object{} = media, user) do
+    media.ap_id
+    |> notes_referencing_attachment()
+    |> Enum.any?(&Objects.visible_to?(&1, user))
+  end
+
+  defp notes_referencing_attachment(media_ap_id) when is_binary(media_ap_id) do
+    from(o in Object,
+      where:
+        o.type == "Note" and
+          fragment("? @> ?", o.data, ^%{"attachment" => [%{"id" => media_ap_id}]}),
+      order_by: [desc: o.id],
+      limit: 20
+    )
+    |> Repo.all()
+  end
+
+  defp notes_referencing_attachment(_media_ap_id), do: []
 end
