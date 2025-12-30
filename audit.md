@@ -48,8 +48,7 @@ This is a short follow-up pass focused on **maintainability / DRY**, plus a quic
   - Code: `lib/egregoros_web/return_to.ex`.
 - [x] **`fallback_username/1` is duplicated** across renderers/controllers; centralized in `EgregorosWeb.MastodonAPI.Fallback.fallback_username/1`.
   - Code: `lib/egregoros_web/mastodon_api/fallback.ex`.
-- **OAuth token fields are digests but named like raw tokens**: `oauth_tokens.token` and `oauth_tokens.refresh_token` store digests, but the field names don’t make that obvious.
-  - This is correct security-wise, but it’s easy to accidentally misuse/log. Consider renaming the DB columns or clearly documenting the invariant.
+- [x] **OAuth token fields are digests but named like raw tokens**: renamed `oauth_tokens.token` → `token_digest` and `oauth_tokens.refresh_token` → `refresh_token_digest` (and the schema now uses virtual `token`/`refresh_token` fields for returning raw tokens).
   - Code: `lib/egregoros/oauth.ex`, `lib/egregoros/oauth/token.ex`.
 - **Timestamp type inconsistency**: `Relationship` uses `timestamps(type: :utc_datetime)` while most other schemas use `:utc_datetime_usec`.
   - Consider standardizing for consistency and easier ordering/debugging.

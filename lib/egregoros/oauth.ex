@@ -185,7 +185,7 @@ defmodule Egregoros.OAuth do
 
     from(t in Token,
       where:
-        t.token == ^token_digest and is_nil(t.revoked_at) and
+        t.token_digest == ^token_digest and is_nil(t.revoked_at) and
           (is_nil(t.expires_at) or t.expires_at > ^now),
       left_join: u in assoc(t, :user),
       preload: [user: u]
@@ -240,8 +240,8 @@ defmodule Egregoros.OAuth do
 
     %Token{}
     |> Token.changeset(%{
-      token: digest_token(raw_token),
-      refresh_token: digest_token(raw_refresh_token),
+      token_digest: digest_token(raw_token),
+      refresh_token_digest: digest_token(raw_refresh_token),
       scopes: scopes,
       user_id: user_id,
       application_id: application.id,
@@ -283,8 +283,8 @@ defmodule Egregoros.OAuth do
 
     %Token{}
     |> Token.changeset(%{
-      token: digest_token(raw_token),
-      refresh_token: digest_token(raw_refresh_token),
+      token_digest: digest_token(raw_token),
+      refresh_token_digest: digest_token(raw_refresh_token),
       scopes: scopes,
       user_id: nil,
       application_id: application.id,
@@ -307,7 +307,7 @@ defmodule Egregoros.OAuth do
 
     from(t in Token,
       where:
-        t.refresh_token == ^refresh_token_digest and is_nil(t.revoked_at) and
+        t.refresh_token_digest == ^refresh_token_digest and is_nil(t.revoked_at) and
           (is_nil(t.refresh_expires_at) or t.refresh_expires_at > ^now)
     )
     |> Repo.one()
@@ -394,7 +394,7 @@ defmodule Egregoros.OAuth do
     from(t in Token,
       where:
         t.application_id == ^application_id and is_nil(t.revoked_at) and
-          (t.token == ^token_digest or t.refresh_token == ^token_digest)
+          (t.token_digest == ^token_digest or t.refresh_token_digest == ^token_digest)
     )
     |> Repo.update_all(set: [revoked_at: now])
   end
