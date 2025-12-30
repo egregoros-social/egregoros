@@ -11,7 +11,7 @@ This file tracks known security gaps and their remediation status.
 - [x] **Actor fetch integrity**: require fetched actor JSON `"id"` to match the requested actor URL (prevents actor poisoning).
 
 ## High priority (XSS / content rendering)
-- [ ] **XSS via HTML entity unescaping after sanitization**: `Egregoros.HTML.sanitize/2` does a global `&amp;` → `&` rewrite after scrubbing, which can re-activate double-escaped entities inside otherwise-valid HTML (e.g. `<p>&amp;#x3C;script...`). This can turn into an actual `<script>` when rendered with `Phoenix.HTML.raw/1`. Repro: `mix run -e 'IO.puts(Egregoros.HTML.to_safe_html("<p>&amp;#x3C;script&amp;#x3E;alert(1)&amp;#x3C;/script&amp;#x3E;</p>", format: :html))'`. Fix by removing the global rewrite and adding regression tests for `&amp;#x3C;` / `&amp;#60;` payloads.
+- [x] **XSS via HTML entity unescaping after sanitization**: `Egregoros.HTML.sanitize/2` used to do a global `&amp;` → `&` rewrite after scrubbing, which could re-activate double-escaped entities inside otherwise-valid HTML (e.g. `href="javascript&amp;#x3A;..."` becoming an active `javascript:` scheme). Fixed by only unescaping `&amp;` in text nodes (not inside tags/attributes) and adding a regression test.
 
 ## Medium priority (web UI hardening)
 - [x] **CSRF-safe logout**: use POST logout behind CSRF protection (prevents third-party logout CSRF).

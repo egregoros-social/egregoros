@@ -23,15 +23,14 @@ This is a short follow-up pass focused on **maintainability / DRY**, plus a quic
 
 ### CRITICAL (new)
 
-- **XSS via HTML entity unescaping after sanitization**: `Egregoros.HTML.sanitize/2` does a global `String.replace(content, "&amp;", "&")` after scrubbing.
+- [x] **XSS via HTML entity unescaping after sanitization**: `Egregoros.HTML.sanitize/2` used to do a global `String.replace(content, "&amp;", "&")` after scrubbing.
   - This can turn *double-escaped* entities back into active entities *after* sanitization.
-  - Example payload inside otherwise-valid HTML: `<p>&amp;#x3C;script&amp;#x3E;alert(1)&amp;#x3C;/script&amp;#x3E;</p>`
-    - Current output becomes `<p>&#x3C;script&#x3E;alert(1)&#x3C;/script&#x3E;</p>`, which renders as an actual `<script>` tag if inserted via `Phoenix.HTML.raw/1`.
-  - Repro (dev): `mix run -e 'IO.puts(Egregoros.HTML.to_safe_html("<p>&amp;#x3C;script&amp;#x3E;alert(1)&amp;#x3C;/script&amp;#x3E;</p>", format: :html))'`
+  - Example payload inside otherwise-valid HTML: `<a href="javascript&amp;#x3A;alert(1)">x</a>`
+    - If `&amp;` is unescaped inside the `href`, the browser decodes `&#x3A;` into `:` and the `javascript:` scheme becomes active.
+  - Repro (dev): `mix run -e 'IO.puts(Egregoros.HTML.to_safe_html("<a href=\"javascript&amp;#x3A;alert(1)\">x</a>", format: :html))'`
   - Code: `lib/egregoros/html.ex` (`sanitize/2`).
   - Notes / fix direction:
-    - Remove the global `&amp;` → `&` rewrite.
-    - If we want to normalize double-escaped text like `there&amp;#39;s`, do it *before* sanitization in a targeted/whitelisted way (or decode entities to Unicode before escaping), and add regression tests for `&amp;#x3C;` / `&amp;#60;` style payloads.
+    - Fix by only unescaping `&amp;` in text nodes (not inside tag attributes), so we preserve the “double-escaped apostrophe” UX improvement without re-activating dangerous URLs.
 
 ### LOW (new)
 
