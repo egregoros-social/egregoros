@@ -29,7 +29,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusesController do
       user = conn.assigns.current_user
 
       with {:ok, attachments} <- Media.attachments_from_ids(user, media_ids),
-           {:ok, in_reply_to} <- resolve_in_reply_to(in_reply_to_id),
+           {:ok, in_reply_to} <- resolve_in_reply_to(in_reply_to_id, user),
            {:ok, create_object} <-
              Publish.post_note(user, status,
                attachments: attachments,
@@ -51,24 +51,38 @@ defmodule EgregorosWeb.MastodonAPI.StatusesController do
     send_resp(conn, 422, "Unprocessable Entity")
   end
 
-  defp resolve_in_reply_to(nil), do: {:ok, nil}
-  defp resolve_in_reply_to(""), do: {:ok, nil}
+  defp resolve_in_reply_to(nil, _user), do: {:ok, nil}
+  defp resolve_in_reply_to("", _user), do: {:ok, nil}
 
-  defp resolve_in_reply_to(in_reply_to_id) when is_binary(in_reply_to_id) do
+  defp resolve_in_reply_to(in_reply_to_id, user)
+       when is_binary(in_reply_to_id) and is_map(user) do
     case Objects.get(in_reply_to_id) do
-      %{} = object -> {:ok, object.ap_id}
+      %{} = object ->
+        if Objects.visible_to?(object, user) do
+          {:ok, object.ap_id}
+        else
+          {:error, :not_found}
+        end
+
       _ -> {:error, :not_found}
     end
   end
 
-  defp resolve_in_reply_to(in_reply_to_id) when is_integer(in_reply_to_id) do
+  defp resolve_in_reply_to(in_reply_to_id, user)
+       when is_integer(in_reply_to_id) and is_map(user) do
     case Objects.get(in_reply_to_id) do
-      %{} = object -> {:ok, object.ap_id}
+      %{} = object ->
+        if Objects.visible_to?(object, user) do
+          {:ok, object.ap_id}
+        else
+          {:error, :not_found}
+        end
+
       _ -> {:error, :not_found}
     end
   end
 
-  defp resolve_in_reply_to(_), do: {:error, :not_found}
+  defp resolve_in_reply_to(_in_reply_to_id, _user), do: {:error, :not_found}
 
   def show(conn, %{"id" => id}) do
     current_user = conn.assigns[:current_user]

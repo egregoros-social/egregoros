@@ -35,7 +35,9 @@ defmodule EgregorosWeb.MastodonAPI.StatusesControllerTest do
           "id" => "https://example.com/objects/parent",
           "type" => "Note",
           "actor" => "https://example.com/users/alice",
-          "content" => "Parent post"
+          "content" => "Parent post",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => []
         },
         local: false
       )
@@ -53,6 +55,35 @@ defmodule EgregorosWeb.MastodonAPI.StatusesControllerTest do
     [reply, _parent] = Objects.list_notes()
     assert reply.data["content"] == "<p>Reply post</p>"
     assert reply.data["inReplyTo"] == parent.ap_id
+  end
+
+  test "POST /api/v1/statuses rejects replies to statuses not visible to the user", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+    {:ok, recipient} = Users.create_local_user("bob")
+
+    Egregoros.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    {:ok, dm} =
+      Pipeline.ingest(
+        %{
+          "id" => "https://example.com/objects/dm-parent",
+          "type" => "Note",
+          "actor" => "https://example.com/users/alice",
+          "content" => "Secret DM for bob",
+          "to" => [recipient.ap_id],
+          "cc" => []
+        },
+        local: false
+      )
+
+    conn =
+      post(conn, "/api/v1/statuses", %{
+        "status" => "Should fail",
+        "in_reply_to_id" => Integer.to_string(dm.id)
+      })
+
+    assert response(conn, 422)
   end
 
   test "POST /api/v1/statuses supports visibility, spoiler_text, sensitive, and language",
