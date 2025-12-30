@@ -61,43 +61,38 @@ This is a short follow-up pass focused on **maintainability / DRY**, plus a quic
 
 ### CRITICAL
 
-- **SSRF bypass via IPv4-mapped IPv6**: `Egregoros.SafeURL` does not treat IPv4-mapped IPv6 addresses as private (e.g. `::ffff:127.0.0.1`), so server-side fetches can reach internal IPs.
-  - Repro: `mix run -e 'IO.inspect(Egregoros.SafeURL.validate_http_url("http://[::ffff:127.0.0.1]/"))'` currently returns `:ok`.
-  - Code: `lib/egregoros/safe_url.ex` (private IP detection for IPv6).
-  - Impacted call sites include actor fetch / signed fetch / object fetch / webfinger / delivery URL validation:
-    - `lib/egregoros/federation/actor.ex`
-    - `lib/egregoros/federation/signed_fetch.ex`
-    - `lib/egregoros/federation/object_fetcher.ex`
-    - `lib/egregoros/federation/webfinger.ex`
-    - `lib/egregoros/federation/delivery.ex`
+- [x] **SSRF bypass via IPv4-mapped IPv6**: `Egregoros.SafeURL` did not treat IPv4-mapped IPv6 addresses as private (e.g. `::ffff:127.0.0.1`), allowing server-side fetches to reach internal IPs.
+  - Fixed by treating IPv4-mapped IPv6 as IPv4 for private-range checks.
+  - Code: `lib/egregoros/safe_url.ex`.
 
 ### HIGH
 
-- **Inbox rate limiting can be bypassed by spoofed `keyId` domains**: `RateLimitInbox` uses the unverified `Signature`/`Authorization` header `keyId` to build the rate-limit key, allowing attackers to rotate domains to avoid throttling (and potentially create many short-lived ETS entries).
+- [x] **Inbox rate limiting can be bypassed by spoofed `keyId` domains**: `RateLimitInbox` used to key on the unverified `Signature`/`Authorization` header `keyId` domain, allowing attackers to rotate domains to avoid throttling (and potentially create many short-lived ETS entries).
+  - Fixed: pre-signature throttling keys on IP (not `keyId` domains).
   - Code: `lib/egregoros_web/plugs/rate_limit_inbox.ex`, `lib/egregoros/rate_limiter/ets.ex`
-- **Session hardening gaps (fixation / cookie flags)**:
+- [x] **Session hardening gaps (fixation / cookie flags)**:
   - Login/registration do not renew the session ID (session fixation risk): `lib/egregoros_web/controllers/session_controller.ex`, `lib/egregoros_web/controllers/registration_controller.ex`
   - Logout clears session but does not drop it: `lib/egregoros_web/controllers/registration_controller.ex`
   - Session cookie options lack `secure: true` (and other prod-focused flags): `lib/egregoros_web/endpoint.ex`
 
 ### MEDIUM
 
-- **Private media access control**: uploads are served via `Plug.Static` (because `uploads` is in `static_paths`), so DM/private attachments are world-readable if the URL leaks.
+- [x] **Private media access control**: avoid serving DM/private attachments from `Plug.Static` without authorization checks.
   - Code: `lib/egregoros_web.ex`, `lib/egregoros_web/endpoint.ex`
-- **PubSub “blast radius” for DMs/private notes**: all Notes are broadcast on the global `"timeline"` topic and filtered later by consumers; a regression in filtering could leak private content to connected clients.
+- [x] **PubSub “blast radius” for DMs/private notes**: avoid broadcasting all Notes on a global `"timeline"` topic and filtering later.
   - Code: `lib/egregoros/timeline.ex`, `lib/egregoros/activities/note.ex`
-- **Visibility semantics gaps**: `Objects.visible_to?/2` considers `to`/`cc` (+ `/followers`) but ignores `bto`/`bcc`/`audience`, while inbox targeting checks do consider those fields (`InboxTargeting`).
+- [x] **Visibility semantics gaps**: `Objects.visible_to?/2` used to ignore `bto`/`bcc`/`audience`, while inbox targeting checks did consider those fields (`InboxTargeting`).
   - Code: `lib/egregoros/objects.ex`, `lib/egregoros/inbox_targeting.ex`
-- **Unlisted appears on public timelines**: “public visibility” queries treat `Public` in either `to` or `cc` as public-timeline-visible; “unlisted” posts have `Public` in `cc`.
+- [x] **Unlisted appears on public timelines**: “public visibility” queries treated `Public` in either `to` or `cc` as public-timeline-visible; “unlisted” posts have `Public` in `cc`.
   - Code: `lib/egregoros/objects.ex`
-- **OAuth tokens stored in plaintext**: access/refresh tokens are stored as raw strings; a DB compromise trivially exposes active tokens.
+- [x] **OAuth tokens stored in plaintext**: access/refresh tokens were stored as raw strings; a DB compromise trivially exposes active tokens.
   - Code: `lib/egregoros/oauth/token.ex`
-- **Bearer tokens accepted via query param**: accepting `access_token` in query params increases risk of token exposure via logs/referrers.
+- [x] **Bearer tokens accepted via query param**: accepting `access_token` in query params increases risk of token exposure via logs/referrers.
   - Code: `lib/egregoros/auth/bearer_token.ex`
 
 ### LOW
 
-- **Signature strictness**: inbound signature verification doesn’t require `digest` to be present/signed; this can be tightened depending on compatibility goals.
+- [ ] **Signature strictness**: inbound signature verification doesn’t require `digest` to be present/signed; this can be tightened depending on compatibility goals.
   - Code: `lib/egregoros/signature/http.ex`
 
 ## Consistency / DRY opportunities (non-security)
