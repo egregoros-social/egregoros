@@ -76,4 +76,10 @@ defmodule EgregorosWeb.MastodonAPI.InstanceControllerTest do
     response = json_response(conn, 200)
     assert is_list(response)
   end
+
+  test "GET /api/v1/instance/translation_languages returns a language matrix", %{conn: conn} do
+    conn = get(conn, "/api/v1/instance/translation_languages")
+    response = json_response(conn, 200)
+    assert is_map(response)
+  end
 end

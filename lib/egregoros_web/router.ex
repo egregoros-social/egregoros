@@ -186,6 +186,7 @@ defmodule EgregorosWeb.Router do
     get "/instance/privacy_policy", InstanceController, :privacy_policy
     get "/instance/terms_of_service", InstanceController, :terms_of_service
     get "/instance/languages", InstanceController, :languages
+    get "/instance/translation_languages", InstanceController, :translation_languages
     get "/instance/peers", InstanceController, :peers
     get "/custom_emojis", CustomEmojisController, :index
     get "/trends", TrendsController, :index

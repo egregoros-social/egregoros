@@ -87,6 +87,10 @@ defmodule EgregorosWeb.MastodonAPI.InstanceController do
     json(conn, [%{"code" => "en", "name" => "English"}])
   end
 
+  def translation_languages(conn, _params) do
+    json(conn, %{})
+  end
+
   def show_v2(conn, _params) do
     base_url = Endpoint.url()
     host = URI.parse(base_url).host || "localhost"
