@@ -180,6 +180,7 @@ defmodule EgregorosWeb.Router do
     get "/streaming/:stream", StreamingController, :index
     get "/streaming/:stream/:scope", StreamingController, :index
     get "/instance", InstanceController, :show
+    get "/instance/activity", InstanceController, :activity
     get "/instance/peers", InstanceController, :peers
     get "/custom_emojis", CustomEmojisController, :index
     get "/trends", TrendsController, :index

@@ -8,6 +8,8 @@ defmodule EgregorosWeb.MastodonAPI.InstanceController do
   alias Egregoros.User
   alias EgregorosWeb.Endpoint
 
+  @weeks_of_activity 12
+
   def show(conn, _params) do
     base_url = Endpoint.url()
     host = URI.parse(base_url).host || "localhost"
@@ -41,6 +43,28 @@ defmodule EgregorosWeb.MastodonAPI.InstanceController do
 
   def peers(conn, _params) do
     json(conn, [])
+  end
+
+  def activity(conn, _params) do
+    today = Date.utc_today()
+
+    activity =
+      0..(@weeks_of_activity - 1)
+      |> Enum.map(fn weeks_ago ->
+        start_date = Date.add(today, -(6 + weeks_ago * 7))
+        end_date = Date.add(start_date, 6)
+        start_dt = DateTime.new!(start_date, ~T[00:00:00], "Etc/UTC")
+        end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
+
+        %{
+          "week" => start_dt |> DateTime.to_unix() |> Integer.to_string(),
+          "statuses" => start_dt |> count_local_statuses(end_dt) |> Integer.to_string(),
+          "logins" => "0",
+          "registrations" => start_dt |> count_local_registrations(end_dt) |> Integer.to_string()
+        }
+      end)
+
+    json(conn, activity)
   end
 
   def show_v2(conn, _params) do
@@ -128,5 +152,21 @@ defmodule EgregorosWeb.MastodonAPI.InstanceController do
       "audio/wav",
       "application/ogg"
     ]
+  end
+
+  defp count_local_statuses(%DateTime{} = start_dt, %DateTime{} = end_dt) do
+    from(o in Object,
+      where:
+        o.type == "Note" and o.local == true and not is_nil(o.published) and o.published >= ^start_dt and
+          o.published <= ^end_dt
+    )
+    |> Repo.aggregate(:count, :id)
+  end
+
+  defp count_local_registrations(%DateTime{} = start_dt, %DateTime{} = end_dt) do
+    from(u in User,
+      where: u.local == true and u.inserted_at >= ^start_dt and u.inserted_at <= ^end_dt
+    )
+    |> Repo.aggregate(:count, :id)
   end
 end
