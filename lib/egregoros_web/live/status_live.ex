@@ -13,6 +13,7 @@ defmodule EgregorosWeb.StatusLive do
   alias Egregoros.Users
   alias EgregorosWeb.Live.Uploads, as: LiveUploads
   alias EgregorosWeb.MentionAutocomplete
+  alias EgregorosWeb.Param
   alias EgregorosWeb.Endpoint
   alias EgregorosWeb.ProfilePaths
   alias EgregorosWeb.ViewModels.Status, as: StatusVM
@@ -44,7 +45,7 @@ defmodule EgregorosWeb.StatusLive do
           nil
       end
 
-    reply_modal_open? = truthy?(Map.get(params, "reply")) and not is_nil(current_user)
+    reply_modal_open? = Param.truthy?(Map.get(params, "reply")) and not is_nil(current_user)
 
     {status_entry, ancestor_entries, descendant_entries} =
       case object do
@@ -351,7 +352,7 @@ defmodule EgregorosWeb.StatusLive do
     reply_params = Map.merge(default_reply_params(), reply_params)
     media_alt = Map.get(reply_params, "media_alt", %{})
 
-    reply_options_open? = truthy?(Map.get(reply_params, "ui_options_open"))
+    reply_options_open? = Param.truthy?(Map.get(reply_params, "ui_options_open"))
 
     reply_cw_open? =
       socket.assigns.reply_cw_open? ||
@@ -375,7 +376,7 @@ defmodule EgregorosWeb.StatusLive do
     sensitive = Map.get(reply_params, "sensitive")
     language = Map.get(reply_params, "language")
 
-    reply_options_open? = truthy?(Map.get(reply_params, "ui_options_open"))
+    reply_options_open? = Param.truthy?(Map.get(reply_params, "ui_options_open"))
 
     reply_cw_open? =
       socket.assigns.reply_cw_open? ||
@@ -959,16 +960,6 @@ defmodule EgregorosWeb.StatusLive do
       "ui_options_open" => "false",
       "media_alt" => %{}
     }
-  end
-
-  defp truthy?(value) do
-    case value do
-      true -> true
-      1 -> true
-      "1" -> true
-      "true" -> true
-      _ -> false
-    end
   end
 
   defp timeline_href(%{id: _}), do: ~p"/?timeline=home"

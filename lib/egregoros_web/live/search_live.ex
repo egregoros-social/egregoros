@@ -13,6 +13,7 @@ defmodule EgregorosWeb.SearchLive do
   alias Egregoros.Users
   alias EgregorosWeb.Live.Uploads, as: LiveUploads
   alias EgregorosWeb.MentionAutocomplete
+  alias EgregorosWeb.Param
   alias EgregorosWeb.ProfilePaths
   alias EgregorosWeb.URL
   alias EgregorosWeb.ViewModels.Actor, as: ActorVM
@@ -199,7 +200,7 @@ defmodule EgregorosWeb.SearchLive do
     reply_params = Map.merge(default_reply_params(), reply_params)
     media_alt = Map.get(reply_params, "media_alt", %{})
 
-    reply_options_open? = truthy?(Map.get(reply_params, "ui_options_open"))
+    reply_options_open? = Param.truthy?(Map.get(reply_params, "ui_options_open"))
 
     reply_cw_open? =
       socket.assigns.reply_cw_open? ||
@@ -242,7 +243,7 @@ defmodule EgregorosWeb.SearchLive do
           sensitive = Map.get(reply_params, "sensitive")
           language = Map.get(reply_params, "language")
 
-          reply_options_open? = truthy?(Map.get(reply_params, "ui_options_open"))
+          reply_options_open? = Param.truthy?(Map.get(reply_params, "ui_options_open"))
 
           reply_cw_open? =
             socket.assigns.reply_cw_open? ||
@@ -764,16 +765,6 @@ defmodule EgregorosWeb.SearchLive do
       "ui_options_open" => "false",
       "media_alt" => %{}
     }
-  end
-
-  defp truthy?(value) do
-    case value do
-      true -> true
-      1 -> true
-      "1" -> true
-      "true" -> true
-      _ -> false
-    end
   end
 
   defp valid_hashtag?(tag) when is_binary(tag) do

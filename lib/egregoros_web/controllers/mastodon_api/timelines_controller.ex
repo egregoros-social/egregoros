@@ -2,14 +2,15 @@ defmodule EgregorosWeb.MastodonAPI.TimelinesController do
   use EgregorosWeb, :controller
 
   alias Egregoros.Objects
+  alias EgregorosWeb.Param
   alias EgregorosWeb.MastodonAPI.Pagination
   alias EgregorosWeb.MastodonAPI.StatusRenderer
 
   def public(conn, params) do
     pagination = Pagination.parse(params)
-    local_only? = truthy?(Map.get(params, "local"))
-    remote_only? = truthy?(Map.get(params, "remote"))
-    only_media? = truthy?(Map.get(params, "only_media"))
+    local_only? = Param.truthy?(Map.get(params, "local"))
+    remote_only? = Param.truthy?(Map.get(params, "remote"))
+    only_media? = Param.truthy?(Map.get(params, "only_media"))
 
     objects =
       Objects.list_public_statuses(
@@ -50,9 +51,9 @@ defmodule EgregorosWeb.MastodonAPI.TimelinesController do
 
   def tag(conn, %{"hashtag" => hashtag} = params) do
     pagination = Pagination.parse(params)
-    local_only? = truthy?(Map.get(params, "local"))
-    remote_only? = truthy?(Map.get(params, "remote"))
-    only_media? = truthy?(Map.get(params, "only_media"))
+    local_only? = Param.truthy?(Map.get(params, "local"))
+    remote_only? = Param.truthy?(Map.get(params, "remote"))
+    only_media? = Param.truthy?(Map.get(params, "only_media"))
 
     hashtag =
       hashtag
@@ -78,13 +79,4 @@ defmodule EgregorosWeb.MastodonAPI.TimelinesController do
     |> json(StatusRenderer.render_statuses(objects))
   end
 
-  defp truthy?(value) do
-    case value do
-      true -> true
-      1 -> true
-      "1" -> true
-      "true" -> true
-      _ -> false
-    end
-  end
 end

@@ -12,6 +12,7 @@ defmodule EgregorosWeb.TimelineLive do
   alias Egregoros.User
   alias Egregoros.Users
   alias EgregorosWeb.Live.Uploads, as: LiveUploads
+  alias EgregorosWeb.Param
   alias EgregorosWeb.ViewModels.Status, as: StatusVM
   alias EgregorosWeb.MentionAutocomplete
 
@@ -155,7 +156,7 @@ defmodule EgregorosWeb.TimelineLive do
     post_params = Map.merge(default_post_params(), post_params)
     media_alt = Map.get(post_params, "media_alt", %{})
 
-    compose_options_open? = truthy?(Map.get(post_params, "ui_options_open"))
+    compose_options_open? = Param.truthy?(Map.get(post_params, "ui_options_open"))
 
     compose_cw_open? =
       socket.assigns.compose_cw_open? ||
@@ -224,7 +225,7 @@ defmodule EgregorosWeb.TimelineLive do
   end
 
   def handle_event("timeline_at_top", %{"at_top" => at_top}, socket) do
-    at_top? = truthy?(at_top)
+    at_top? = Param.truthy?(at_top)
 
     socket =
       socket
@@ -408,7 +409,7 @@ defmodule EgregorosWeb.TimelineLive do
     reply_params = Map.merge(default_post_params(), reply_params)
     media_alt = Map.get(reply_params, "media_alt", %{})
 
-    reply_options_open? = truthy?(Map.get(reply_params, "ui_options_open"))
+    reply_options_open? = Param.truthy?(Map.get(reply_params, "ui_options_open"))
 
     reply_cw_open? =
       socket.assigns.reply_cw_open? ||
@@ -451,7 +452,7 @@ defmodule EgregorosWeb.TimelineLive do
           sensitive = Map.get(reply_params, "sensitive")
           language = Map.get(reply_params, "language")
 
-          reply_options_open? = truthy?(Map.get(reply_params, "ui_options_open"))
+          reply_options_open? = Param.truthy?(Map.get(reply_params, "ui_options_open"))
 
           reply_cw_open? =
             socket.assigns.reply_cw_open? ||
@@ -1128,16 +1129,6 @@ defmodule EgregorosWeb.TimelineLive do
     user
     |> Notifications.list_for_user(limit: 20)
     |> length()
-  end
-
-  defp truthy?(value) do
-    case value do
-      true -> true
-      1 -> true
-      "1" -> true
-      "true" -> true
-      _ -> false
-    end
   end
 
   defp maybe_flush_pending_posts(socket, true) do
