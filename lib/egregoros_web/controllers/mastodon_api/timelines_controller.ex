@@ -7,12 +7,18 @@ defmodule EgregorosWeb.MastodonAPI.TimelinesController do
 
   def public(conn, params) do
     pagination = Pagination.parse(params)
+    local_only? = truthy?(Map.get(params, "local"))
+    remote_only? = truthy?(Map.get(params, "remote"))
+    only_media? = truthy?(Map.get(params, "only_media"))
 
     objects =
       Objects.list_public_statuses(
         limit: pagination.limit + 1,
         max_id: pagination.max_id,
-        since_id: pagination.since_id
+        since_id: pagination.since_id,
+        local: local_only?,
+        remote: remote_only?,
+        only_media: only_media?
       )
 
     has_more? = length(objects) > pagination.limit
@@ -40,5 +46,15 @@ defmodule EgregorosWeb.MastodonAPI.TimelinesController do
     conn
     |> Pagination.maybe_put_links(objects, has_more?, pagination)
     |> json(StatusRenderer.render_statuses(objects, user))
+  end
+
+  defp truthy?(value) do
+    case value do
+      true -> true
+      1 -> true
+      "1" -> true
+      "true" -> true
+      _ -> false
+    end
   end
 end

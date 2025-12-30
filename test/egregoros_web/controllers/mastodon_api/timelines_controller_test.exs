@@ -33,6 +33,52 @@ defmodule EgregorosWeb.MastodonAPI.TimelinesControllerTest do
     refute Enum.any?(response, &(&1["content"] == "<p>Unlisted post</p>"))
   end
 
+  test "GET /api/v1/timelines/public with local=true only includes local statuses", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("local")
+    {:ok, _} = Publish.post_note(user, "Local post")
+
+    remote_note = %{
+      "id" => "https://remote.example/objects/" <> Ecto.UUID.generate(),
+      "type" => "Note",
+      "attributedTo" => "https://remote.example/users/alice",
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => [],
+      "content" => "Remote post"
+    }
+
+    assert {:ok, _} = Pipeline.ingest(remote_note, local: false)
+
+    conn = get(conn, "/api/v1/timelines/public", %{"local" => "true"})
+    response = json_response(conn, 200)
+
+    assert Enum.any?(response, &(&1["content"] == "<p>Local post</p>"))
+    refute Enum.any?(response, &(&1["content"] == "<p>Remote post</p>"))
+  end
+
+  test "GET /api/v1/timelines/public with remote=true only includes remote statuses", %{
+    conn: conn
+  } do
+    {:ok, user} = Users.create_local_user("local")
+    {:ok, _} = Publish.post_note(user, "Local post")
+
+    remote_note = %{
+      "id" => "https://remote.example/objects/" <> Ecto.UUID.generate(),
+      "type" => "Note",
+      "attributedTo" => "https://remote.example/users/alice",
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => [],
+      "content" => "Remote post"
+    }
+
+    assert {:ok, _} = Pipeline.ingest(remote_note, local: false)
+
+    conn = get(conn, "/api/v1/timelines/public", %{"remote" => "true"})
+    response = json_response(conn, 200)
+
+    assert Enum.any?(response, &(&1["content"] == "<p>Remote post</p>"))
+    refute Enum.any?(response, &(&1["content"] == "<p>Local post</p>"))
+  end
+
   test "GET /api/v1/timelines/public includes reblog statuses", %{conn: conn} do
     {:ok, alice} = Users.create_local_user("alice")
     {:ok, bob} = Users.create_local_user("bob")

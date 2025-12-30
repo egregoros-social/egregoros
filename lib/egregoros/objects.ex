@@ -221,6 +221,9 @@ defmodule Egregoros.Objects do
     limit = opts |> Keyword.get(:limit, 20) |> normalize_limit()
     max_id = Keyword.get(opts, :max_id)
     since_id = Keyword.get(opts, :since_id)
+    local_only? = Keyword.get(opts, :local, false) == true
+    remote_only? = Keyword.get(opts, :remote, false) == true
+    only_media? = Keyword.get(opts, :only_media, false) == true
 
     from(o in Object,
       where: o.type in ^@status_types,
@@ -228,6 +231,8 @@ defmodule Egregoros.Objects do
       limit: ^limit
     )
     |> where_publicly_listed()
+    |> maybe_where_origin(local_only?, remote_only?)
+    |> maybe_where_only_media(only_media?)
     |> maybe_where_max_id(max_id)
     |> maybe_where_since_id(since_id)
     |> Repo.all()
@@ -280,6 +285,29 @@ defmodule Egregoros.Objects do
       where: fragment("? @> ?", o.data, ^%{"to" => [@as_public]})
     )
   end
+
+  defp maybe_where_origin(query, true, _remote_only?) do
+    from(o in query, where: o.local == true)
+  end
+
+  defp maybe_where_origin(query, false, true) do
+    from(o in query, where: o.local == false)
+  end
+
+  defp maybe_where_origin(query, _local_only?, _remote_only?), do: query
+
+  defp maybe_where_only_media(query, true) do
+    from(o in query,
+      where:
+        fragment(
+          "jsonb_typeof(?->'attachment') = 'array' AND jsonb_array_length(?->'attachment') > 0",
+          o.data,
+          o.data
+        )
+    )
+  end
+
+  defp maybe_where_only_media(query, _only_media?), do: query
 
   defp recipient?(%Object{data: %{} = data}, recipient) when is_binary(recipient) do
     recipient = String.trim(recipient)
