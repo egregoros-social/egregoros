@@ -36,6 +36,20 @@ defmodule EgregorosWeb.AdminController do
     |> text("Unprocessable Entity")
   end
 
+  def delete_relay(conn, %{"id" => id}) do
+    with {id, _rest} <- Integer.parse(to_string(id)),
+         {:ok, _relay} <- Relays.unsubscribe(id) do
+      conn
+      |> put_flash(:info, "Relay unsubscribed.")
+      |> redirect(to: ~p"/admin")
+    else
+      _ ->
+        conn
+        |> put_flash(:error, "Could not unsubscribe from relay.")
+        |> redirect(to: ~p"/admin")
+    end
+  end
+
   defp notifications_count(%User{} = user) do
     Egregoros.Notifications.list_for_user(user, limit: 20)
     |> length()

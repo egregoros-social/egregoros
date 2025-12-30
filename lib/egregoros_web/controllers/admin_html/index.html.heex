@@ -61,6 +61,17 @@
               <p class="truncate text-sm text-slate-700 dark:text-slate-200">
                 {relay.ap_id}
               </p>
+
+              <.form
+                for={to_form(%{}, as: :relay_unsubscribe)}
+                id={"relay-unsubscribe-#{relay.id}"}
+                action={~p"/admin/relays/#{relay.id}"}
+                method="delete"
+              >
+                <.button type="submit" variant="destructive" size="sm">
+                  Unsubscribe
+                </.button>
+              </.form>
             </li>
           </ul>
         </div>

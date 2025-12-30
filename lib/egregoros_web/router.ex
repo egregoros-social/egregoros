@@ -81,6 +81,7 @@ defmodule EgregorosWeb.Router do
 
     get "/admin", AdminController, :index
     post "/admin/relays", AdminController, :create_relay
+    delete "/admin/relays/:id", AdminController, :delete_relay
   end
 
   scope "/", EgregorosWeb do
