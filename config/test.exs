@@ -55,3 +55,7 @@ config :egregoros, :password_iterations, 1_000
 config :egregoros, :req_options, plug: {Req.Test, Egregoros.HTTP.Req}
 
 config :egregoros, Oban, testing: :manual
+
+config :egregoros,
+       :uploads_dir,
+       Path.expand("../tmp/test_uploads/uploads", __DIR__)

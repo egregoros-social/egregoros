@@ -14,11 +14,7 @@ defmodule EgregorosWeb.Plugs.UploadsAccessTest do
     filename = "uploads-access-test.png"
     url_path = "/uploads/media/#{author.id}/#{filename}"
 
-    uploads_root =
-      :egregoros
-      |> :code.priv_dir()
-      |> to_string()
-      |> then(&Path.join([&1, "static", "uploads"]))
+    uploads_root = Application.fetch_env!(:egregoros, :uploads_dir)
 
     media_dir = Path.join([uploads_root, "media", Integer.to_string(author.id)])
     File.mkdir_p!(media_dir)
