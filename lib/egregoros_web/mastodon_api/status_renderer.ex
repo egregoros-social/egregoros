@@ -7,6 +7,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
   alias Egregoros.User
   alias Egregoros.Users
   alias EgregorosWeb.ProfilePaths
+  alias EgregorosWeb.SafeMediaURL
   alias EgregorosWeb.URL
   alias EgregorosWeb.MastodonAPI.AccountRenderer
 
@@ -361,6 +362,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
     |> List.wrap()
     |> Enum.filter(&is_map/1)
     |> Enum.map(&render_media_attachment/1)
+    |> Enum.filter(&is_map/1)
   end
 
   defp render_media_attachment(%{"id" => ap_id} = attachment) when is_binary(ap_id) do
@@ -370,45 +372,49 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
     description = Map.get(attachment, "name")
     blurhash = Map.get(attachment, "blurhash")
 
-    %{
-      "id" => media_id(object, ap_id),
-      "type" => mastodon_type(attachment),
-      "url" => url,
-      "preview_url" => url,
-      "remote_url" => nil,
-      "meta" => %{},
-      "description" => description,
-      "blurhash" => blurhash
-    }
+    if is_binary(url) and url != "" do
+      %{
+        "id" => media_id(object, ap_id),
+        "type" => mastodon_type(attachment),
+        "url" => url,
+        "preview_url" => url,
+        "remote_url" => nil,
+        "meta" => %{},
+        "description" => description,
+        "blurhash" => blurhash
+      }
+    end
   end
 
   defp render_media_attachment(attachment) when is_map(attachment) do
     url = attachment_url(attachment)
 
-    %{
-      "id" => Map.get(attachment, "id", "unknown"),
-      "type" => mastodon_type(attachment),
-      "url" => url,
-      "preview_url" => url,
-      "remote_url" => nil,
-      "meta" => %{},
-      "description" => Map.get(attachment, "name"),
-      "blurhash" => Map.get(attachment, "blurhash")
-    }
+    if is_binary(url) and url != "" do
+      %{
+        "id" => Map.get(attachment, "id", "unknown"),
+        "type" => mastodon_type(attachment),
+        "url" => url,
+        "preview_url" => url,
+        "remote_url" => nil,
+        "meta" => %{},
+        "description" => Map.get(attachment, "name"),
+        "blurhash" => Map.get(attachment, "blurhash")
+      }
+    end
   end
 
   defp media_id(%Object{} = object, _fallback), do: Integer.to_string(object.id)
   defp media_id(_object, fallback), do: fallback
 
   defp attachment_url(%{"url" => [%{"href" => href} | _]}) when is_binary(href) do
-    URL.absolute(href) || href
+    SafeMediaURL.safe(href)
   end
 
   defp attachment_url(%{"url" => href}) when is_binary(href) do
-    URL.absolute(href) || href
+    SafeMediaURL.safe(href)
   end
 
-  defp attachment_url(_), do: ""
+  defp attachment_url(_), do: nil
 
   defp mastodon_type(%{"mediaType" => media_type}) when is_binary(media_type) do
     mastodon_type_from_mime(media_type)

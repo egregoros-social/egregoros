@@ -3,7 +3,7 @@ defmodule EgregorosWeb.ViewModels.Status do
 
   alias Egregoros.Relationships
   alias Egregoros.User
-  alias EgregorosWeb.URL
+  alias EgregorosWeb.SafeMediaURL
   alias EgregorosWeb.ViewModels.Actor
 
   @reaction_emojis ["🔥", "👍", "❤️"]
@@ -121,12 +121,7 @@ defmodule EgregorosWeb.ViewModels.Status do
       |> Map.get("url")
       |> List.wrap()
       |> Enum.find_value(&attachment_href/1)
-
-    href =
-      case href do
-        href when is_binary(href) -> URL.absolute(href) || href
-        _ -> nil
-      end
+      |> SafeMediaURL.safe()
 
     media_type =
       cond do
