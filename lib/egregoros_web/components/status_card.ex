@@ -253,7 +253,8 @@ defmodule EgregorosWeb.StatusCard do
 
         <div class="flex flex-wrap items-center gap-2">
           <%= for emoji <- reaction_order(@entry.reactions) do %>
-            <% reaction = Map.get(@entry.reactions || %{}, emoji, %{count: 0, reacted?: false}) %>
+            <% reaction =
+              Map.get(@entry.reactions || %{}, emoji, %{count: 0, reacted?: false, url: nil}) %>
 
             <button
               type="button"
@@ -276,7 +277,14 @@ defmodule EgregorosWeb.StatusCard do
                 "data-[pressed=false]:border-slate-200 data-[pressed=false]:bg-white data-[pressed=false]:text-slate-600 data-[pressed=false]:hover:bg-slate-50 data-[pressed=false]:hover:text-slate-900 data-[pressed=false]:dark:border-slate-600 data-[pressed=false]:dark:bg-slate-700 data-[pressed=false]:dark:text-slate-300 data-[pressed=false]:dark:hover:bg-slate-600 data-[pressed=false]:dark:hover:text-white"
               ]}
             >
-              <span class="text-base leading-none">{emoji}</span>
+              <span class="text-base leading-none">
+                <% url = Map.get(reaction, :url) %>
+                <%= if is_binary(url) and url != "" do %>
+                  {emoji_inline(":#{emoji}:", [%{shortcode: emoji, url: url}])}
+                <% else %>
+                  {emoji}
+                <% end %>
+              </span>
               <span class="text-xs font-semibold tabular-nums">{reaction.count || 0}</span>
             </button>
           <% end %>

@@ -580,6 +580,50 @@ defmodule EgregorosWeb.TimelineLiveTest do
            )
   end
 
+  test "custom emoji reactions render as images and stream into the timeline", %{
+    conn: conn,
+    user: user
+  } do
+    {:ok, note} = Pipeline.ingest(Note.build(user, "Hello world"), local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    refute has_element?(
+             view,
+             "#post-#{note.id} button[data-role='reaction'][data-emoji='flow_think']"
+           )
+
+    activity = %{
+      "id" => "https://remote.example/users/bob#reactions/1",
+      "type" => "EmojiReact",
+      "actor" => "https://remote.example/users/bob",
+      "object" => note.ap_id,
+      "content" => ":flow_think:",
+      "tag" => [
+        %{
+          "type" => "Emoji",
+          "name" => "flow_think",
+          "icon" => %{"type" => "Image", "url" => "https://remote.example/emoji/flow_think.png"}
+        }
+      ]
+    }
+
+    assert {:ok, _react} = Pipeline.ingest(activity, local: false)
+    _ = :sys.get_state(view.pid)
+
+    assert has_element?(
+             view,
+             "#post-#{note.id} button[data-role='reaction'][data-emoji='flow_think']",
+             "1"
+           )
+
+    assert has_element?(
+             view,
+             "#post-#{note.id} button[data-role='reaction'][data-emoji='flow_think'] img.emoji[alt=':flow_think:']"
+           )
+  end
+
   test "interaction buttons dispatch optimistic toggle events", %{conn: conn, user: user} do
     conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
     {:ok, view, _html} = live(conn, "/")

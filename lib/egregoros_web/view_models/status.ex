@@ -64,13 +64,25 @@ defmodule EgregorosWeb.ViewModels.Status do
     counts =
       ap_id
       |> Relationships.emoji_reaction_counts()
-      |> Enum.reduce(%{}, fn {type, _emoji_url, count}, acc ->
+      |> Enum.reduce(%{}, fn {type, emoji_url, count}, acc ->
         emoji = String.replace_prefix(type, "EmojiReact:", "")
 
         if emoji == "" do
           acc
         else
-          Map.update(acc, emoji, count, &(&1 + count))
+          emoji_url = SafeMediaURL.safe(emoji_url)
+
+          Map.update(
+            acc,
+            emoji,
+            %{count: count, url: emoji_url},
+            fn existing ->
+              %{
+                count: (existing.count || 0) + count,
+                url: existing.url || emoji_url
+              }
+            end
+          )
         end
       end)
 
@@ -81,27 +93,37 @@ defmodule EgregorosWeb.ViewModels.Status do
 
     for emoji <- emojis, into: %{} do
       relationship_type = "EmojiReact:" <> emoji
+      info = Map.get(counts, emoji, %{count: 0, url: nil})
 
       {emoji,
        %{
-         count: Map.get(counts, emoji, 0),
-         reacted?: reacted_by_user?(ap_id, current_user, relationship_type)
+         count: info.count || 0,
+         url: info.url,
+         reacted?: reacted_by_user?(ap_id, current_user, relationship_type, info.url)
        }}
     end
   end
 
   defp reactions_for_object(_object, _current_user) do
     for emoji <- @reaction_emojis, into: %{} do
-      {emoji, %{count: 0, reacted?: false}}
+      {emoji, %{count: 0, reacted?: false, url: nil}}
     end
   end
 
-  defp reacted_by_user?(_object_ap_id, nil, _relationship_type), do: false
+  defp reacted_by_user?(_object_ap_id, nil, _relationship_type, _emoji_url), do: false
 
-  defp reacted_by_user?(object_ap_id, %User{} = current_user, relationship_type)
+  defp reacted_by_user?(object_ap_id, %User{} = current_user, relationship_type, emoji_url)
        when is_binary(object_ap_id) and is_binary(relationship_type) do
-    Relationships.get_by_type_actor_object(relationship_type, current_user.ap_id, object_ap_id) !=
-      nil
+    emoji_url = SafeMediaURL.safe(emoji_url)
+
+    case Relationships.get_by_type_actor_object(
+           relationship_type,
+           current_user.ap_id,
+           object_ap_id
+         ) do
+      %{emoji_url: existing_url} -> SafeMediaURL.safe(existing_url) == emoji_url
+      _ -> false
+    end
   end
 
   defp attachments_for_object(%{data: %{} = data}) do
