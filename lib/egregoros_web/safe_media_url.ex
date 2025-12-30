@@ -65,4 +65,3 @@ defmodule EgregorosWeb.SafeMediaURL do
   defp normalize_port(_port, "https"), do: 443
   defp normalize_port(_port, _scheme), do: nil
 end
-

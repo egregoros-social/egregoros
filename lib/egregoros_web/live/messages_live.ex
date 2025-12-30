@@ -133,7 +133,9 @@ defmodule EgregorosWeb.MessagesLive do
                stream_insert(
                  socket,
                  :messages,
-                 StatusVM.decorate(note, socket.assigns.current_user), at: 0)}
+                 StatusVM.decorate(note, socket.assigns.current_user),
+                 at: 0
+               )}
             else
               {:noreply, socket}
             end

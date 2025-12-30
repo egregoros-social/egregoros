@@ -50,4 +50,3 @@ defmodule Egregoros.DirectMessagesTest do
     assert Enum.any?(messages, &(&1.id == dm_audience.id))
   end
 end
-

@@ -32,4 +32,3 @@ defmodule EgregorosWeb.SafeMediaURLTest do
     assert SafeMediaURL.safe(url) == url
   end
 end
-
