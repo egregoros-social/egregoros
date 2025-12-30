@@ -3,6 +3,7 @@ defmodule Egregoros.Activities.Undo do
 
   import Ecto.Changeset
 
+  alias Egregoros.Activities.Helpers
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
@@ -286,7 +287,7 @@ defmodule Egregoros.Activities.Undo do
       actor: activity["actor"],
       object: activity["object"],
       data: activity,
-      published: parse_datetime(activity["published"]),
+      published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
   end
@@ -297,22 +298,9 @@ defmodule Egregoros.Activities.Undo do
     |> Map.put("type", undo.type)
     |> Map.put("actor", undo.actor)
     |> Map.put("object", undo.object)
-    |> maybe_put("to", undo.to)
-    |> maybe_put("cc", undo.cc)
-    |> maybe_put("published", undo.published)
+    |> Helpers.maybe_put("to", undo.to)
+    |> Helpers.maybe_put("cc", undo.cc)
+    |> Helpers.maybe_put("published", undo.published)
   end
 
-  defp maybe_put(activity, _key, nil), do: activity
-  defp maybe_put(activity, key, value), do: Map.put(activity, key, value)
-
-  defp parse_datetime(nil), do: nil
-
-  defp parse_datetime(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, dt, _} -> dt
-      _ -> nil
-    end
-  end
-
-  defp parse_datetime(%DateTime{} = dt), do: dt
 end

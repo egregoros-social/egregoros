@@ -3,6 +3,7 @@ defmodule Egregoros.Activities.Note do
 
   import Ecto.Changeset
 
+  alias Egregoros.Activities.Helpers
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
@@ -83,7 +84,7 @@ defmodule Egregoros.Activities.Note do
       actor: note["actor"],
       object: nil,
       data: note,
-      published: parse_datetime(note["published"]),
+      published: Helpers.parse_datetime(note["published"]),
       local: Keyword.get(opts, :local, true)
     }
   end
@@ -155,9 +156,9 @@ defmodule Egregoros.Activities.Note do
     |> Map.put("type", validated_note.type)
     |> Map.put("actor", validated_note.actor)
     |> Map.put("content", validated_note.content || Map.get(note, "content", ""))
-    |> maybe_put("to", validated_note.to)
-    |> maybe_put("cc", validated_note.cc)
-    |> maybe_put("published", validated_note.published)
+    |> Helpers.maybe_put("to", validated_note.to)
+    |> Helpers.maybe_put("cc", validated_note.cc)
+    |> Helpers.maybe_put("published", validated_note.published)
   end
 
   defp normalize_actor(%{"actor" => _} = note), do: note
@@ -218,17 +219,4 @@ defmodule Egregoros.Activities.Note do
     |> validate_length(:content, min: 1)
   end
 
-  defp maybe_put(note, _key, nil), do: note
-  defp maybe_put(note, key, value), do: Map.put(note, key, value)
-
-  defp parse_datetime(nil), do: nil
-
-  defp parse_datetime(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, dt, _} -> dt
-      _ -> nil
-    end
-  end
-
-  defp parse_datetime(%DateTime{} = dt), do: dt
 end

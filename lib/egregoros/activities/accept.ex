@@ -3,6 +3,7 @@ defmodule Egregoros.Activities.Accept do
 
   import Ecto.Changeset
 
+  alias Egregoros.Activities.Helpers
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
@@ -204,7 +205,7 @@ defmodule Egregoros.Activities.Accept do
       actor: activity["actor"],
       object: extract_object_id(activity["object"]),
       data: activity,
-      published: parse_datetime(activity["published"]),
+      published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
   end
@@ -217,9 +218,9 @@ defmodule Egregoros.Activities.Accept do
     |> Map.put("type", accept.type)
     |> Map.put("actor", accept.actor)
     |> Map.put("object", object_value)
-    |> maybe_put("to", accept.to)
-    |> maybe_put("cc", accept.cc)
-    |> maybe_put("published", accept.published)
+    |> Helpers.maybe_put("to", accept.to)
+    |> Helpers.maybe_put("cc", accept.cc)
+    |> Helpers.maybe_put("published", accept.published)
   end
 
   defp maybe_embed_object(%{"object" => %{} = object} = activity) do
@@ -228,21 +229,7 @@ defmodule Egregoros.Activities.Accept do
 
   defp maybe_embed_object(activity), do: activity
 
-  defp maybe_put(activity, _key, nil), do: activity
-  defp maybe_put(activity, key, value), do: Map.put(activity, key, value)
-
   defp extract_object_id(%{"id" => id}) when is_binary(id), do: id
   defp extract_object_id(id) when is_binary(id), do: id
   defp extract_object_id(_), do: nil
-
-  defp parse_datetime(nil), do: nil
-
-  defp parse_datetime(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, dt, _} -> dt
-      _ -> nil
-    end
-  end
-
-  defp parse_datetime(%DateTime{} = dt), do: dt
 end

@@ -3,6 +3,7 @@ defmodule Egregoros.Activities.Delete do
 
   import Ecto.Changeset
 
+  alias Egregoros.Activities.Helpers
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
@@ -149,7 +150,7 @@ defmodule Egregoros.Activities.Delete do
       actor: activity["actor"],
       object: activity["object"],
       data: activity,
-      published: parse_datetime(activity["published"]),
+      published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
   end
@@ -160,22 +161,9 @@ defmodule Egregoros.Activities.Delete do
     |> Map.put("type", delete.type)
     |> Map.put("actor", delete.actor)
     |> Map.put("object", delete.object)
-    |> maybe_put("to", delete.to)
-    |> maybe_put("cc", delete.cc)
-    |> maybe_put("published", delete.published)
+    |> Helpers.maybe_put("to", delete.to)
+    |> Helpers.maybe_put("cc", delete.cc)
+    |> Helpers.maybe_put("published", delete.published)
   end
 
-  defp maybe_put(activity, _key, nil), do: activity
-  defp maybe_put(activity, key, value), do: Map.put(activity, key, value)
-
-  defp parse_datetime(nil), do: nil
-
-  defp parse_datetime(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, dt, _} -> dt
-      _ -> nil
-    end
-  end
-
-  defp parse_datetime(%DateTime{} = dt), do: dt
 end
