@@ -64,6 +64,19 @@ defmodule Egregoros.Relays do
 
   def unsubscribe(_relay_id), do: {:error, :invalid_relay}
 
+  def delete_by_ap_id(ap_id) when is_binary(ap_id) do
+    ap_id = String.trim(ap_id)
+
+    if ap_id == "" do
+      :ok
+    else
+      _ = from(r in Relay, where: r.ap_id == ^ap_id) |> Repo.delete_all()
+      :ok
+    end
+  end
+
+  def delete_by_ap_id(_ap_id), do: :ok
+
   defp upsert_relay(ap_id) when is_binary(ap_id) do
     case Repo.get_by(Relay, ap_id: ap_id) do
       %Relay{} = relay ->

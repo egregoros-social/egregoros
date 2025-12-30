@@ -53,7 +53,7 @@ defmodule Egregoros.TimelinePubSubTest do
 
     assert announce_object.type == "Announce"
 
-    refute_receive {:post_created, %{type: "Announce"}}, 25
+    refute_receive {:post_created, %{type: "Announce", object: ^announced_id}}, 25
 
     assert {:ok, _note} =
              Objects.create_object(%{

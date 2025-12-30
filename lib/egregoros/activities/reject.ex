@@ -11,6 +11,7 @@ defmodule Egregoros.Activities.Reject do
   alias Egregoros.Object
   alias Egregoros.Objects
   alias Egregoros.Relationships
+  alias Egregoros.Relays
   alias Egregoros.User
   alias Egregoros.Users
   alias EgregorosWeb.Endpoint
@@ -105,6 +106,7 @@ defmodule Egregoros.Activities.Reject do
             Relationships.delete_by_type_actor_object("FollowRequest", actor_ap_id, target_ap_id)
 
           _ = Relationships.delete_by_type_actor_object("Follow", actor_ap_id, target_ap_id)
+          _ = maybe_unsubscribe_relay(actor_ap_id, target_ap_id)
         end
 
         :ok
@@ -117,6 +119,21 @@ defmodule Egregoros.Activities.Reject do
   defp extract_id(%{"id" => id}) when is_binary(id), do: id
   defp extract_id(id) when is_binary(id), do: id
   defp extract_id(_), do: nil
+
+  defp maybe_unsubscribe_relay(follower_ap_id, relay_ap_id)
+       when is_binary(follower_ap_id) and is_binary(relay_ap_id) do
+    case Users.get_by_ap_id(follower_ap_id) do
+      %User{local: true, nickname: "internal.fetch"} ->
+        if Relays.subscribed?(relay_ap_id) do
+          _ = Relays.delete_by_ap_id(relay_ap_id)
+        end
+
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
 
   defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate(opts, fn inbox_user_ap_id ->
