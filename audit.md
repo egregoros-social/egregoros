@@ -54,7 +54,7 @@ This is a short follow-up pass focused on **maintainability / DRY**, plus a quic
 - **Timestamp type inconsistency**: `Relationship` uses `timestamps(type: :utc_datetime)` while most other schemas use `:utc_datetime_usec`.
   - Consider standardizing for consistency and easier ordering/debugging.
   - Code: `lib/egregoros/relationship.ex`.
-- **`assets/js/app.js` is becoming a “god file”** as hooks/features accumulate; consider splitting hooks into small modules under `assets/js/hooks/*` and importing them into `app.js`.
+- [x] **`assets/js/app.js` “god file”**: moved LiveView hooks into `assets/js/hooks/*` modules and imported them into `assets/js/app.js`.
   - This keeps a single bundle while making hooks easier to test/review.
 
 ## Security / privacy (new findings)
