@@ -369,8 +369,56 @@ defmodule EgregorosWeb.MastodonAPI.StatusRendererTest do
 
     rendered = StatusRenderer.render_status(note, alice)
 
-    assert [%{"name" => "🔥", "count" => 1, "me" => true}] =
+    assert [%{"name" => "🔥", "count" => 1, "me" => true, "url" => nil}] =
              rendered["pleroma"]["emoji_reactions"]
+  end
+
+  test "renders custom emoji reactions with a url and host-qualified name" do
+    {:ok, alice} = Users.create_local_user("alice")
+
+    note_ap_id = "https://remote.example/objects/1"
+
+    {:ok, note} =
+      Objects.create_object(%{
+        ap_id: note_ap_id,
+        type: "Note",
+        actor: alice.ap_id,
+        local: false,
+        data: %{
+          "id" => note_ap_id,
+          "type" => "Note",
+          "actor" => alice.ap_id,
+          "content" => "hello"
+        }
+      })
+
+    activity = %{
+      "id" => "https://remote.example/users/bob#reactions/1",
+      "type" => "EmojiReact",
+      "actor" => "https://remote.example/users/bob",
+      "object" => note_ap_id,
+      "content" => ":dinosaur:",
+      "tag" => [
+        %{
+          "type" => "Emoji",
+          "name" => "dinosaur",
+          "icon" => %{"type" => "Image", "url" => "https://remote.example/emoji/dino.png"}
+        }
+      ]
+    }
+
+    assert {:ok, _react} = Pipeline.ingest(activity, local: false)
+
+    rendered = StatusRenderer.render_status(note)
+
+    assert [
+             %{
+               "name" => "dinosaur@remote.example",
+               "count" => 1,
+               "me" => false,
+               "url" => "https://remote.example/emoji/dino.png"
+             }
+           ] = rendered["pleroma"]["emoji_reactions"]
   end
 
   test "renders mention acct based on href host when name omits a domain" do

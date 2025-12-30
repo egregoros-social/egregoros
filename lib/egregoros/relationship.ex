@@ -8,13 +8,14 @@ defmodule Egregoros.Relationship do
     field :actor, :string
     field :object, :string
     field :activity_ap_id, :string
+    field :emoji_url, :string
 
     timestamps(type: :utc_datetime)
   end
 
   def changeset(relationship, attrs) do
     relationship
-    |> cast(attrs, [:type, :actor, :object, :activity_ap_id])
+    |> cast(attrs, [:type, :actor, :object, :activity_ap_id, :emoji_url])
     |> validate_required([:type, :actor, :object])
     |> unique_constraint([:type, :actor, :object], name: :relationships_type_actor_object_index)
   end

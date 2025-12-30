@@ -6,6 +6,7 @@ defmodule Egregoros.Activities.Undo do
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
+  alias Egregoros.EmojiReactions
   alias Egregoros.Federation.Delivery
   alias Egregoros.InboxTargeting
   alias Egregoros.Object
@@ -230,7 +231,10 @@ defmodule Egregoros.Activities.Undo do
          %Object{type: "EmojiReact", actor: actor, object: object, ap_id: target_ap_id} =
            target_activity
        ) do
-    emoji = get_in(target_activity.data, ["content"])
+    emoji =
+      target_activity.data
+      |> get_in(["content"])
+      |> EmojiReactions.normalize_content()
 
     if is_binary(emoji) and emoji != "" do
       relationship_type = "EmojiReact:" <> emoji

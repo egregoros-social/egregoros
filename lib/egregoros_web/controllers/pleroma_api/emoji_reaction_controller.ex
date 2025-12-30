@@ -14,7 +14,7 @@ defmodule EgregorosWeb.PleromaAPI.EmojiReactionController do
       reactions =
         object.ap_id
         |> Relationships.emoji_reaction_counts()
-        |> Enum.map(fn {type, count} ->
+        |> Enum.map(fn {type, _emoji_url, count} ->
           emoji = String.replace_prefix(type, "EmojiReact:", "")
 
           %{

@@ -56,7 +56,8 @@ defmodule EgregorosWeb.MastodonAPI.StreamingSocket do
   end
 
   @impl true
-  def handle_info({:post_created, %Object{type: "Announce"} = object}, state) when is_map(state) do
+  def handle_info({:post_created, %Object{type: "Announce"} = object}, state)
+      when is_map(state) do
     announced_ap_id =
       case object.object do
         value when is_binary(value) -> String.trim(value)

@@ -6,6 +6,7 @@ defmodule Egregoros.Activities.EmojiReact do
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
+  alias Egregoros.EmojiReactions
   alias Egregoros.Federation.Delivery
   alias Egregoros.InboxTargeting
   alias Egregoros.Notifications
@@ -92,7 +93,9 @@ defmodule Egregoros.Activities.EmojiReact do
   end
 
   def side_effects(object, opts) do
-    emoji = get_in(object.data, ["content"])
+    content = get_in(object.data, ["content"])
+    emoji = EmojiReactions.normalize_content(content)
+    emoji_url = EmojiReactions.find_custom_emoji_url(emoji, get_in(object.data, ["tag"]))
 
     if is_binary(emoji) and emoji != "" do
       _ =
@@ -100,7 +103,8 @@ defmodule Egregoros.Activities.EmojiReact do
           type: type() <> ":" <> emoji,
           actor: object.actor,
           object: object.object,
-          activity_ap_id: object.ap_id
+          activity_ap_id: object.ap_id,
+          emoji_url: emoji_url
         })
     end
 

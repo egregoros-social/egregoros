@@ -8,7 +8,7 @@ defmodule Egregoros.Relationships do
     %Relationship{}
     |> Relationship.changeset(attrs)
     |> Repo.insert(
-      on_conflict: {:replace, [:activity_ap_id, :updated_at]},
+      on_conflict: {:replace, [:activity_ap_id, :emoji_url, :updated_at]},
       conflict_target: [:type, :actor, :object]
     )
   end
@@ -214,8 +214,8 @@ defmodule Egregoros.Relationships do
   def emoji_reaction_counts(object_ap_id) when is_binary(object_ap_id) do
     from(r in Relationship,
       where: r.object == ^object_ap_id and like(r.type, "EmojiReact:%"),
-      group_by: r.type,
-      select: {r.type, count(r.id)}
+      group_by: [r.type, r.emoji_url],
+      select: {r.type, r.emoji_url, count(r.id)}
     )
     |> Repo.all()
   end
@@ -228,12 +228,12 @@ defmodule Egregoros.Relationships do
     else
       from(r in Relationship,
         where: r.object in ^object_ap_ids and like(r.type, "EmojiReact:%"),
-        group_by: [r.object, r.type],
-        select: {r.object, r.type, count(r.id)}
+        group_by: [r.object, r.type, r.emoji_url],
+        select: {r.object, r.type, r.emoji_url, count(r.id)}
       )
       |> Repo.all()
-      |> Enum.reduce(%{}, fn {object, type, count}, acc ->
-        Map.update(acc, object, %{type => count}, &Map.put(&1, type, count))
+      |> Enum.group_by(fn {object, _type, _emoji_url, _count} -> object end, fn
+        {_object, type, emoji_url, count} -> {type, emoji_url, count}
       end)
     end
   end
@@ -248,7 +248,7 @@ defmodule Egregoros.Relationships do
       from(r in Relationship,
         where:
           r.actor == ^actor_ap_id and r.object in ^object_ap_ids and like(r.type, "EmojiReact:%"),
-        select: {r.type, r.object}
+        select: {r.type, r.emoji_url, r.object}
       )
       |> Repo.all()
       |> MapSet.new()

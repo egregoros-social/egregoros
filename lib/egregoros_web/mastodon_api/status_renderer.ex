@@ -1,5 +1,6 @@
 defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
   alias Egregoros.Domain
+  alias Egregoros.EmojiReactions
   alias Egregoros.HTML
   alias Egregoros.Object
   alias Egregoros.Objects
@@ -437,15 +438,21 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
 
   defp emoji_reactions(%Object{} = object, ctx) do
     ctx.emoji_counts
-    |> Map.get(object.ap_id, %{})
-    |> Enum.sort_by(fn {type, _count} -> type end)
-    |> Enum.map(fn {type, count} ->
+    |> Map.get(object.ap_id, [])
+    |> Enum.sort_by(fn {type, emoji_url, _count} ->
+      emoji = String.replace_prefix(type, "EmojiReact:", "")
+      EmojiReactions.display_name(emoji, emoji_url)
+    end)
+    |> Enum.map(fn {type, emoji_url, count} ->
+      emoji = String.replace_prefix(type, "EmojiReact:", "")
+
       %{
-        "name" => String.replace_prefix(type, "EmojiReact:", ""),
+        "name" => EmojiReactions.display_name(emoji, emoji_url),
         "count" => count,
         "me" =>
           match?(%User{}, ctx.current_user) and
-            MapSet.member?(ctx.emoji_me_relationships, {type, object.ap_id})
+            MapSet.member?(ctx.emoji_me_relationships, {type, emoji_url, object.ap_id}),
+        "url" => SafeMediaURL.safe(emoji_url)
       }
     end)
   end

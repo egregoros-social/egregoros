@@ -64,13 +64,13 @@ defmodule EgregorosWeb.ViewModels.Status do
     counts =
       ap_id
       |> Relationships.emoji_reaction_counts()
-      |> Enum.reduce(%{}, fn {type, count}, acc ->
+      |> Enum.reduce(%{}, fn {type, _emoji_url, count}, acc ->
         emoji = String.replace_prefix(type, "EmojiReact:", "")
 
         if emoji == "" do
           acc
         else
-          Map.put(acc, emoji, count)
+          Map.update(acc, emoji, count, &(&1 + count))
         end
       end)
 
