@@ -176,6 +176,41 @@ defmodule Egregoros.PipelineTest do
     assert Egregoros.Objects.get_by_ap_id(note_id)
   end
 
+  test "ingest accepts relay announces even when the follow is still pending" do
+    {:ok, user} = Users.create_local_user("inbox-user")
+    relay_actor = "https://relay.example/users/relay"
+
+    assert {:ok, _} =
+             Relationships.upsert_relationship(%{
+               type: "FollowRequest",
+               actor: user.ap_id,
+               object: relay_actor,
+               activity_ap_id: "https://egregoros.example/activities/follow/relay-pending"
+             })
+
+    note_id = "https://remote.example/objects/relay-note"
+
+    announce = %{
+      "id" => "https://relay.example/activities/announce/2",
+      "type" => "Announce",
+      "actor" => relay_actor,
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "object" => %{
+        "id" => note_id,
+        "type" => "Note",
+        "actor" => "https://remote.example/users/alice",
+        "content" => "Hello from the relay payload",
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"]
+      }
+    }
+
+    assert {:ok, %Object{} = object} =
+             Pipeline.ingest(announce, local: false, inbox_user_ap_id: user.ap_id)
+
+    assert object.type == "Announce"
+    assert object.object == note_id
+  end
+
   test "ingest rejects unknown types" do
     assert {:error, :unknown_type} =
              Pipeline.ingest(%{"type" => "Wobble", "id" => "x"}, local: true)

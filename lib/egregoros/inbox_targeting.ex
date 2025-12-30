@@ -57,7 +57,9 @@ defmodule Egregoros.InboxTargeting do
     if inbox_user_ap_id == "" or actor_ap_id == "" do
       false
     else
-      Relationships.get_by_type_actor_object("Follow", inbox_user_ap_id, actor_ap_id) != nil
+      Relationships.get_by_type_actor_object("Follow", inbox_user_ap_id, actor_ap_id) != nil or
+        Relationships.get_by_type_actor_object("FollowRequest", inbox_user_ap_id, actor_ap_id) !=
+          nil
     end
   end
 
