@@ -4,6 +4,7 @@ defmodule EgregorosWeb.MastodonAPI.NotificationRenderer do
   alias Egregoros.User
   alias Egregoros.Users
   alias EgregorosWeb.MastodonAPI.AccountRenderer
+  alias EgregorosWeb.MastodonAPI.Fallback
   alias EgregorosWeb.MastodonAPI.StatusRenderer
 
   def render_notification(%Object{} = activity, %User{} = current_user) do
@@ -33,26 +34,10 @@ defmodule EgregorosWeb.MastodonAPI.NotificationRenderer do
 
   defp account_for_actor(actor_ap_id) when is_binary(actor_ap_id) do
     Users.get_by_ap_id(actor_ap_id) ||
-      %{ap_id: actor_ap_id, nickname: fallback_username(actor_ap_id)}
+      %{ap_id: actor_ap_id, nickname: Fallback.fallback_username(actor_ap_id)}
   end
 
   defp account_for_actor(_), do: %{ap_id: "unknown", nickname: "unknown"}
-
-  defp fallback_username(actor_ap_id) do
-    case URI.parse(actor_ap_id) do
-      %URI{path: path} when is_binary(path) and path != "" ->
-        path
-        |> String.split("/", trim: true)
-        |> List.last()
-        |> case do
-          nil -> "unknown"
-          value -> value
-        end
-
-      _ ->
-        "unknown"
-    end
-  end
 
   defp format_datetime(%Object{published: %DateTime{} = dt}) do
     DateTime.to_iso8601(dt)

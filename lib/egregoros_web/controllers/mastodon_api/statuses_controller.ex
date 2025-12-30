@@ -12,6 +12,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusesController do
   alias Egregoros.Relationships
   alias Egregoros.Users
   alias EgregorosWeb.MastodonAPI.AccountRenderer
+  alias EgregorosWeb.MastodonAPI.Fallback
   alias EgregorosWeb.MastodonAPI.StatusRenderer
 
   def create(conn, %{"status" => status} = params) do
@@ -283,24 +284,8 @@ defmodule EgregorosWeb.MastodonAPI.StatusesController do
 
   defp account_for_actor(actor_ap_id) when is_binary(actor_ap_id) do
     Users.get_by_ap_id(actor_ap_id) ||
-      %{ap_id: actor_ap_id, nickname: fallback_username(actor_ap_id)}
+      %{ap_id: actor_ap_id, nickname: Fallback.fallback_username(actor_ap_id)}
   end
 
   defp account_for_actor(_), do: nil
-
-  defp fallback_username(actor_ap_id) do
-    case URI.parse(actor_ap_id) do
-      %URI{path: path} when is_binary(path) and path != "" ->
-        path
-        |> String.split("/", trim: true)
-        |> List.last()
-        |> case do
-          nil -> "unknown"
-          value -> value
-        end
-
-      _ ->
-        "unknown"
-    end
-  end
 end

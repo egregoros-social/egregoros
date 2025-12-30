@@ -11,6 +11,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
   alias EgregorosWeb.SafeMediaURL
   alias EgregorosWeb.URL
   alias EgregorosWeb.MastodonAPI.AccountRenderer
+  alias EgregorosWeb.MastodonAPI.Fallback
 
   def render_status(%Object{} = object) do
     render_status(object, nil)
@@ -230,29 +231,13 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
     Map.get(ctx.accounts_by_actor, actor) ||
       %{
         "id" => actor,
-        "username" => fallback_username(actor),
-        "acct" => fallback_username(actor)
+        "username" => Fallback.fallback_username(actor),
+        "acct" => Fallback.fallback_username(actor)
       }
   end
 
   defp account_from_actor(_actor, _ctx),
     do: %{"id" => "unknown", "username" => "unknown", "acct" => "unknown"}
-
-  defp fallback_username(actor) do
-    case URI.parse(actor) do
-      %URI{path: path} when is_binary(path) and path != "" ->
-        path
-        |> String.split("/", trim: true)
-        |> List.last()
-        |> case do
-          nil -> "unknown"
-          value -> value
-        end
-
-      _ ->
-        "unknown"
-    end
-  end
 
   defp format_datetime(%Object{published: %DateTime{} = dt}) do
     DateTime.to_iso8601(dt)
@@ -531,7 +516,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
         {username, acct_for_remote(username, href)}
 
       _ ->
-        username = fallback_username(href)
+        username = Fallback.fallback_username(href)
         {username, acct_for_remote(username, href)}
     end
   end
