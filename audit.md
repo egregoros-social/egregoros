@@ -134,8 +134,9 @@ No new “drop everything” issues found beyond the items already tracked in `s
 
 ## Consistency / correctness gaps (non-security)
 
-- **Mastodon v1 instance streaming URL**:
-  - `lib/egregoros_web/controllers/mastodon_api/instance_controller.ex` returns `urls.streaming_api` as a bare `ws(s)://…` base; some clients expect the full streaming path (commonly `/api/v1/streaming`).
+- [x] **Mastodon instance streaming URL**:
+  - Keep returning the WebSocket base URL (no `/api/v1/streaming`), matching Mastodon’s `streaming_api_base_url`; clients append the streaming path.
+  - Code: `lib/egregoros_web/controllers/mastodon_api/instance_controller.ex`.
 
 - **Account statuses visibility is conservative**:
   - `lib/egregoros_web/controllers/mastodon_api/accounts_controller.ex` uses `Objects.list_public_statuses_by_actor/2` for `/api/v1/accounts/:id/statuses` even when authenticated.
