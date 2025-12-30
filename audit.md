@@ -122,10 +122,10 @@ No new “drop everything” issues found beyond the items already tracked in `s
 - [x] **Defense-in-depth: LiveView “refresh” helpers re-check visibility**.
   - `refresh_post/2` helpers now guard via `Objects.visible_to?/2`, removing items from streams when they become invisible to the viewer.
 
-- **Client-side “SSRF-ish” via remote emoji/icon URLs** (privacy/internal network probing).
-  - Custom emoji tags (`Egregoros.CustomEmojis`) and some remote profile fields can embed arbitrary `http(s)` URLs which the browser will fetch.
-  - This is not server-side SSRF, but it can still be abused for tracking or for probing a user’s local network via image loads.
-  - Mitigation options: stricter URL allowlist (reject private IPs), proxy images/media, or only allow remote emoji/icon URLs that pass `Egregoros.SafeURL.validate_http_url/1` at ingest time.
+- [x] **Client-side “SSRF-ish” via remote emoji/icon URLs** (privacy/internal network probing).
+  - Custom emoji tags now filter unsafe URLs (no `javascript:`/`data:`/private IP literals) via `SafeURL.validate_http_url_no_dns/1` before being used for rendering.
+  - Actor `icon`/`image` already validate via `SafeURL.validate_http_url/1` on fetch.
+  - Full mitigation against tracking and DNS-rebinding requires a media proxy (future work).
 
 ### Low priority (new)
 
