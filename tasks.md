@@ -18,10 +18,10 @@ Notes:
   - [ ] Make reply UI consistent with the main composer (same component, same options).
   - [ ] Reply in-place/modal from timeline (no navigation required).
   - [ ] Improve thread rendering UX (ancestors/descendants layout, navigation, empty/loading states).
-- [ ] **Thread completion expansion**
-  - [ ] Fetch missing ancestors/OPs best-effort when ingesting replies and when fetches are triggered by likes/announces (bounded + async).
-- [ ] **Finish `Update`/`Delete` impersonation constraints**
-  - [ ] Add/verify tests so cross-actor edits/deletes are impossible.
+- [x] **Thread completion expansion**
+  - [x] Fetch missing ancestors/OPs best-effort when ingesting replies and when fetches are triggered by likes/announces (bounded + async).
+- [x] **Finish `Update`/`Delete` impersonation constraints**
+  - [x] Add/verify tests so cross-actor edits/deletes are impossible.
 
 ## Federation core (ActivityPub)
 
@@ -46,12 +46,12 @@ Notes:
 ## Performance / scalability
 
 - [ ] Make federation ingress/egress consistently **async** (Oban) with back-pressure, retries, and rate limits.
-- [ ] Benchmark suite: realistic seed + perf probes for timelines, thread views, search, ingestion bursts (see `BENCHMARKS.md`).
+- [x] Benchmark suite: realistic seed + perf probes for timelines, thread views, search, ingestion bursts (see `BENCHMARKS.md`).
 - [ ] Keep caching behind behaviours so backends can be swapped (ETS → Redis, etc.).
 
 ## Security / privacy
 
-- [ ] Work through remaining open items in `security.md` and mark them as addressed.
+- [x] Work through remaining open items in `security.md` and mark them as addressed.
 - [ ] Signature strictness tightening (keep **off by default** for now; provide a config toggle).
 - [ ] Continuous audit for privacy leaks (public timelines, streaming, media access, DM visibility).
 
