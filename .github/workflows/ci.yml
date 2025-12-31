@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set database connection env (supports act)
+        shell: bash
+        run: |
+          if [ "${ACT:-}" = "true" ]; then
+            echo "POSTGRES_HOST=postgres" >> "$GITHUB_ENV"
+            echo "POSTGRES_PORT=5432" >> "$GITHUB_ENV"
+          else
+            echo "POSTGRES_HOST=localhost" >> "$GITHUB_ENV"
+            echo "POSTGRES_PORT=55432" >> "$GITHUB_ENV"
+          fi
+
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.0"
+          otp-version: "28.3"
+
+      - name: Cache deps/_build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run tests
+        env:
+          MIX_ENV: test
+        run: mix test
+
