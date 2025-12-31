@@ -9,13 +9,13 @@ Notes:
 
 ## Federation core (ActivityPub)
 
-- [ ] **Ingest `Update` activities**
+- [x] **Ingest `Update` activities**
   - [x] Apply **actor profile updates** (`Person`) safely (no cross-actor updates).
   - [x] Apply **object edits** (`Note`) where compatible (edit history + visibility rules).
   - [x] Decide/implement **object upsert semantics** for Updates (currently “insert-or-return existing”).
-- [ ] Ingest `Move` activities (account migration).
+- [x] Ingest `Move` activities (account migration).
 - [ ] Implement/verify `Update`/`Delete` constraints for **impersonation safety** (e.g. Update actor must match updated actor id).
-- [ ] Improve “fetch-on-demand” ingestion contexts so internally-fetched activities aren’t rejected as “not targeted”.
+- [x] Improve “fetch-on-demand” ingestion contexts so internally-fetched activities aren’t rejected as “not targeted”.
 - [ ] Keep/expand thread completion: fetch missing replies/ancestors/descendants when receiving partial threads.
 
 ## Mastodon API compatibility
@@ -24,7 +24,7 @@ Notes:
   - [x] `GET /api/v1/conversations` (currently returns `[]`)
   - [x] `GET /api/v1/favourites` (was stubbed)
   - [x] `GET /api/v1/bookmarks` (was stubbed)
-  - [ ] Status edit/Update flows end-to-end (API + AP Update).
+  - [x] Status edit/Update flows end-to-end (API + AP Update).
   - [ ] Ensure Status entity fields match `docs.joinmastodon.org/entities/Status/` where feasible.
 
 ## Performance / scalability
