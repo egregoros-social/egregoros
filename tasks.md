@@ -7,6 +7,22 @@ Notes:
 - Prefer fixtures in `test/fixtures/` for federation compatibility tests.
 - When behavior is missing (authz rules, remote lookups, caches), introduce a behaviour boundary and use **Mox** in tests.
 
+## Next priorities (recommended)
+
+- [ ] **Mastodon `Status` entity completeness** (reduce client quirks)
+  - [ ] Add contract-style tests for required keys/types from `docs.joinmastodon.org/entities/Status/`.
+  - [ ] Ensure optional-but-expected keys are present (`application`, `edited_at`, `filtered`, etc.).
+  - [ ] Ensure reblogs (`Announce`) map cleanly to Mastodon “reblog” shape (bookmark/like/reblog flags reflect the original status).
+  - [ ] Ensure reply metadata is complete (`in_reply_to_id` + `in_reply_to_account_id`) when parent + actor are known.
+- [ ] **Status/thread view polish** (`/@:nickname/:uuid`)
+  - [ ] Make reply UI consistent with the main composer (same component, same options).
+  - [ ] Reply in-place/modal from timeline (no navigation required).
+  - [ ] Improve thread rendering UX (ancestors/descendants layout, navigation, empty/loading states).
+- [ ] **Thread completion expansion**
+  - [ ] Fetch missing ancestors/OPs best-effort when ingesting replies and when fetches are triggered by likes/announces (bounded + async).
+- [ ] **Finish `Update`/`Delete` impersonation constraints**
+  - [ ] Add/verify tests so cross-actor edits/deletes are impossible.
+
 ## Federation core (ActivityPub)
 
 - [x] **Ingest `Update` activities**
