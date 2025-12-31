@@ -197,6 +197,8 @@ defmodule Egregoros.Federation.Actor do
           |> maybe_put_icon(actor, id)
           |> maybe_put_image(actor, id)
           |> maybe_put_emojis(actor, id)
+          |> maybe_put_moved_to(actor, id)
+          |> maybe_put_also_known_as(actor, id)
 
         {:ok, attrs}
       end
@@ -294,6 +296,57 @@ defmodule Egregoros.Federation.Actor do
 
   defp maybe_put_emojis(attrs, _actor, _actor_id), do: attrs
 
+  defp maybe_put_moved_to(attrs, actor, actor_id) when is_map(attrs) and is_map(actor) do
+    moved_to_ap_id =
+      actor
+      |> Map.get("movedTo")
+      |> actor_id_value()
+      |> resolve_url(actor_id)
+
+    case moved_to_ap_id do
+      ap_id when is_binary(ap_id) and ap_id != "" ->
+        case SafeURL.validate_http_url_no_dns(ap_id) do
+          :ok -> Map.put(attrs, :moved_to_ap_id, ap_id)
+          _ -> attrs
+        end
+
+      _ ->
+        attrs
+    end
+  end
+
+  defp maybe_put_moved_to(attrs, _actor, _actor_id), do: attrs
+
+  defp maybe_put_also_known_as(attrs, actor, actor_id) when is_map(attrs) and is_map(actor) do
+    also_known_as =
+      actor
+      |> Map.get("alsoKnownAs")
+      |> List.wrap()
+      |> Enum.flat_map(fn item ->
+        id = item |> actor_id_value() |> resolve_url(actor_id)
+
+        case id do
+          ap_id when is_binary(ap_id) and ap_id != "" ->
+            case SafeURL.validate_http_url_no_dns(ap_id) do
+              :ok -> [ap_id]
+              _ -> []
+            end
+
+          _ ->
+            []
+        end
+      end)
+      |> Enum.uniq()
+
+    if also_known_as == [] do
+      attrs
+    else
+      Map.put(attrs, :also_known_as, also_known_as)
+    end
+  end
+
+  defp maybe_put_also_known_as(attrs, _actor, _actor_id), do: attrs
+
   defp locked?(actor) when is_map(actor) do
     case Map.get(actor, "manuallyApprovesFollowers") do
       true -> true
@@ -353,6 +406,11 @@ defmodule Egregoros.Federation.Actor do
   end
 
   defp extract_url(_), do: nil
+
+  defp actor_id_value(%{"id" => id}) when is_binary(id), do: id
+  defp actor_id_value(%{id: id}) when is_binary(id), do: id
+  defp actor_id_value(id) when is_binary(id), do: id
+  defp actor_id_value(_), do: nil
 
   defp resolve_url(nil, _base), do: nil
 
