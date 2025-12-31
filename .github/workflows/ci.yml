@@ -10,6 +10,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 55432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
 
     services:
       postgres:
@@ -28,15 +33,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set database connection env (supports act)
+      - name: Install system deps
         shell: bash
         run: |
-          if [ "${ACT:-}" = "true" ]; then
-            echo "POSTGRES_HOST=postgres" >> "$GITHUB_ENV"
-            echo "POSTGRES_PORT=5432" >> "$GITHUB_ENV"
+          if command -v sudo >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y build-essential cmake pkg-config
           else
-            echo "POSTGRES_HOST=localhost" >> "$GITHUB_ENV"
-            echo "POSTGRES_PORT=55432" >> "$GITHUB_ENV"
+            apt-get update
+            apt-get install -y build-essential cmake pkg-config
           fi
 
       - uses: erlef/setup-beam@v1
@@ -61,4 +66,3 @@ jobs:
         env:
           MIX_ENV: test
         run: mix test
-
