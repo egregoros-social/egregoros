@@ -666,6 +666,18 @@ defmodule EgregorosWeb.MastodonAPI.StatusRendererTest do
     assert rendered["filtered"] == []
   end
 
+  test "computes replies_count from stored replies" do
+    {:ok, alice} = Users.create_local_user("alice")
+    assert {:ok, create} = Publish.post_note(alice, "Root")
+    note = Objects.get_by_ap_id(create.object)
+
+    assert {:ok, _reply} = Publish.post_note(alice, "Reply", in_reply_to: note.ap_id)
+
+    rendered = StatusRenderer.render_status(note, alice)
+
+    assert rendered["replies_count"] == 1
+  end
+
   test "renders edited_at when a note has been edited" do
     {:ok, alice} = Users.create_local_user("alice")
     assert {:ok, create} = Publish.post_note(alice, "Hello")

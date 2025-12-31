@@ -726,6 +726,40 @@ defmodule Egregoros.Objects do
     end
   end
 
+  def count_note_replies_by_parent_ap_ids(parent_ap_ids) when is_list(parent_ap_ids) do
+    parent_ap_ids =
+      parent_ap_ids
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    if parent_ap_ids == [] do
+      %{}
+    else
+      from(o in Object,
+        where: o.type == "Note",
+        where:
+          fragment(
+            "coalesce(?->>'inReplyTo', ?->'inReplyTo'->>'id')",
+            o.data,
+            o.data
+          ) in ^parent_ap_ids,
+        group_by:
+          fragment(
+            "coalesce(?->>'inReplyTo', ?->'inReplyTo'->>'id')",
+            o.data,
+            o.data
+          ),
+        select:
+          {fragment("coalesce(?->>'inReplyTo', ?->'inReplyTo'->>'id')", o.data, o.data),
+           count(o.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+    end
+  end
+
   def count_visible_notes_by_actor(actor, viewer) when is_binary(actor) do
     viewer_ap_id =
       case viewer do

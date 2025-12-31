@@ -85,6 +85,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       end)
 
     status_counts = Relationships.count_by_types_objects(["Like", "Announce"], object_ap_ids)
+    replies_counts = Objects.count_note_replies_by_parent_ap_ids(object_ap_ids)
 
     me_relationships =
       case current_user do
@@ -111,6 +112,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       reblogs_by_ap_id: reblogs_by_ap_id,
       accounts_by_actor: accounts_by_actor,
       status_counts: status_counts,
+      replies_counts: replies_counts,
       me_relationships: me_relationships,
       emoji_counts: emoji_counts,
       emoji_me_relationships: emoji_me_relationships
@@ -130,6 +132,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
     counts = Map.get(ctx.status_counts, object.ap_id, %{})
     favourites_count = Map.get(counts, "Like", 0)
     reblogs_count = Map.get(counts, "Announce", 0)
+    replies_count = Map.get(ctx.replies_counts, object.ap_id, 0)
 
     favourited =
       match?(%User{}, ctx.current_user) and
@@ -162,7 +165,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       "emojis" => emojis(object),
       "reblogs_count" => reblogs_count,
       "favourites_count" => favourites_count,
-      "replies_count" => 0,
+      "replies_count" => replies_count,
       "quotes_count" => 0,
       "favourited" => favourited,
       "reblogged" => reblogged,
