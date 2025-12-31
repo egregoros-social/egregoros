@@ -14,10 +14,10 @@ Notes:
   - [x] Ensure optional-but-expected keys are present (`application`, `edited_at`, `filtered`, etc.).
   - [x] Ensure reblogs (`Announce`) map cleanly to Mastodon “reblog” shape (bookmark/like/reblog flags reflect the original status).
   - [x] Ensure reply metadata is complete (`in_reply_to_id` + `in_reply_to_account_id`) when parent + actor are known.
-- [ ] **Status/thread view polish** (`/@:nickname/:uuid`)
-  - [ ] Make reply UI consistent with the main composer (same component, same options).
-  - [ ] Reply in-place/modal from timeline (no navigation required).
-  - [ ] Improve thread rendering UX (ancestors/descendants layout, navigation, empty/loading states).
+- [x] **Status/thread view polish** (`/@:nickname/:uuid`)
+  - [x] Make reply UI consistent with the main composer (same component, same options).
+  - [x] Reply in-place/modal from timeline (no navigation required).
+  - [x] Improve thread rendering UX (ancestors/descendants layout, navigation, empty/loading states).
 - [x] **Thread completion expansion**
   - [x] Fetch missing ancestors/OPs best-effort when ingesting replies and when fetches are triggered by likes/announces (bounded + async).
 - [x] **Finish `Update`/`Delete` impersonation constraints**
