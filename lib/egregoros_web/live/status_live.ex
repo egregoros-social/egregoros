@@ -2,6 +2,7 @@ defmodule EgregorosWeb.StatusLive do
   use EgregorosWeb, :live_view
 
   alias Egregoros.Domain
+  alias Egregoros.Federation.ThreadDiscovery
   alias Egregoros.Interactions
   alias Egregoros.Media
   alias Egregoros.MediaStorage
@@ -47,7 +48,7 @@ defmodule EgregorosWeb.StatusLive do
 
     reply_modal_open? = Param.truthy?(Map.get(params, "reply")) and not is_nil(current_user)
 
-    {status_entry, ancestor_entries, descendant_entries} =
+    {status_entry, ancestor_entries, descendant_entries, thread_note} =
       case object do
         %{type: "Note"} = note ->
           status_entry = StatusVM.decorate(note, current_user)
@@ -59,11 +60,16 @@ defmodule EgregorosWeb.StatusLive do
             |> StatusVM.decorate_many(current_user)
 
           descendants = decorate_descendants(note, current_user)
-          {status_entry, ancestors, descendants}
+          {status_entry, ancestors, descendants, note}
 
         _ ->
-          {nil, [], []}
+          {nil, [], [], nil}
       end
+
+    if connected?(socket) and match?(%Egregoros.Object{type: "Note"}, thread_note) and
+         descendant_entries == [] do
+      _ = ThreadDiscovery.enqueue_replies(thread_note, existing_descendants: 0)
+    end
 
     reply_to_handle =
       if reply_modal_open? and status_entry do

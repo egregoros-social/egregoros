@@ -32,7 +32,7 @@ Notes:
 - [x] Ingest `Move` activities (account migration).
 - [x] Implement/verify `Update`/`Delete` constraints for **impersonation safety** (e.g. Update actor must match updated actor id).
 - [x] Improve “fetch-on-demand” ingestion contexts so internally-fetched activities aren’t rejected as “not targeted”.
-- [ ] Keep/expand thread completion: fetch missing replies/ancestors/descendants when receiving partial threads.
+- [x] Keep/expand thread completion: fetch missing replies/ancestors/descendants when receiving partial threads.
 
 ## Mastodon API compatibility
 

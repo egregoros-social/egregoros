@@ -8,6 +8,7 @@ defmodule EgregorosWeb.StatusLiveTest do
   alias Egregoros.Pipeline
   alias Egregoros.TestSupport.Fixtures
   alias Egregoros.Users
+  alias Egregoros.Workers.FetchThreadReplies
 
   setup do
     {:ok, user} = Users.create_local_user("alice")
@@ -136,6 +137,37 @@ defmodule EgregorosWeb.StatusLiveTest do
 
     assert has_element?(view, "[data-role='thread-descendant'][data-depth='1']", "Reply")
     assert has_element?(view, "[data-role='thread-descendant'][data-depth='2']", "Child")
+  end
+
+  test "status view enqueues a thread replies fetch when the object advertises a replies collection", %{
+    conn: conn,
+    user: user
+  } do
+    root_id = "https://remote.example/objects/root-with-replies"
+    replies_url = root_id <> "/replies"
+
+    assert {:ok, root} =
+             Pipeline.ingest(
+               %{
+                 "id" => root_id,
+                 "type" => "Note",
+                 "attributedTo" => "https://remote.example/users/bob",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "cc" => [],
+                 "content" => "<p>Root</p>",
+                 "replies" => %{"id" => replies_url, "type" => "OrderedCollection"}
+               },
+               local: false
+             )
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    assert {:ok, _view, _html} = live(conn, "/@bob@remote.example/#{root.id}")
+
+    assert_enqueued(
+      worker: FetchThreadReplies,
+      args: %{"root_ap_id" => root.ap_id},
+      priority: 9
+    )
   end
 
   test "thread view updates when new replies arrive", %{conn: conn, user: user} do
