@@ -155,6 +155,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       "content" => content(object),
       "account" => account,
       "created_at" => format_datetime(object),
+      "edited_at" => edited_at(object),
       "media_attachments" => media_attachments(object),
       "mentions" => mentions(object),
       "tags" => tags(object),
@@ -162,6 +163,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       "reblogs_count" => reblogs_count,
       "favourites_count" => favourites_count,
       "replies_count" => 0,
+      "quotes_count" => 0,
       "favourited" => favourited,
       "reblogged" => reblogged,
       "muted" => false,
@@ -172,6 +174,8 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       "reblog" => nil,
       "poll" => nil,
       "card" => nil,
+      "application" => nil,
+      "filtered" => [],
       "language" => language(object),
       "pleroma" => %{
         "emoji_reactions" => emoji_reactions(object, ctx)
@@ -184,7 +188,8 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
 
     bookmarked =
       match?(%User{}, ctx.current_user) and
-        MapSet.member?(ctx.me_relationships, {"Bookmark", announce.ap_id})
+        (MapSet.member?(ctx.me_relationships, {"Bookmark", announce.ap_id}) or
+           MapSet.member?(ctx.me_relationships, {"Bookmark", announce.object}))
 
     reblog =
       case announce.object do
@@ -210,6 +215,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       "content" => "",
       "account" => account,
       "created_at" => format_datetime(announce),
+      "edited_at" => if(is_map(reblog), do: Map.get(reblog, "edited_at"), else: nil),
       "media_attachments" => [],
       "mentions" => [],
       "tags" => [],
@@ -218,6 +224,7 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       "favourites_count" =>
         if(is_map(reblog), do: Map.get(reblog, "favourites_count", 0), else: 0),
       "replies_count" => if(is_map(reblog), do: Map.get(reblog, "replies_count", 0), else: 0),
+      "quotes_count" => if(is_map(reblog), do: Map.get(reblog, "quotes_count", 0), else: 0),
       "favourited" => if(is_map(reblog), do: Map.get(reblog, "favourited", false), else: false),
       "reblogged" => if(is_map(reblog), do: Map.get(reblog, "reblogged", false), else: false),
       "muted" => false,
@@ -228,6 +235,8 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       "reblog" => reblog,
       "poll" => nil,
       "card" => nil,
+      "application" => nil,
+      "filtered" => [],
       "language" => if(is_map(reblog), do: Map.get(reblog, "language"), else: nil),
       "pleroma" => %{
         "emoji_reactions" => []
@@ -254,6 +263,15 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
   defp format_datetime(%Object{inserted_at: %DateTime{} = dt}), do: DateTime.to_iso8601(dt)
 
   defp format_datetime(%Object{}), do: DateTime.utc_now() |> DateTime.to_iso8601()
+
+  defp edited_at(%Object{type: "Note", inserted_at: %DateTime{} = inserted_at, updated_at: %DateTime{} = updated_at}) do
+    case DateTime.compare(updated_at, inserted_at) do
+      :gt -> DateTime.to_iso8601(updated_at)
+      _ -> nil
+    end
+  end
+
+  defp edited_at(_object), do: nil
 
   defp in_reply_to(%Object{} = object) do
     object.data

@@ -619,4 +619,113 @@ defmodule EgregorosWeb.MastodonAPI.StatusRendererTest do
     assert rendered["in_reply_to_id"] == nil
     assert rendered["in_reply_to_account_id"] == nil
   end
+
+  test "includes Mastodon Status entity keys expected by clients" do
+    {:ok, alice} = Users.create_local_user("alice")
+    assert {:ok, create} = Publish.post_note(alice, "Hello")
+    note = Objects.get_by_ap_id(create.object)
+
+    rendered = StatusRenderer.render_status(note, alice)
+
+    for key <- ~w(
+      id
+      created_at
+      in_reply_to_id
+      in_reply_to_account_id
+      sensitive
+      spoiler_text
+      visibility
+      language
+      uri
+      url
+      replies_count
+      reblogs_count
+      favourites_count
+      quotes_count
+      edited_at
+      content
+      account
+      media_attachments
+      mentions
+      tags
+      emojis
+      card
+      poll
+      application
+      filtered
+    ) do
+      assert Map.has_key?(rendered, key), "expected #{inspect(key)} to exist"
+    end
+
+    assert is_integer(rendered["replies_count"])
+    assert is_integer(rendered["reblogs_count"])
+    assert is_integer(rendered["favourites_count"])
+    assert is_integer(rendered["quotes_count"])
+    assert rendered["edited_at"] == nil
+    assert rendered["application"] == nil
+    assert rendered["filtered"] == []
+  end
+
+  test "renders edited_at when a note has been edited" do
+    {:ok, alice} = Users.create_local_user("alice")
+    assert {:ok, create} = Publish.post_note(alice, "Hello")
+    note = Objects.get_by_ap_id(create.object)
+
+    assert {:ok, updated_note} =
+             Objects.update_object(note, %{
+               data: Map.put(note.data, "content", "Edited")
+             })
+
+    rendered = StatusRenderer.render_status(updated_note, alice)
+
+    assert rendered["content"] =~ "Edited"
+    assert rendered["edited_at"] == DateTime.to_iso8601(updated_note.updated_at)
+  end
+
+  test "reblog status bookmarked flag reflects the original status" do
+    {:ok, alice} = Users.create_local_user("alice")
+    {:ok, bob} = Users.create_local_user("bob")
+
+    {:ok, note} =
+      Objects.create_object(%{
+        ap_id: "https://remote.example/objects/1",
+        type: "Note",
+        actor: bob.ap_id,
+        local: false,
+        data: %{
+          "id" => "https://remote.example/objects/1",
+          "type" => "Note",
+          "actor" => bob.ap_id,
+          "content" => "hello"
+        }
+      })
+
+    {:ok, announce} =
+      Objects.create_object(%{
+        ap_id: "https://remote.example/activities/announce/1",
+        type: "Announce",
+        actor: bob.ap_id,
+        object: note.ap_id,
+        local: false,
+        data: %{
+          "id" => "https://remote.example/activities/announce/1",
+          "type" => "Announce",
+          "actor" => bob.ap_id,
+          "object" => note.ap_id
+        }
+      })
+
+    {:ok, _rel} =
+      Relationships.upsert_relationship(%{
+        type: "Bookmark",
+        actor: alice.ap_id,
+        object: note.ap_id,
+        activity_ap_id: "https://egregoros.example/activities/bookmark/1"
+      })
+
+    rendered = StatusRenderer.render_status(announce, alice)
+
+    assert rendered["reblog"]["uri"] == note.ap_id
+    assert rendered["bookmarked"] == true
+  end
 end
