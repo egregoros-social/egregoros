@@ -290,6 +290,61 @@ defmodule EgregorosWeb.InboxControllerTest do
     refute Relationships.get_by_type_actor_object("Like", like["actor"], like["object"])
   end
 
+  test "POST /users/:nickname/inbox ingests public activities for the internal fetch actor", %{
+    conn: conn
+  } do
+    {:ok, _internal} = Users.create_local_user("internal.fetch")
+    {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
+
+    {:ok, _} =
+      Users.create_user(%{
+        nickname: "alice",
+        ap_id: "https://remote.example/users/alice",
+        inbox: "https://remote.example/users/alice/inbox",
+        outbox: "https://remote.example/users/alice/outbox",
+        public_key: public_key,
+        private_key: private_key,
+        local: false
+      })
+
+    like = %{
+      "id" => "https://remote.example/activities/like/internal-fetch-public",
+      "type" => "Like",
+      "actor" => "https://remote.example/users/alice",
+      "object" => "https://somewhere.example/objects/1",
+      "cc" => ["https://www.w3.org/ns/activitystreams#Public"]
+    }
+
+    conn =
+      conn
+      |> sign_request(
+        "post",
+        "/users/internal.fetch/inbox",
+        private_key,
+        "https://remote.example/users/alice#main-key"
+      )
+      |> post("/users/internal.fetch/inbox", like)
+
+    assert response(conn, 202)
+
+    args =
+      all_enqueued(worker: IngestActivity)
+      |> Enum.map(& &1.args)
+      |> Enum.find(fn
+        %{"activity" => %{"id" => "https://remote.example/activities/like/internal-fetch-public"}} ->
+          true
+
+        _ ->
+          false
+      end)
+
+    assert is_map(args)
+    refute Map.has_key?(args, "inbox_user_ap_id")
+
+    assert :ok = perform_job(IngestActivity, args)
+    assert Objects.get_by_ap_id(like["id"])
+  end
+
   test "POST /users/:nickname/inbox discards an Accept not targeting that inbox user", %{
     conn: conn
   } do
