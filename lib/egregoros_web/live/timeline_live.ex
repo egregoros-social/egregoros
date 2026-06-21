@@ -1,6 +1,7 @@
 defmodule EgregorosWeb.TimelineLive do
   use EgregorosWeb, :live_view
 
+  alias Egregoros.Badges
   alias Egregoros.Interactions
   alias Egregoros.Media
   alias Egregoros.MediaStorage
@@ -651,7 +652,22 @@ defmodule EgregorosWeb.TimelineLive do
 
     with %User{} = user <- socket.assigns.current_user,
          true <- flake_id?(post_id) do
-      _ = Interactions.toggle_repost(user, post_id)
+      result = Interactions.toggle_repost(user, post_id)
+
+      socket =
+        case result do
+          {:ok, _} ->
+            case Badges.badge_share_flash_message(user, post_id) do
+              message when is_binary(message) and message != "" ->
+                put_flash(socket, :info, message)
+
+              _ ->
+                socket
+            end
+
+          _ ->
+            socket
+        end
 
       {:noreply, refresh_post(socket, post_id, feed_id(params, post_id))}
     else
@@ -1642,7 +1658,7 @@ defmodule EgregorosWeb.TimelineLive do
 
   defp notifications_count(%User{} = user) do
     user
-    |> Notifications.list_for_user(limit: 20)
+    |> Notifications.list_for_user(limit: 20, include_offers?: true)
     |> length()
   end
 
@@ -1691,7 +1707,7 @@ defmodule EgregorosWeb.TimelineLive do
     current_user = socket.assigns.current_user
 
     case Objects.get(post_id) do
-      %{type: type} = object when type in ["Note", "Question"] ->
+      %{type: type} = object when type in ["Note", "Question", "VerifiableCredential"] ->
         if Objects.visible_to?(object, current_user) do
           if feed_id == post_id do
             insert_post(socket, StatusVM.decorate(object, current_user))
@@ -1767,14 +1783,21 @@ defmodule EgregorosWeb.TimelineLive do
   defp parse_choices(_choices), do: []
 
   defp flake_id?(id) when is_binary(id) do
-    match?(<<_::128>>, FlakeId.from_string(id))
+    id = String.trim(id)
+    byte_size(id) == 18 and FlakeId.flake_id?(id)
   end
 
   defp flake_id?(_id), do: false
 
   defp min_flake_id(left, right) when is_binary(left) and is_binary(right) do
-    with <<_::128>> = left_bin <- FlakeId.from_string(left),
-         <<_::128>> = right_bin <- FlakeId.from_string(right) do
+    left = String.trim(left)
+    right = String.trim(right)
+
+    with true <- flake_id?(left),
+         true <- flake_id?(right) do
+      <<_::128>> = left_bin = FlakeId.from_string(left)
+      <<_::128>> = right_bin = FlakeId.from_string(right)
+
       if left_bin <= right_bin, do: left, else: right
     else
       _ -> left

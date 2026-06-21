@@ -913,6 +913,16 @@ defmodule EgregorosWeb.ProfileLiveTest do
     assert has_element?(view, "section", "Profile not found.")
   end
 
+  test "profile includes a badges link", %{conn: conn, viewer: viewer} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: viewer.id})
+    {:ok, view, _html} = live(conn, "/@#{viewer.nickname}")
+
+    assert has_element?(
+             view,
+             "[data-role='profile-badges-link'][href='/@#{viewer.nickname}/badges']"
+           )
+  end
+
   test "multiple remote users can share a nickname across domains", %{viewer: _viewer} do
     {:ok, _remote_a} =
       Users.create_user(%{

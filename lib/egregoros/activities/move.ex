@@ -250,6 +250,7 @@ defmodule Egregoros.Activities.Move do
       published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   defp apply_move(activity, %__MODULE__{} = move) do

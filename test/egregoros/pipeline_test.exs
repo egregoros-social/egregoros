@@ -14,11 +14,25 @@ defmodule Egregoros.PipelineTest do
     "content" => "Hello from pipeline"
   }
 
+  @multi_type_note %{
+    "id" => "https://example.com/objects/multi-type-note",
+    "type" => ["Note", "OpenBadgeCredential"],
+    "attributedTo" => "https://example.com/users/alice",
+    "content" => "Hello from multi-type pipeline"
+  }
+
   @create %{
     "id" => "https://example.com/activities/create/1",
     "type" => "Create",
     "actor" => "https://example.com/users/alice",
     "object" => @note
+  }
+
+  @multi_type_create %{
+    "id" => "https://example.com/activities/create/multi-type",
+    "type" => "Create",
+    "actor" => "https://example.com/users/alice",
+    "object" => @multi_type_note
   }
 
   @like %{
@@ -64,6 +78,13 @@ defmodule Egregoros.PipelineTest do
     assert object.actor == @note["attributedTo"]
     assert object.data["content"] == "Hello from pipeline"
     assert object.local == true
+  end
+
+  test "ingest stores a multi-type Note while preserving canonical type array" do
+    assert {:ok, %Object{} = object} = Pipeline.ingest(@multi_type_note, local: false)
+    assert object.type == "Note"
+    assert object.data["type"] == ["Note", "OpenBadgeCredential"]
+    assert object.internal["auxiliary_types"] == ["OpenBadgeCredential"]
   end
 
   test "ingest stores Like" do
@@ -138,6 +159,16 @@ defmodule Egregoros.PipelineTest do
     assert object.object == @note["id"]
 
     assert Egregoros.Objects.get_by_ap_id(@note["id"])
+  end
+
+  test "ingest stores Create with a multi-type embedded object" do
+    assert {:ok, %Object{} = _object} = Pipeline.ingest(@multi_type_create, local: false)
+
+    embedded = Egregoros.Objects.get_by_ap_id(@multi_type_note["id"])
+    assert %Object{} = embedded
+    assert embedded.type == "Note"
+    assert embedded.data["type"] == ["Note", "OpenBadgeCredential"]
+    assert embedded.internal["auxiliary_types"] == ["OpenBadgeCredential"]
   end
 
   test "ingest stores embedded objects for announces even when the object isn't targeted to the inbox user" do

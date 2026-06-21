@@ -308,6 +308,7 @@ defmodule Egregoros.Federation.Actor do
           |> maybe_put_emojis(actor, id)
           |> maybe_put_moved_to(actor, id)
           |> maybe_put_also_known_as(actor, id)
+          |> maybe_put_assertion_method(actor)
 
         {:ok, attrs}
       end
@@ -455,6 +456,17 @@ defmodule Egregoros.Federation.Actor do
   end
 
   defp maybe_put_also_known_as(attrs, _actor, _actor_id), do: attrs
+
+  defp maybe_put_assertion_method(attrs, actor) when is_map(attrs) and is_map(actor) do
+    assertion_method = Map.get(actor, "assertionMethod") || Map.get(actor, "verificationMethod")
+
+    case assertion_method do
+      nil -> attrs
+      value -> Map.put(attrs, :assertion_method, value)
+    end
+  end
+
+  defp maybe_put_assertion_method(attrs, _actor), do: attrs
 
   defp locked?(actor) when is_map(actor) do
     case Map.get(actor, "manuallyApprovesFollowers") do

@@ -9,6 +9,7 @@ defmodule EgregorosWeb.StatusCard do
   use EgregorosWeb, :html
 
   alias EgregorosWeb.Components.TimelineItems.AnnounceCard
+  alias EgregorosWeb.Components.TimelineItems.BadgeCard
   alias EgregorosWeb.Components.TimelineItems.NoteCard
   alias EgregorosWeb.Components.TimelineItems.PollCard
 
@@ -27,6 +28,7 @@ defmodule EgregorosWeb.StatusCard do
   - `Note` - Standard microblog post (rendered by NoteCard)
   - `Announce` - Repost/boost (rendered by AnnounceCard, which wraps NoteCard)
   - `Question` - Poll (rendered by PollCard)
+  - `VerifiableCredential` - Badge (rendered by BadgeCard)
 
   ## Examples
 
@@ -59,6 +61,14 @@ defmodule EgregorosWeb.StatusCard do
         />
       <% "Question" -> %>
         <PollCard.poll_card
+          id={@id}
+          entry={@entry}
+          current_user={@current_user}
+          back_timeline={@back_timeline}
+          reply_mode={@reply_mode}
+        />
+      <% "VerifiableCredential" -> %>
+        <BadgeCard.badge_card
           id={@id}
           entry={@entry}
           current_user={@current_user}

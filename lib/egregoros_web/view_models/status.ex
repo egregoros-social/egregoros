@@ -5,7 +5,11 @@ defmodule EgregorosWeb.ViewModels.Status do
   alias Egregoros.Objects.Polls
   alias Egregoros.Relationships
   alias Egregoros.User
+  alias Egregoros.Activities.Helpers, as: ActivityHelpers
+  alias Egregoros.VerifiableCredentials.DidWeb
+  alias EgregorosWeb.ProfilePaths
   alias EgregorosWeb.SafeMediaURL
+  alias EgregorosWeb.URL
   alias EgregorosWeb.ViewModels.Actor
 
   @reaction_emojis ["🔥", "👍", "❤️"]
@@ -16,6 +20,10 @@ defmodule EgregorosWeb.ViewModels.Status do
   end
 
   def decorate(%{type: "Question"} = object, current_user) do
+    decorate_one(object, current_user)
+  end
+
+  def decorate(%{type: "VerifiableCredential"} = object, current_user) do
     decorate_one(object, current_user)
   end
 
@@ -212,9 +220,13 @@ defmodule EgregorosWeb.ViewModels.Status do
 
     content_objects =
       objects
-      |> Enum.filter(&match?(%{type: type} when type in ["Note", "Question"], &1))
+      |> Enum.filter(
+        &match?(%{type: type} when type in ["Note", "Question", "VerifiableCredential"], &1)
+      )
       |> Kernel.++(Map.values(reblogs_by_ap_id))
-      |> Enum.filter(&match?(%{type: type} when type in ["Note", "Question"], &1))
+      |> Enum.filter(
+        &match?(%{type: type} when type in ["Note", "Question", "VerifiableCredential"], &1)
+      )
       |> Enum.uniq_by(& &1.ap_id)
 
     object_ap_ids =
@@ -306,6 +318,17 @@ defmodule EgregorosWeb.ViewModels.Status do
           MapSet.new()
       end
 
+    badge_recipient_ap_ids =
+      content_objects
+      |> Enum.filter(&match?(%{type: "VerifiableCredential"}, &1))
+      |> Enum.map(&credential_recipient_ap_id/1)
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    badge_recipient_cards = Actor.cards_by_ap_id(badge_recipient_ap_ids)
+
     %{
       reblogs_by_ap_id: reblogs_by_ap_id,
       actor_cards: actor_cards,
@@ -313,7 +336,8 @@ defmodule EgregorosWeb.ViewModels.Status do
       me_relationships: me_relationships,
       emoji_counts: emoji_counts,
       emoji_me_relationships: emoji_me_relationships,
-      followed_actors: followed_actors
+      followed_actors: followed_actors,
+      badge_recipient_cards: badge_recipient_cards
     }
   end
 
@@ -326,7 +350,7 @@ defmodule EgregorosWeb.ViewModels.Status do
     object_ap_id = String.trim(object_ap_id)
 
     with true <- object_ap_id != "",
-         %{type: type} = object when type in ["Note", "Question"] <-
+         %{type: type} = object when type in ["Note", "Question", "VerifiableCredential"] <-
            Map.get(ctx.reblogs_by_ap_id, object_ap_id),
          true <- visible_to_cached?(object, current_user, ctx.followed_actors) do
       decorate_content_with_context(object, current_user, ctx,
@@ -346,12 +370,16 @@ defmodule EgregorosWeb.ViewModels.Status do
     decorate_content_with_context(object, current_user, ctx, feed_id: object.id)
   end
 
+  defp decorate_with_context(%{type: "VerifiableCredential"} = object, current_user, ctx) do
+    decorate_content_with_context(object, current_user, ctx, feed_id: object.id)
+  end
+
   defp decorate_with_context(other, current_user, _ctx) do
     decorate(other, current_user)
   end
 
   defp decorate_content_with_context(%{type: type} = object, current_user, ctx, opts)
-       when type in ["Note", "Question"] do
+       when type in ["Note", "Question", "VerifiableCredential"] do
     feed_id = Keyword.get(opts, :feed_id, object.id)
     reposted_by = Keyword.get(opts, :reposted_by)
 
@@ -385,10 +413,15 @@ defmodule EgregorosWeb.ViewModels.Status do
     }
 
     decorated =
-      if type == "Question" do
-        Map.put(decorated, :poll, poll_view_model(object, current_user))
-      else
-        decorated
+      cond do
+        type == "Question" ->
+          Map.put(decorated, :poll, poll_view_model(object, current_user))
+
+        type == "VerifiableCredential" ->
+          Map.put(decorated, :badge, badge_view_model(object, ctx))
+
+        true ->
+          decorated
       end
 
     case reposted_by do
@@ -398,6 +431,59 @@ defmodule EgregorosWeb.ViewModels.Status do
   end
 
   defp decorate_content_with_context(_object, _current_user, _ctx, _opts), do: nil
+
+  defp badge_view_model(%{data: %{} = data} = object, ctx) do
+    subject = credential_subject(data)
+    achievement = credential_achievement(subject)
+    title = achievement_field(achievement, "name")
+    description = achievement_field(achievement, "description")
+    image = achievement_image(achievement)
+    issuer = Map.get(data, "issuer")
+    issuer_ap_id = issuer_ap_id(issuer)
+    image_url = absolute_image_url(image, issuer_ap_id)
+    valid_from = ActivityHelpers.parse_datetime(Map.get(data, "validFrom"))
+    valid_until = ActivityHelpers.parse_datetime(Map.get(data, "validUntil"))
+    recipient_ap_id = credential_subject_id(subject)
+    recipient = badge_recipient_card(recipient_ap_id, ctx)
+
+    %{
+      title: title,
+      description: description,
+      image_url: image_url,
+      valid_from: valid_from,
+      valid_until: valid_until,
+      valid_range: validity_range(valid_from, valid_until),
+      validity: validity_label(valid_from, valid_until),
+      recipient: recipient,
+      badge_path: badge_path(object, recipient),
+      issuer_ap_id: issuer_ap_id
+    }
+  end
+
+  defp badge_view_model(_object, _ctx), do: %{}
+
+  defp issuer_ap_id(%{"id" => id}), do: issuer_ap_id(id)
+  defp issuer_ap_id(%{id: id}), do: issuer_ap_id(id)
+
+  defp issuer_ap_id(issuer) when is_binary(issuer) do
+    issuer = String.trim(issuer)
+
+    cond do
+      issuer == "" ->
+        nil
+
+      DidWeb.did_web?(issuer) ->
+        case DidWeb.did_base_url(issuer) do
+          base when is_binary(base) and base != "" -> base
+          _ -> issuer
+        end
+
+      true ->
+        issuer
+    end
+  end
+
+  defp issuer_ap_id(_issuer), do: nil
 
   defp poll_view_model(%{data: %{} = _data, actor: actor_ap_id} = object, current_user) do
     options = object |> Polls.options() |> Enum.map(&poll_option_view_model/1)
@@ -435,6 +521,140 @@ defmodule EgregorosWeb.ViewModels.Status do
   end
 
   defp poll_option_view_model(_option), do: %{name: "", votes: 0}
+
+  defp credential_subject(%{} = credential) do
+    credential
+    |> Map.get("credentialSubject")
+    |> List.wrap()
+    |> Enum.find(&is_map/1)
+  end
+
+  defp credential_subject(_credential), do: nil
+
+  defp credential_subject_id(%{} = subject) do
+    Map.get(subject, "id") || Map.get(subject, :id)
+  end
+
+  defp credential_subject_id(_subject), do: nil
+
+  defp credential_recipient_ap_id(%{data: %{} = data}) do
+    credential_subject_id(credential_subject(data))
+  end
+
+  defp credential_recipient_ap_id(%{} = data) do
+    credential_subject_id(credential_subject(data))
+  end
+
+  defp credential_recipient_ap_id(_credential), do: nil
+
+  defp credential_achievement(%{} = subject) do
+    Map.get(subject, "achievement") || Map.get(subject, :achievement)
+  end
+
+  defp credential_achievement(_subject), do: nil
+
+  defp achievement_field(%{} = achievement, "name") do
+    Map.get(achievement, "name") || Map.get(achievement, :name)
+  end
+
+  defp achievement_field(%{} = achievement, "description") do
+    Map.get(achievement, "description") || Map.get(achievement, :description)
+  end
+
+  defp achievement_field(_achievement, _field), do: nil
+
+  defp achievement_image(%{} = achievement) do
+    Map.get(achievement, "image") || Map.get(achievement, :image)
+  end
+
+  defp achievement_image(_achievement), do: nil
+
+  defp absolute_image_url(nil, _base), do: nil
+
+  defp absolute_image_url(url, base) when is_binary(url) do
+    url
+    |> URL.absolute(base)
+    |> SafeMediaURL.safe()
+  end
+
+  defp absolute_image_url(%{"id" => id}, base) when is_binary(id),
+    do: absolute_image_url(id, base)
+
+  defp absolute_image_url(%{"url" => url}, base) when is_binary(url),
+    do: absolute_image_url(url, base)
+
+  defp absolute_image_url(%{id: id}, base) when is_binary(id), do: absolute_image_url(id, base)
+
+  defp absolute_image_url(%{url: url}, base) when is_binary(url),
+    do: absolute_image_url(url, base)
+
+  defp absolute_image_url(_image, _base), do: nil
+
+  defp validity_label(valid_from, valid_until) do
+    now = DateTime.utc_now()
+
+    cond do
+      match?(%DateTime{}, valid_from) and DateTime.compare(now, valid_from) == :lt ->
+        "Not yet valid"
+
+      match?(%DateTime{}, valid_until) and DateTime.compare(now, valid_until) == :gt ->
+        "Expired"
+
+      true ->
+        "Valid"
+    end
+  end
+
+  defp validity_range(valid_from, valid_until) do
+    cond do
+      match?(%DateTime{}, valid_from) and match?(%DateTime{}, valid_until) ->
+        "#{format_date(valid_from)} - #{format_date(valid_until)}"
+
+      match?(%DateTime{}, valid_until) ->
+        "Valid until #{format_date(valid_until)}"
+
+      match?(%DateTime{}, valid_from) ->
+        "Valid from #{format_date(valid_from)}"
+
+      true ->
+        nil
+    end
+  end
+
+  defp format_date(%DateTime{} = dt) do
+    Calendar.strftime(dt, "%b %d, %Y")
+  end
+
+  defp format_date(_dt), do: nil
+
+  defp badge_recipient_card(recipient_ap_id, %{badge_recipient_cards: cards})
+       when is_binary(recipient_ap_id) and is_map(cards) do
+    Map.get(cards, recipient_ap_id) || Actor.card(recipient_ap_id)
+  end
+
+  defp badge_recipient_card(recipient_ap_id, _ctx) when is_binary(recipient_ap_id) do
+    Actor.card(recipient_ap_id)
+  end
+
+  defp badge_recipient_card(_recipient_ap_id, _ctx), do: nil
+
+  defp badge_path(%{id: id}, recipient) when is_map(recipient) and is_binary(id) do
+    badge_id =
+      id
+      |> to_string()
+      |> String.trim()
+
+    if badge_id == "" do
+      nil
+    else
+      case ProfilePaths.profile_path(recipient) do
+        path when is_binary(path) and path != "" -> path <> "/badges/" <> badge_id
+        _ -> nil
+      end
+    end
+  end
+
+  defp badge_path(_object, _recipient), do: nil
 
   defp own_poll?(_actor_ap_id, nil), do: false
 

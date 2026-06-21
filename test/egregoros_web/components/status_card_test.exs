@@ -116,6 +116,89 @@ defmodule EgregorosWeb.StatusCardTest do
              ~r/id="reaction-picker-post-1".*shadow-\[4px_4px_0_var\(--border-default\)\]/s
   end
 
+  test "renders badge cards for verifiable credentials with interactions" do
+    html =
+      render_component(&StatusCard.status_card/1, %{
+        id: "post-badge-1",
+        current_user: %{id: "1"},
+        entry: %{
+          object: %{
+            id: "badge-1",
+            type: "VerifiableCredential",
+            inserted_at: ~U[2025-01-01 00:00:00Z],
+            local: true,
+            data: %{"id" => "badge-1", "type" => "VerifiableCredential"}
+          },
+          actor: %{
+            display_name: "Issuer",
+            handle: "@issuer",
+            avatar_url: nil
+          },
+          badge: %{
+            title: "Donator",
+            description: "Awarded for supporting.",
+            image_url: "https://cdn.example/badges/donator.png",
+            validity: "Valid",
+            valid_range: "Jan 1, 2025 - Jan 1, 2026",
+            recipient: %{display_name: "Recipient", handle: "@recipient"},
+            badge_path: "/@recipient/badges/badge-1"
+          },
+          liked?: false,
+          likes_count: 0,
+          reposted?: false,
+          reposts_count: 0,
+          reactions: %{}
+        }
+      })
+
+    assert html =~ ~s(data-item="badge-card")
+    assert html =~ ~s(data-role="like")
+    assert html =~ ~s(data-role="repost")
+    assert html =~ ~s(data-role="reaction")
+    assert html =~ "Donator"
+  end
+
+  test "badge cards show issuer ap id and do not link the actor" do
+    html =
+      render_component(&StatusCard.status_card/1, %{
+        id: "post-badge-issuer-1",
+        current_user: %{id: "1"},
+        entry: %{
+          object: %{
+            id: "badge-issuer-1",
+            type: "VerifiableCredential",
+            inserted_at: ~U[2025-01-01 00:00:00Z],
+            local: true,
+            data: %{"id" => "badge-issuer-1", "type" => "VerifiableCredential"}
+          },
+          actor: %{
+            display_name: "Issuer",
+            handle: "@issuer",
+            avatar_url: nil
+          },
+          badge: %{
+            title: "Donator",
+            description: "Awarded for supporting.",
+            image_url: "https://cdn.example/badges/donator.png",
+            validity: "Valid",
+            valid_range: "Jan 1, 2025 - Jan 1, 2026",
+            issuer_ap_id: "https://example.com",
+            recipient: %{display_name: "Recipient", handle: "@recipient"},
+            badge_path: "/@recipient/badges/badge-issuer-1"
+          },
+          liked?: false,
+          likes_count: 0,
+          reposted?: false,
+          reposts_count: 0,
+          reactions: %{}
+        }
+      })
+
+    assert html =~ ~s(data-item="badge-card")
+    assert html =~ ~r/data-role="post-actor-handle"[^>]*>\s*https:\/\/example\.com\s*</
+    refute html =~ ~s(data-role="actor-link")
+  end
+
   test "renders a reply link when permalinks are available" do
     html =
       render_component(&StatusCard.status_card/1, %{

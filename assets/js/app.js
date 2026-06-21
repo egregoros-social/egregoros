@@ -1509,6 +1509,33 @@ const updateSrLabel = (buttonEl, text) => {
   label.textContent = text
 }
 
+const initBadgeIssueForm = () => {
+  const form = document.getElementById("badge-issue-form")
+  if (!form || form.dataset.initialized === "true") return
+
+  const badgeSelect = form.querySelector("#badge-issue-badge-type")
+  const recipientInput = form.querySelector("#badge-issue-recipient")
+  const submitButton = form.querySelector("#badge-issue-submit")
+  if (!(badgeSelect instanceof HTMLSelectElement)) return
+  if (!(recipientInput instanceof HTMLInputElement)) return
+  if (!(submitButton instanceof HTMLButtonElement)) return
+
+  form.dataset.initialized = "true"
+
+  const updateSubmitState = () => {
+    const hasBadge = badgeSelect.value.trim().length > 0
+    const hasRecipient = recipientInput.value.trim().length > 0
+    const enabled = hasBadge && hasRecipient
+
+    submitButton.disabled = !enabled
+    submitButton.setAttribute("aria-disabled", enabled ? "false" : "true")
+  }
+
+  updateSubmitState()
+  badgeSelect.addEventListener("change", updateSubmitState)
+  recipientInput.addEventListener("input", updateSubmitState)
+}
+
 window.addEventListener("egregoros:optimistic-toggle", e => {
   const kind = e?.detail?.kind
   const target = e?.target
@@ -1562,6 +1589,9 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()
+
+document.addEventListener("DOMContentLoaded", initBadgeIssueForm)
+window.addEventListener("phx:page-loading-stop", initBadgeIssueForm)
 
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()

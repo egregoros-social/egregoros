@@ -165,6 +165,7 @@ defmodule Egregoros.Activities.Follow do
       published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   defp apply_follow(activity, %__MODULE__{} = follow) do

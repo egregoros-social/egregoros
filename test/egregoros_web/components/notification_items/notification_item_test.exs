@@ -72,4 +72,23 @@ defmodule EgregorosWeb.Components.NotificationItems.NotificationItemTest do
     assert html =~ ~s(data-type="Mystery")
     assert html =~ ~s(data-role="notification-message")
   end
+
+  test "dispatches Offer entries to the OfferNotification component" do
+    entry = %{
+      type: "Offer",
+      actor: %{display_name: "Issuer", handle: "@issuer", avatar_url: nil},
+      message: "Issuer offered you a credential",
+      message_emojis: [],
+      notification: %{
+        ap_id: "https://example.com/activities/offer/1",
+        inserted_at: ~U[2025-01-01 00:00:00Z]
+      }
+    }
+
+    html = render_component(&NotificationItem.notification_item/1, %{id: "n-5", entry: entry})
+
+    assert html =~ ~s(data-type="Offer")
+    assert html =~ ~s(data-role="offer-accept")
+    assert html =~ ~s(data-role="offer-reject")
+  end
 end

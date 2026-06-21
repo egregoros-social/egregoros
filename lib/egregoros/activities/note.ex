@@ -115,6 +115,7 @@ defmodule Egregoros.Activities.Note do
       published: Helpers.parse_datetime(note["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   def ingest(note, opts) do

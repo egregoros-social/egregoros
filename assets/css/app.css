@@ -233,6 +233,10 @@ article[data-role="status-card"]:target {
   display: none;
 }
 
+[data-role="notifications-list"][data-filter="badges"] [data-role="notification"]:not([data-type="Offer"]) {
+  display: none;
+}
+
 /* ═══════════════════════════════════════════════════════════
    NOTIFICATIONS VISUAL HIERARCHY
    High: Mentions/Replies - elevated cards with shadow

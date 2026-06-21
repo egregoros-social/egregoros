@@ -1,13 +1,19 @@
 defmodule Egregoros.Pipeline do
   alias Egregoros.ActivityRegistry
+  alias Egregoros.ActivityPub.TypeNormalizer
   alias Egregoros.Domain
   alias Egregoros.Federation.ActorDiscovery
   alias EgregorosWeb.Endpoint
 
   def ingest(activity, opts \\ []) when is_map(activity) do
-    with :ok <- validate_namespace(activity, opts),
-         {:ok, module} <- ActivityRegistry.fetch(activity) do
-      ingest_with(module, activity, opts)
+    # Normalize multi-type objects before routing so ActivityRegistry and validations
+    # can operate on a single primary type (the canonical multi-type array is restored
+    # later when we persist data).
+    with {:ok, normalized_activity, type_metadata} <- TypeNormalizer.normalize_incoming(activity),
+         opts <- TypeNormalizer.put_type_metadata(opts, type_metadata),
+         :ok <- validate_namespace(normalized_activity, opts),
+         {:ok, module} <- ActivityRegistry.fetch(normalized_activity) do
+      ingest_with(module, normalized_activity, opts)
     end
   end
 

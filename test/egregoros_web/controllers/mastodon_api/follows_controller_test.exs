@@ -6,6 +6,44 @@ defmodule EgregorosWeb.MastodonAPI.FollowsControllerTest do
   alias Egregoros.Users
   alias Egregoros.Workers.DeliverActivity
 
+  test "POST /api/v1/follows returns 422 for empty handles", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+
+    Egregoros.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    conn = post(conn, "/api/v1/follows", %{"uri" => "  "})
+    assert response(conn, 422) =~ "Unprocessable Entity"
+  end
+
+  test "POST /api/v1/follows returns 422 when uri is missing", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+
+    Egregoros.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    conn = post(conn, "/api/v1/follows", %{})
+    assert response(conn, 422) =~ "Unprocessable Entity"
+  end
+
+  test "POST /api/v1/follows returns 422 when remote lookup fails", %{conn: conn} do
+    {:ok, user} = Users.create_local_user("alice")
+
+    Egregoros.Auth.Mock
+    |> expect(:current_user, fn _conn -> {:ok, user} end)
+
+    Egregoros.HTTP.Mock
+    |> expect(:get, fn url, _headers ->
+      assert url ==
+               "https://remote.example/.well-known/webfinger?resource=acct:bob@remote.example"
+
+      {:ok, %{status: 404, body: "", headers: []}}
+    end)
+
+    conn = post(conn, "/api/v1/follows", %{"uri" => "bob@remote.example"})
+    assert response(conn, 422) =~ "Unprocessable Entity"
+  end
+
   test "POST /api/v1/follows follows a remote account by handle", %{conn: conn} do
     {:ok, user} = Users.create_local_user("alice")
 

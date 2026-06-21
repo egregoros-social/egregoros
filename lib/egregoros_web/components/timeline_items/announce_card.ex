@@ -8,6 +8,7 @@ defmodule EgregorosWeb.Components.TimelineItems.AnnounceCard do
   """
   use EgregorosWeb, :html
 
+  alias EgregorosWeb.Components.TimelineItems.BadgeCard
   alias EgregorosWeb.Components.TimelineItems.NoteCard
   alias EgregorosWeb.Components.TimelineItems.PollCard
 
@@ -24,7 +25,7 @@ defmodule EgregorosWeb.Components.TimelineItems.AnnounceCard do
   the Announce to the underlying object and adds a :reposted_by field
   with the actor who performed the repost.
 
-  Delegates to PollCard for Questions, NoteCard for everything else.
+  Delegates to PollCard for Questions, BadgeCard for badges, NoteCard for everything else.
   """
   def announce_card(assigns) do
     # Check if the underlying object is a Question (poll)
@@ -35,27 +36,47 @@ defmodule EgregorosWeb.Components.TimelineItems.AnnounceCard do
         _ -> false
       end
 
-    assigns = assign(assigns, :is_poll?, is_poll?)
+    is_badge? =
+      case assigns.entry do
+        %{object: %{type: "VerifiableCredential"}} -> true
+        %{badge: %{} = _badge} -> true
+        _ -> false
+      end
+
+    assigns =
+      assigns
+      |> assign(:is_poll?, is_poll?)
+      |> assign(:is_badge?, is_badge?)
 
     ~H"""
-    <%= if @is_poll? do %>
-      <PollCard.poll_card
-        id={@id}
-        entry={@entry}
-        current_user={@current_user}
-        back_timeline={@back_timeline}
-        reply_mode={@reply_mode}
-        show_reposted_by={true}
-      />
-    <% else %>
-      <NoteCard.note_card
-        id={@id}
-        entry={@entry}
-        current_user={@current_user}
-        back_timeline={@back_timeline}
-        reply_mode={@reply_mode}
-        show_reposted_by={true}
-      />
+    <%= cond do %>
+      <% @is_poll? -> %>
+        <PollCard.poll_card
+          id={@id}
+          entry={@entry}
+          current_user={@current_user}
+          back_timeline={@back_timeline}
+          reply_mode={@reply_mode}
+          show_reposted_by={true}
+        />
+      <% @is_badge? -> %>
+        <BadgeCard.badge_card
+          id={@id}
+          entry={@entry}
+          current_user={@current_user}
+          back_timeline={@back_timeline}
+          reply_mode={@reply_mode}
+          show_reposted_by={true}
+        />
+      <% true -> %>
+        <NoteCard.note_card
+          id={@id}
+          entry={@entry}
+          current_user={@current_user}
+          back_timeline={@back_timeline}
+          reply_mode={@reply_mode}
+          show_reposted_by={true}
+        />
     <% end %>
     """
   end

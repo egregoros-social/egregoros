@@ -13,6 +13,17 @@ https://egregoros.test {
   reverse_proxy egregoros_web:4000
 }
 
+http://egregoros2.test {
+  reverse_proxy egregoros2_web:4000 {
+    header_up X-Forwarded-Proto https
+  }
+}
+
+https://egregoros2.test {
+  tls internal
+  reverse_proxy egregoros2_web:4000
+}
+
 http://pleroma.test {
   reverse_proxy pleroma_web:4000
 }

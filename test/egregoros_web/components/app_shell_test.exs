@@ -24,6 +24,7 @@ defmodule EgregorosWeb.AppShellTest do
     assert html =~ ~s(data-role="nav-timeline")
     assert html =~ ~s(data-role="nav-search")
     assert html =~ ~s(data-role="nav-notifications")
+    assert html =~ ~s(data-role="nav-badges")
     assert html =~ ~s(data-role="nav-messages")
     assert html =~ ~s(data-role="nav-profile")
     assert html =~ ~s(data-role="nav-notifications-count")

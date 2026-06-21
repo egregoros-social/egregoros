@@ -2,6 +2,7 @@ defmodule EgregorosWeb.Plugs.ServeInstanceActor do
   import Plug.Conn
 
   alias Egregoros.Federation.InstanceActor
+  alias Egregoros.VerifiableCredentials.DidWeb
 
   def init(opts), do: opts
 
@@ -33,11 +34,13 @@ defmodule EgregorosWeb.Plugs.ServeInstanceActor do
 
   defp actor_json(actor) do
     base_url = InstanceActor.ap_id()
+    did = DidWeb.instance_did()
 
     %{
       "@context" => [
         "https://www.w3.org/ns/activitystreams",
-        "https://w3id.org/security/v1"
+        "https://w3id.org/security/v2",
+        "https://w3id.org/security/data-integrity/v2"
       ],
       "id" => base_url,
       "type" => "Application",
@@ -54,5 +57,20 @@ defmodule EgregorosWeb.Plugs.ServeInstanceActor do
         "publicKeyPem" => actor.public_key
       }
     }
+    |> maybe_put_also_known_as(did)
+    |> maybe_put_assertion_method(actor)
   end
+
+  defp maybe_put_assertion_method(actor, %{assertion_method: assertion_method})
+       when is_list(assertion_method) or is_map(assertion_method) do
+    Map.put(actor, "assertionMethod", assertion_method)
+  end
+
+  defp maybe_put_assertion_method(actor, _user), do: actor
+
+  defp maybe_put_also_known_as(actor, did) when is_binary(did) and did != "" do
+    Map.put(actor, "alsoKnownAs", [did])
+  end
+
+  defp maybe_put_also_known_as(actor, _did), do: actor
 end

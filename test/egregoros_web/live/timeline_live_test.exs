@@ -87,6 +87,13 @@ defmodule EgregorosWeb.TimelineLiveTest do
 
     assert length(poll_options) == 4
 
+    _html = render_click(view, "poll_remove_option", %{"index" => "nope"})
+
+    socket = :sys.get_state(view.pid).socket
+    poll_options = socket.assigns.form.params |> get_in(["poll", "options"]) |> List.wrap()
+
+    assert length(poll_options) == 4
+
     _html = render_click(view, "poll_remove_option", %{"index" => "0"})
     _html = render_click(view, "poll_remove_option", %{"index" => "0"})
     _html = render_click(view, "poll_remove_option", %{"index" => "0"})
@@ -95,6 +102,46 @@ defmodule EgregorosWeb.TimelineLiveTest do
     poll_options = socket.assigns.form.params |> get_in(["poll", "options"]) |> List.wrap()
 
     assert length(poll_options) == 2
+  end
+
+  test "posting a poll with blank options shows a validation error", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    _html = render_click(view, "toggle_compose_poll", %{})
+
+    view
+    |> form("#timeline-form",
+      post: %{
+        content: "Pick one",
+        poll: %{"options" => ["", "Blue"], "multiple" => "false", "expires_in" => 3600}
+      }
+    )
+    |> render_submit()
+
+    assert Objects.list_public_statuses(limit: 1) == []
+    assert has_element?(view, "[data-role='compose-error']", "Poll options cannot be blank.")
+  end
+
+  test "handle_info post_deleted removes matching pending post", %{conn: conn, user: user} do
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    _html = render_hook(view, "timeline_at_top", %{"at_top" => "false"})
+
+    assert {:ok, note} = Pipeline.ingest(Note.build(user, "Gonna delete"), local: true)
+
+    send(view.pid, {:post_created, note})
+    _ = :sys.get_state(view.pid)
+
+    socket = :sys.get_state(view.pid).socket
+    assert socket.assigns.pending_posts == [note]
+
+    send(view.pid, {:post_deleted, %{id: note.id}})
+    _ = :sys.get_state(view.pid)
+
+    socket = :sys.get_state(view.pid).socket
+    assert socket.assigns.pending_posts == []
   end
 
   test "toggling the poll panel off clears poll params", %{conn: conn, user: user} do
@@ -140,6 +187,151 @@ defmodule EgregorosWeb.TimelineLiveTest do
     |> render_submit()
 
     assert has_element?(view, "[data-role='compose-error']", "Invalid poll.")
+  end
+
+  test "vote_on_poll requires login and a selected option", %{conn: conn, user: user} do
+    {:ok, create} =
+      Publish.post_poll(user, "Poll", %{
+        "options" => ["A", "B"],
+        "expires_in" => 300
+      })
+
+    poll = Objects.get_by_ap_id(create.object)
+
+    {:ok, guest_view, _html} = live(conn, "/")
+
+    _html = render_hook(guest_view, "vote_on_poll", %{"poll-id" => poll.id, "choices" => ["0"]})
+    assert render(guest_view) =~ "Register to vote on polls."
+
+    {:ok, bob} = Users.create_local_user("poll_vote_requires_choice")
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: bob.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => poll.id, "feed_id" => poll.id})
+    assert render(view) =~ "Please select at least one option."
+  end
+
+  test "vote_on_poll surfaces poll vote errors and success messages", %{conn: conn, user: user} do
+    {:ok, bob} = Users.create_local_user("poll_vote_errors_bob")
+
+    {:ok, create} =
+      Publish.post_poll(user, "Poll", %{
+        "options" => ["A", "B"],
+        "expires_in" => 300
+      })
+
+    poll = Objects.get_by_ap_id(create.object)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: bob.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    _html =
+      render_hook(view, "vote_on_poll", %{
+        "poll-id" => poll.id,
+        "feed_id" => poll.id,
+        "choices" => ["0", "1"]
+      })
+
+    assert render(view) =~ "This poll only allows a single choice."
+
+    _html =
+      render_hook(view, "vote_on_poll", %{
+        "poll-id" => poll.id,
+        "feed_id" => poll.id,
+        "choices" => ["99"]
+      })
+
+    assert render(view) =~ "Invalid poll option selected."
+
+    _html =
+      render_hook(view, "vote_on_poll", %{
+        "poll-id" => poll.id,
+        "feed_id" => poll.id,
+        "choices" => "0"
+      })
+
+    assert render(view) =~ "Vote submitted!"
+
+    _html =
+      render_hook(view, "vote_on_poll", %{
+        "poll-id" => poll.id,
+        "feed_id" => poll.id,
+        "choices" => ["1"]
+      })
+
+    assert render(view) =~ "You have already voted on this poll."
+
+    {:ok, create} =
+      Publish.post_poll(user, "Expired poll", %{
+        "options" => ["X", "Y"],
+        "expires_in" => 300
+      })
+
+    poll = Objects.get_by_ap_id(create.object)
+    expired_at = DateTime.add(DateTime.utc_now(), -3600, :second) |> DateTime.to_iso8601()
+
+    {:ok, expired_poll} =
+      Objects.update_object(poll, %{data: Map.put(poll.data, "closed", expired_at)})
+
+    _html =
+      render_hook(view, "vote_on_poll", %{
+        "poll-id" => expired_poll.id,
+        "feed_id" => expired_poll.id,
+        "choices" => ["0"]
+      })
+
+    assert render(view) =~ "This poll has ended."
+
+    conn = Plug.Test.init_test_session(build_conn(), %{user_id: user.id})
+    {:ok, owner_view, _html} = live(conn, "/")
+
+    _html =
+      render_hook(owner_view, "vote_on_poll", %{
+        "poll-id" => expired_poll.id,
+        "feed_id" => expired_poll.id,
+        "choices" => ["0"]
+      })
+
+    assert render(owner_view) =~ "You cannot vote on your own poll."
+  end
+
+  test "vote_on_poll handles malformed poll ids without crashing", %{conn: conn} do
+    {:ok, bob} = Users.create_local_user("poll_vote_malformed_id_bob")
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: bob.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    bad_id = "AAAAAAAAAAAAAAAAA-"
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => bad_id, "choices" => ["0"]})
+    assert render(view) =~ "Could not submit vote."
+  end
+
+  test "vote_on_poll without choices handles unauth and invalid ids", %{conn: conn, user: user} do
+    {:ok, guest_view, _html} = live(conn, "/")
+
+    _html = render_hook(guest_view, "vote_on_poll", %{"poll-id" => "anything"})
+    assert render(guest_view) =~ "Register to vote on polls."
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => "not-a-flake"})
+    assert render(view) =~ "Could not submit vote."
+  end
+
+  test "delete_post handles unauth and missing posts", %{conn: conn, user: user} do
+    {:ok, guest_view, _html} = live(conn, "/")
+
+    _html = render_click(guest_view, "delete_post", %{"id" => FlakeId.get()})
+    assert render(guest_view) =~ "Register to delete posts."
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    _html = render_click(view, "delete_post", %{"id" => FlakeId.get()})
+    assert render(view) =~ "Could not delete post."
   end
 
   test "create_post is rejected when signed out", %{conn: conn} do
@@ -1073,6 +1265,73 @@ defmodule EgregorosWeb.TimelineLiveTest do
     assert reply.data["inReplyTo"] == parent.ap_id
   end
 
+  test "replying shows errors for empty and too-long replies", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Reply target"), local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    view
+    |> form("#reply-modal-form", reply: %{in_reply_to: parent.ap_id, content: ""})
+    |> render_submit()
+
+    html = render(view)
+    assert html =~ "Reply can"
+    assert html =~ "be empty."
+    assert Objects.list_replies_to(parent.ap_id, limit: 1) == []
+
+    long_content = String.duplicate("a", 5001)
+
+    view
+    |> form("#reply-modal-form", reply: %{in_reply_to: parent.ap_id, content: long_content})
+    |> render_submit()
+
+    assert render(view) =~ "Reply is too long."
+    assert Objects.list_replies_to(parent.ap_id, limit: 1) == []
+  end
+
+  test "create_reply respects ui_cw_open param for error state", %{conn: conn, user: user} do
+    assert {:ok, parent} = Pipeline.ingest(Note.build(user, "Reply target"), local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/")
+
+    _html =
+      render_click(view, "create_reply", %{
+        "reply" => %{
+          "in_reply_to" => parent.ap_id,
+          "content" => "",
+          "ui_cw_open" => "true"
+        }
+      })
+
+    assert :sys.get_state(view.pid).socket.assigns.reply_cw_open?
+    assert render(view) =~ "Reply can"
+    assert render(view) =~ "be empty."
+  end
+
+  test "timeline marks end when there are no more posts", %{conn: conn, user: user} do
+    for idx <- 1..10 do
+      assert {:ok, _} = Pipeline.ingest(Note.build(user, "Post #{idx}"), local: true)
+    end
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/?timeline=public")
+
+    assert has_element?(view, "[data-role='load-more']")
+
+    _html = render_click(view, "load_more", %{})
+
+    refute has_element?(view, "[data-role='load-more']")
+    assert :sys.get_state(view.pid).socket.assigns.posts_end?
+  end
+
+  test "for_you falls back to public when signed out", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/?timeline=for_you")
+
+    assert :sys.get_state(view.pid).socket.assigns.timeline == :public
+  end
+
   test "timeline initial fetch renders up to 10 posts", %{conn: conn, user: user} do
     for idx <- 1..25 do
       assert {:ok, _} = Pipeline.ingest(Note.build(user, "Post #{idx}"), local: true)
@@ -1177,6 +1436,32 @@ defmodule EgregorosWeb.TimelineLiveTest do
 
     assert Objects.get_by_type_actor_object("Announce", user.ap_id, note.ap_id)
     assert has_element?(view, "#post-#{note.id} button[data-role='repost']", "Unrepost")
+  end
+
+  test "sharing a badge from the timeline shows a toast message", %{conn: conn, user: user} do
+    {:ok, issuer} = Users.create_local_user("badge_issuer")
+
+    credential =
+      Fixtures.json!("openbadge_vc.json")
+      |> Map.put("issuer", issuer.ap_id)
+      |> Map.put("to", ["https://www.w3.org/ns/activitystreams#Public"])
+      |> put_in(["credentialSubject", "id"], user.ap_id)
+
+    assert {:ok, credential_object} = Pipeline.ingest(credential, local: true)
+
+    assert {:ok, announce} =
+             Pipeline.ingest(Announce.build(issuer, credential_object), local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/?timeline=public")
+
+    assert has_element?(view, "#post-#{announce.id} button[data-role='repost']")
+
+    view
+    |> element("#post-#{announce.id} button[data-role='repost']")
+    |> render_click()
+
+    assert has_element?(view, "[data-role='toast']", "Badge shared.")
   end
 
   test "reacting to a post creates an EmojiReact activity", %{conn: conn, user: user} do

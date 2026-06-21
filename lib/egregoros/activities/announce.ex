@@ -129,7 +129,7 @@ defmodule Egregoros.Activities.Announce do
 
   defp maybe_broadcast_post_update(object) do
     with %Object{} = announced_object <- Objects.get_by_ap_id(object.object),
-         "Note" <- announced_object.type do
+         type when type in ["Note", "VerifiableCredential"] <- announced_object.type do
       Timeline.broadcast_post_updated(announced_object)
     else
       _ -> :ok
@@ -255,6 +255,7 @@ defmodule Egregoros.Activities.Announce do
       published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   defp apply_announce(activity, %__MODULE__{} = announce) do

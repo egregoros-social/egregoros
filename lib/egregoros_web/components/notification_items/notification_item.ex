@@ -8,6 +8,7 @@ defmodule EgregorosWeb.Components.NotificationItems.NotificationItem do
   alias EgregorosWeb.Components.NotificationItems.FollowNotification
   alias EgregorosWeb.Components.NotificationItems.LikeNotification
   alias EgregorosWeb.Components.NotificationItems.MentionNotification
+  alias EgregorosWeb.Components.NotificationItems.OfferNotification
   alias EgregorosWeb.Components.NotificationItems.ReactionNotification
   alias EgregorosWeb.Components.NotificationItems.RepostNotification
 
@@ -25,6 +26,7 @@ defmodule EgregorosWeb.Components.NotificationItems.NotificationItem do
   - `Announce` - Someone reposted your post
   - `EmojiReact` - Someone reacted to your post
   - `Note` - Someone mentioned you
+  - `Offer` - A badge offer
 
   ## Examples
 
@@ -46,6 +48,8 @@ defmodule EgregorosWeb.Components.NotificationItems.NotificationItem do
         <ReactionNotification.reaction_notification id={@id} entry={@entry} />
       <% "Note" -> %>
         <MentionNotification.mention_notification id={@id} entry={@entry} />
+      <% "Offer" -> %>
+        <OfferNotification.offer_notification id={@id} entry={@entry} />
       <% _unknown -> %>
         <.fallback_notification id={@id} entry={@entry} />
     <% end %>

@@ -35,6 +35,7 @@ defmodule Egregoros.Federation.ActorDiscovery do
     []
     |> collect_id(activity["actor"])
     |> collect_id(activity["attributedTo"])
+    |> collect_id(activity["issuer"])
     |> collect_recipients(activity)
     |> collect_tags(activity["tag"])
   end

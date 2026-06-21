@@ -8,6 +8,7 @@ defmodule Egregoros.NotificationsTest do
   alias Egregoros.Notifications
   alias Egregoros.Pipeline
   alias Egregoros.Publish
+  alias Egregoros.TestSupport.Fixtures
   alias Egregoros.Users
 
   test "lists follow notifications for the recipient" do
@@ -63,6 +64,35 @@ defmodule Egregoros.NotificationsTest do
     notifications = Notifications.list_for_user(alice, limit: 10)
 
     assert Enum.any?(notifications, &(&1.type == "Note" and &1.ap_id == note_ap_id))
+  end
+
+  test "lists offer notifications only when include_offers? is enabled" do
+    {:ok, alice} = Users.create_local_user("alice")
+
+    credential =
+      Fixtures.json!("openbadge_vc.json")
+      |> Map.put("issuer", "https://example.com/users/issuer")
+      |> Map.put("to", [alice.ap_id])
+      |> put_in(["credentialSubject", "id"], alice.ap_id)
+
+    offer = %{
+      "id" => "https://example.com/activities/offer/notifications",
+      "type" => "Offer",
+      "actor" => "https://example.com/users/issuer",
+      "to" => [alice.ap_id],
+      "object" => credential,
+      "published" => "2026-01-29T00:00:00Z"
+    }
+
+    assert {:ok, _offer_object} =
+             Pipeline.ingest(offer, local: false, inbox_user_ap_id: alice.ap_id)
+
+    refute Enum.any?(Notifications.list_for_user(alice, limit: 10), &(&1.type == "Offer"))
+
+    assert Enum.any?(
+             Notifications.list_for_user(alice, limit: 10, include_offers?: true),
+             &(&1.type == "Offer")
+           )
   end
 
   test "broadcasts mention notifications to local recipients" do

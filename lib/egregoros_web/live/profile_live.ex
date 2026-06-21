@@ -3,6 +3,7 @@ defmodule EgregorosWeb.ProfileLive do
 
   alias Egregoros.Activities.Follow
   alias Egregoros.Activities.Undo
+  alias Egregoros.Badges
   alias Egregoros.Interactions
   alias Egregoros.HTML
   alias Egregoros.Media
@@ -646,7 +647,22 @@ defmodule EgregorosWeb.ProfileLive do
 
     with %User{} = user <- socket.assigns.current_user,
          true <- flake_id?(post_id) do
-      _ = Interactions.toggle_repost(user, post_id)
+      result = Interactions.toggle_repost(user, post_id)
+
+      socket =
+        case result do
+          {:ok, _} ->
+            case Badges.badge_share_flash_message(user, post_id) do
+              message when is_binary(message) and message != "" ->
+                put_flash(socket, :info, message)
+
+              _ ->
+                socket
+            end
+
+          _ ->
+            socket
+        end
 
       {:noreply, refresh_post(socket, post_id, feed_id(params, post_id))}
     else
@@ -812,6 +828,16 @@ defmodule EgregorosWeb.ProfileLive do
                   </div>
 
                   <div class="flex flex-wrap items-center gap-2">
+                    <.button
+                      :if={badges_path(@profile_user)}
+                      navigate={badges_path(@profile_user)}
+                      size="sm"
+                      variant="secondary"
+                      data-role="profile-badges-link"
+                    >
+                      <.icon name="hero-trophy" class="size-4" /> Badges
+                    </.button>
+
                     <%= if @current_user && @current_user.id != @profile_user.id do %>
                       <%= if @mute_relationship do %>
                         <button
@@ -1026,6 +1052,14 @@ defmodule EgregorosWeb.ProfileLive do
     """
   end
 
+  defp badges_path(%User{} = user) do
+    with path when is_binary(path) <- ProfilePaths.profile_path(user) do
+      path <> "/badges"
+    end
+  end
+
+  defp badges_path(_user), do: nil
+
   defp follow_relationship(nil, _profile_user), do: nil
   defp follow_relationship(_current_user, nil), do: nil
 
@@ -1105,7 +1139,7 @@ defmodule EgregorosWeb.ProfileLive do
     current_user = socket.assigns.current_user
 
     case Objects.get(post_id) do
-      %{type: type} = object when type in ["Note", "Question"] ->
+      %{type: type} = object when type in ["Note", "Question", "VerifiableCredential"] ->
         if Objects.visible_to?(object, current_user) do
           if feed_id == post_id do
             stream_insert(socket, :posts, StatusVM.decorate(object, current_user))
@@ -1154,7 +1188,8 @@ defmodule EgregorosWeb.ProfileLive do
   defp feed_id(_params, fallback), do: fallback
 
   defp flake_id?(id) when is_binary(id) do
-    match?(<<_::128>>, FlakeId.from_string(id))
+    id = String.trim(id)
+    byte_size(id) == 18 and FlakeId.flake_id?(id)
   end
 
   defp flake_id?(_id), do: false
@@ -1176,7 +1211,7 @@ defmodule EgregorosWeb.ProfileLive do
 
   defp notifications_count(%User{} = user) do
     user
-    |> Notifications.list_for_user(limit: @page_size)
+    |> Notifications.list_for_user(limit: @page_size, include_offers?: true)
     |> length()
   end
 

@@ -96,6 +96,8 @@ defmodule EgregorosWeb.Router do
     live "/@:nickname", ProfileLive
     live "/@:nickname/followers", RelationshipsLive, :followers
     live "/@:nickname/following", RelationshipsLive, :following
+    live "/@:nickname/badges", BadgesLive, :index
+    live "/@:nickname/badges/:id", BadgesLive, :show
     live "/@:nickname/:uuid", StatusLive
   end
 
@@ -110,6 +112,9 @@ defmodule EgregorosWeb.Router do
 
     get "/admin", AdminController, :index
     post "/admin/registrations", AdminController, :update_registrations
+    post "/admin/badges/issue", AdminController, :issue_badge
+    post "/admin/badges/:id", AdminController, :update_badge_definition
+    post "/admin/badges/offers/:id/rescind", AdminController, :rescind_offer
     post "/admin/relays", AdminController, :create_relay
     delete "/admin/relays/:id", AdminController, :delete_relay
   end
@@ -150,10 +155,12 @@ defmodule EgregorosWeb.Router do
     get "/users/:nickname/followers", FollowCollectionController, :followers
     get "/users/:nickname/following", FollowCollectionController, :following
     get "/objects/:uuid", ObjectController, :show
+    get "/badges/:id", BadgeDefinitionController, :show
     get "/activities/:uuid", ActivityController, :show
     get "/activities/:type/:uuid", ActivityController, :show_typed
     get "/poco", PocoController, :index
     get "/.well-known/webfinger", WebFingerController, :webfinger
+    get "/.well-known/did.json", DidController, :show
     get "/.well-known/nodeinfo", NodeinfoController, :nodeinfo_index
     get "/nodeinfo/2.0.json", NodeinfoController, :nodeinfo
     get "/nodeinfo/2.1.json", NodeinfoController, :nodeinfo_2_1
@@ -312,6 +319,9 @@ defmodule EgregorosWeb.Router do
   scope "/api/v1/pleroma", EgregorosWeb.PleromaAPI do
     pipe_through [:api, :api_auth, :oauth_write]
 
+    post "/badges/issue", BadgesController, :issue
+    post "/offers/:id/accept", OffersController, :accept
+    post "/offers/:id/reject", OffersController, :reject
     put "/statuses/:id/reactions/:emoji", EmojiReactionController, :create
     delete "/statuses/:id/reactions/:emoji", EmojiReactionController, :delete
   end

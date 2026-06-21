@@ -2,7 +2,10 @@ defmodule EgregorosWeb.WebFingerController do
   use EgregorosWeb, :controller
 
   alias Egregoros.Domain
+  alias Egregoros.Federation.InstanceActor
+  alias Egregoros.User
   alias Egregoros.Users
+  alias Egregoros.VerifiableCredentials.DidWeb
   alias EgregorosWeb.Endpoint
 
   def webfinger(conn, %{"resource" => resource}) do
@@ -27,11 +30,15 @@ defmodule EgregorosWeb.WebFingerController do
             _ -> canonical_domain
           end
 
+        aliases =
+          [user.ap_id]
+          |> maybe_add_did_alias(user)
+
         conn
         |> put_resp_content_type("application/jrd+json")
         |> json(%{
           "subject" => "acct:#{user.nickname}@#{subject_domain}",
-          "aliases" => [user.ap_id],
+          "aliases" => aliases,
           "links" => [
             %{
               "rel" => "self",
@@ -69,8 +76,14 @@ defmodule EgregorosWeb.WebFingerController do
 
   defp find_user_by_ap_id(resource, canonical_domain) when is_binary(resource) do
     case Users.get_by_ap_id(resource) do
-      nil -> nil
-      user -> {user, canonical_domain}
+      nil ->
+        case maybe_instance_actor_for_did(resource) do
+          {:ok, %User{} = user} -> {user, canonical_domain}
+          _ -> nil
+        end
+
+      user ->
+        {user, canonical_domain}
     end
   end
 
@@ -89,4 +102,34 @@ defmodule EgregorosWeb.WebFingerController do
   end
 
   defp parse_acct_resource(_resource), do: :error
+
+  defp maybe_add_did_alias(aliases, %User{} = user) when is_list(aliases) do
+    if instance_actor?(user) do
+      case DidWeb.instance_did() do
+        did when is_binary(did) and did != "" -> Enum.uniq(aliases ++ [did])
+        _ -> aliases
+      end
+    else
+      aliases
+    end
+  end
+
+  defp maybe_add_did_alias(aliases, _user), do: aliases
+
+  defp maybe_instance_actor_for_did(resource) when is_binary(resource) do
+    did = DidWeb.instance_did()
+
+    if is_binary(did) and did != "" and resource == did do
+      InstanceActor.get_actor()
+    else
+      nil
+    end
+  end
+
+  defp maybe_instance_actor_for_did(_resource), do: nil
+
+  defp instance_actor?(%User{} = user) do
+    instance_ap_id = Endpoint.url()
+    user.ap_id == instance_ap_id
+  end
 end

@@ -1,7 +1,9 @@
 defmodule EgregorosWeb.WebFingerControllerTest do
   use EgregorosWeb.ConnCase, async: true
 
+  alias Egregoros.Federation.InstanceActor
   alias Egregoros.Users
+  alias Egregoros.VerifiableCredentials.DidWeb
   alias EgregorosWeb.Endpoint
 
   test "GET /.well-known/webfinger returns local user", %{conn: conn} do
@@ -71,5 +73,28 @@ defmodule EgregorosWeb.WebFingerControllerTest do
       end)
 
     assert self_link["href"] == user.ap_id
+  end
+
+  test "GET /.well-known/webfinger resolves the instance actor by did:web resource", %{conn: conn} do
+    {:ok, instance_actor} = InstanceActor.get_actor()
+    did = DidWeb.instance_did()
+
+    domain =
+      Endpoint.url()
+      |> URI.parse()
+      |> Egregoros.Domain.from_uri()
+
+    conn = get(conn, "/.well-known/webfinger", resource: did)
+    body = json_response(conn, 200)
+
+    assert body["subject"] == "acct:#{instance_actor.nickname}@#{domain}"
+    assert Enum.sort(body["aliases"]) == Enum.sort([instance_actor.ap_id, did])
+
+    self_link =
+      Enum.find(body["links"], fn link ->
+        link["rel"] == "self" and link["type"] == "application/activity+json"
+      end)
+
+    assert self_link["href"] == instance_actor.ap_id
   end
 end

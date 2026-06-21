@@ -1,0 +1,44 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/credentials/v2",
+    "https://purl.imsglobal.org/spec/ob/v3p0/context-3.0.3.json",
+    "https://www.w3.org/ns/activitystreams"
+  ],
+  "id": "https://example.com/objects/f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "type": [
+    "VerifiableCredential",
+    "OpenBadgeCredential"
+  ],
+  "issuer": "https://example.com/users/issuer",
+  "to": [
+    "https://example.net/users/user1",
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "validFrom": "2026-01-29T00:00:00Z",
+  "validUntil": "2027-01-29T00:00:00Z",
+  "credentialSubject": {
+    "id": "https://example.net/users/user1",
+    "type": "AchievementSubject",
+    "achievement": {
+      "id": "https://example.com/achievements/donator",
+      "type": "Achievement",
+      "name": "Donator",
+      "description": "Awarded to users who have made a financial contribution to the instance.",
+      "criteria": {
+        "narrative": "Make any monetary donation to support the instance."
+      },
+      "image": {
+        "id": "https://example.com/badges/donator.png",
+        "type": "Image"
+      }
+    }
+  },
+  "proof": {
+    "type": "DataIntegrityProof",
+    "cryptosuite": "eddsa-jcs-2022",
+    "created": "2026-01-29T00:00:00Z",
+    "verificationMethod": "https://example.com/users/issuer#ed25519-key",
+    "proofPurpose": "assertionMethod",
+    "proofValue": "z5YvLsWKqPfXdqkJgNvzjXK8bT9cLGqYpTdFs7wSREjvGsQaKCbRqLxnGm3vDFjzuNgpYveYaFcTKpaw1HbQEQ9wM"
+  }
+}

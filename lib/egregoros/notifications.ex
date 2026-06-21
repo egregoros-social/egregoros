@@ -27,6 +27,7 @@ defmodule Egregoros.Notifications do
     max_id = opts |> Keyword.get(:max_id) |> normalize_id()
     since_id = opts |> Keyword.get(:since_id) |> normalize_id()
     include_reactions? = opts |> Keyword.get(:include_reactions?, true) |> normalize_boolean(true)
+    include_offers? = opts |> Keyword.get(:include_offers?, false) |> normalize_boolean(false)
 
     :telemetry.span(
       [:egregoros, :timeline, :read],
@@ -63,8 +64,23 @@ defmodule Egregoros.Notifications do
                  fragment("? @> ?", a.data, ^%{"cc" => [user.ap_id]}))
           )
 
+        offer_predicate =
+          if include_offers? do
+            dynamic(
+              [a],
+              a.type == "Offer" and a.actor != ^user.ap_id and
+                (fragment("? @> ?", a.data, ^%{"to" => [user.ap_id]}) or
+                   fragment("? @> ?", a.data, ^%{"cc" => [user.ap_id]}))
+            )
+          else
+            dynamic([_a], false)
+          end
+
         predicate =
-          dynamic([a], ^follow_predicate or ^interaction_predicate or ^mention_predicate)
+          dynamic(
+            [a],
+            ^follow_predicate or ^interaction_predicate or ^mention_predicate or ^offer_predicate
+          )
 
         query =
           from(a in Object,

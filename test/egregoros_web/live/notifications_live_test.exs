@@ -4,12 +4,14 @@ defmodule EgregorosWeb.NotificationsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Egregoros.Activities.Follow
+  alias Egregoros.Activities.Accept
   alias Egregoros.Activities.EmojiReact
   alias Egregoros.Notifications
   alias Egregoros.Objects
   alias Egregoros.Pipeline
   alias Egregoros.Publish
   alias Egregoros.Relationships
+  alias Egregoros.TestSupport.Fixtures
   alias Egregoros.Users
   alias EgregorosWeb.URL
 
@@ -259,6 +261,245 @@ defmodule EgregorosWeb.NotificationsLiveTest do
 
     assert Relationships.get_by_type_actor_object("FollowRequest", actor.ap_id, user.ap_id) == nil
     assert Relationships.get_by_type_actor_object("Follow", actor.ap_id, user.ap_id) == nil
+  end
+
+  test "offer notifications can be accepted from the notifications screen", %{
+    conn: conn,
+    user: user
+  } do
+    credential =
+      Fixtures.json!("openbadge_vc.json")
+      |> Map.put("issuer", "https://example.com/users/issuer")
+      |> Map.put("to", [user.ap_id])
+      |> put_in(["credentialSubject", "id"], user.ap_id)
+
+    offer = %{
+      "id" => "https://example.com/activities/offer/live-accept",
+      "type" => "Offer",
+      "actor" => "https://example.com/users/issuer",
+      "to" => [user.ap_id],
+      "object" => credential,
+      "published" => "2026-01-29T00:00:00Z"
+    }
+
+    assert {:ok, offer_object} =
+             Pipeline.ingest(offer, local: false, inbox_user_ap_id: user.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/notifications")
+
+    assert has_element?(view, "#notification-#{offer_object.id}")
+
+    view
+    |> element("button[data-role='offer-accept'][phx-value-id='#{offer_object.ap_id}']")
+    |> render_click()
+
+    assert Objects.get_by_type_actor_object("Accept", user.ap_id, offer_object.ap_id)
+
+    assert has_element?(
+             view,
+             "#notification-#{offer_object.id} [data-role='offer-response-status']",
+             "You accepted this badge."
+           )
+
+    refute has_element?(
+             view,
+             "#notification-#{offer_object.id} button[data-role='offer-accept']"
+           )
+
+    refute has_element?(
+             view,
+             "#notification-#{offer_object.id} button[data-role='offer-reject']"
+           )
+  end
+
+  test "offer notifications can be rejected from the notifications screen", %{
+    conn: conn,
+    user: user
+  } do
+    credential =
+      Fixtures.json!("openbadge_vc.json")
+      |> Map.put("issuer", "https://example.com/users/issuer")
+      |> Map.put("to", [user.ap_id])
+      |> put_in(["credentialSubject", "id"], user.ap_id)
+
+    offer = %{
+      "id" => "https://example.com/activities/offer/live-reject",
+      "type" => "Offer",
+      "actor" => "https://example.com/users/issuer",
+      "to" => [user.ap_id],
+      "object" => credential,
+      "published" => "2026-01-29T00:00:00Z"
+    }
+
+    assert {:ok, offer_object} =
+             Pipeline.ingest(offer, local: false, inbox_user_ap_id: user.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/notifications")
+
+    assert has_element?(view, "#notification-#{offer_object.id}")
+
+    view
+    |> element("button[data-role='offer-reject'][phx-value-id='#{offer_object.ap_id}']")
+    |> render_click()
+
+    assert Objects.get_by_type_actor_object("Reject", user.ap_id, offer_object.ap_id)
+
+    assert has_element?(
+             view,
+             "#notification-#{offer_object.id} [data-role='offer-response-status']",
+             "You rejected this badge."
+           )
+
+    refute has_element?(
+             view,
+             "#notification-#{offer_object.id} button[data-role='offer-accept']"
+           )
+
+    refute has_element?(
+             view,
+             "#notification-#{offer_object.id} button[data-role='offer-reject']"
+           )
+  end
+
+  test "offer notifications include credential details", %{conn: conn, user: user} do
+    credential =
+      Fixtures.json!("openbadge_vc.json")
+      |> Map.put("issuer", "https://example.com/users/issuer")
+      |> Map.put("to", [user.ap_id])
+      |> put_in(["credentialSubject", "id"], user.ap_id)
+      |> put_in(["credentialSubject", "achievement", "name"], "Contributor")
+      |> put_in(
+        ["credentialSubject", "achievement", "description"],
+        "Awarded for supporting the community."
+      )
+
+    offer = %{
+      "id" => "https://example.com/activities/offer/live-details",
+      "type" => "Offer",
+      "actor" => "https://example.com/users/issuer",
+      "to" => [user.ap_id],
+      "object" => credential,
+      "published" => "2026-01-29T00:00:00Z"
+    }
+
+    assert {:ok, offer_object} =
+             Pipeline.ingest(offer, local: false, inbox_user_ap_id: user.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/notifications")
+
+    assert has_element?(
+             view,
+             "#notification-#{offer_object.id} [data-role='offer-title']",
+             "Contributor"
+           )
+
+    assert has_element?(
+             view,
+             "#notification-#{offer_object.id} [data-role='offer-description']",
+             "Awarded for supporting the community."
+           )
+
+    assert has_element?(
+             view,
+             "#notification-#{offer_object.id} [data-role='offer-issuer-ap-id']",
+             "https://example.com/users/issuer"
+           )
+  end
+
+  test "offer notifications use the actor ap id in the message", %{conn: conn, user: user} do
+    credential =
+      Fixtures.json!("openbadge_vc.json")
+      |> Map.put("issuer", "https://example.com/users/issuer")
+      |> Map.put("to", [user.ap_id])
+      |> put_in(["credentialSubject", "id"], user.ap_id)
+
+    offer = %{
+      "id" => "https://example.com/activities/offer/live-message",
+      "type" => "Offer",
+      "actor" => "https://example.com/users/issuer",
+      "to" => [user.ap_id],
+      "object" => credential,
+      "published" => "2026-01-29T00:00:00Z"
+    }
+
+    assert {:ok, offer_object} =
+             Pipeline.ingest(offer, local: false, inbox_user_ap_id: user.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/notifications")
+
+    assert has_element?(
+             view,
+             "#notification-#{offer_object.id} [data-role='notification-message']",
+             "https://example.com/users/issuer offered you a badge"
+           )
+  end
+
+  test "offer notifications include badge images when available", %{conn: conn, user: user} do
+    credential =
+      Fixtures.json!("openbadge_vc.json")
+      |> Map.put("issuer", "https://example.com/users/issuer")
+      |> Map.put("to", [user.ap_id])
+      |> put_in(["credentialSubject", "id"], user.ap_id)
+
+    offer = %{
+      "id" => "https://example.com/activities/offer/live-image",
+      "type" => "Offer",
+      "actor" => "https://example.com/users/issuer",
+      "to" => [user.ap_id],
+      "object" => credential,
+      "published" => "2026-01-29T00:00:00Z"
+    }
+
+    assert {:ok, offer_object} =
+             Pipeline.ingest(offer, local: false, inbox_user_ap_id: user.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/notifications")
+
+    assert has_element?(
+             view,
+             "#notification-#{offer_object.id} img[data-role='offer-badge-image'][src='https://example.com/badges/donator.png']"
+           )
+  end
+
+  test "offer notifications link to the accepted badge", %{conn: conn, user: user} do
+    credential =
+      Fixtures.json!("openbadge_vc.json")
+      |> Map.put("issuer", "https://example.com/users/issuer")
+      |> Map.put("to", [user.ap_id])
+      |> put_in(["credentialSubject", "id"], user.ap_id)
+
+    offer = %{
+      "id" => "https://example.com/activities/offer/live-link",
+      "type" => "Offer",
+      "actor" => "https://example.com/users/issuer",
+      "to" => [user.ap_id],
+      "object" => credential,
+      "published" => "2026-01-29T00:00:00Z"
+    }
+
+    assert {:ok, offer_object} =
+             Pipeline.ingest(offer, local: false, inbox_user_ap_id: user.ap_id)
+
+    assert {:ok, accept_object} =
+             Pipeline.ingest(Accept.build(user, offer_object), local: true)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: user.id})
+    {:ok, view, _html} = live(conn, "/notifications")
+
+    assert has_element?(
+             view,
+             "#notification-#{offer_object.id} [data-role='offer-response-status'] + [data-role='offer-badge-link']"
+           )
+
+    assert has_element?(
+             view,
+             "#notification-#{offer_object.id} [data-role='offer-badge-link'][href='/@#{user.nickname}/badges/#{accept_object.id}']"
+           )
   end
 
   test "notifications filters ignore invalid values", %{conn: conn, user: user} do

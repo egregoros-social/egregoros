@@ -81,6 +81,7 @@ defmodule Egregoros.Activities.Answer do
       published: Helpers.parse_datetime(answer["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   def ingest(answer, opts) do

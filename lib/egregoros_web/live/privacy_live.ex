@@ -62,7 +62,8 @@ defmodule EgregorosWeb.PrivacyLive do
   end
 
   defp flake_id?(id) when is_binary(id) do
-    match?(<<_::128>>, FlakeId.from_string(id))
+    id = String.trim(id)
+    byte_size(id) == 18 and FlakeId.flake_id?(id)
   end
 
   defp flake_id?(_id), do: false
@@ -107,7 +108,7 @@ defmodule EgregorosWeb.PrivacyLive do
 
   defp notifications_count(%User{} = user) do
     user
-    |> Notifications.list_for_user(limit: 20)
+    |> Notifications.list_for_user(limit: 20, include_offers?: true)
     |> length()
   end
 

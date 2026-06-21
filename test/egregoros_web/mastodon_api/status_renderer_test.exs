@@ -106,6 +106,112 @@ defmodule EgregorosWeb.MastodonAPI.StatusRendererTest do
            ] = rendered["emojis"]
   end
 
+  test "renders verifiable credentials with a badge message and image" do
+    {:ok, issuer} = Users.create_local_user("badge_issuer")
+    {:ok, recipient} = Users.create_local_user("badge_recipient")
+
+    badge_image = "https://cdn.example/badges/test.png"
+
+    {:ok, credential} =
+      Objects.create_object(%{
+        ap_id: Endpoint.url() <> "/objects/" <> Ecto.UUID.generate(),
+        type: "VerifiableCredential",
+        actor: issuer.ap_id,
+        local: true,
+        data: %{
+          "id" => Endpoint.url() <> "/objects/" <> Ecto.UUID.generate(),
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "issuer" => issuer.ap_id,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "validFrom" => "2026-01-29T00:00:00Z",
+          "credentialSubject" => %{
+            "id" => recipient.ap_id,
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "id" => Endpoint.url() <> "/badges/test",
+              "type" => "Achievement",
+              "name" => "Contributor",
+              "description" => "Awarded for supporting the community.",
+              "criteria" => %{"narrative" => "Contributed to the project."},
+              "image" => %{"id" => badge_image, "type" => "Image"}
+            }
+          }
+        }
+      })
+
+    rendered = StatusRenderer.render_status(credential, issuer)
+
+    assert rendered["content"] =~ "badge_issuer"
+    assert rendered["content"] =~ "badge_recipient"
+    assert rendered["content"] =~ "Contributor"
+
+    assert [
+             %{
+               "type" => "image",
+               "url" => ^badge_image
+             }
+             | _rest
+           ] = rendered["media_attachments"]
+  end
+
+  test "renders verifiable credentials without badge metadata and image" do
+    {:ok, issuer} = Users.create_local_user("badge_issuer_missing_fields")
+
+    {:ok, credential} =
+      Objects.create_object(%{
+        ap_id: Endpoint.url() <> "/objects/" <> Ecto.UUID.generate(),
+        type: "VerifiableCredential",
+        actor: issuer.ap_id,
+        local: true,
+        data: %{
+          "id" => Endpoint.url() <> "/objects/" <> Ecto.UUID.generate(),
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "issuer" => %{"id" => issuer.ap_id},
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "credentialSubject" => %{
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "id" => Endpoint.url() <> "/badges/test",
+              "type" => "Achievement"
+            }
+          }
+        }
+      })
+
+    rendered = StatusRenderer.render_status(credential, issuer)
+
+    assert rendered["content"] =~ "badge_issuer_missing_fields"
+    assert rendered["content"] =~ "awarded a badge"
+    assert rendered["media_attachments"] == []
+  end
+
+  test "renders verifiable credentials when issuer is missing by falling back to actor" do
+    {:ok, credential} =
+      Objects.create_object(%{
+        ap_id: Endpoint.url() <> "/objects/" <> Ecto.UUID.generate(),
+        type: "VerifiableCredential",
+        actor: "https://remote.example/users/issuer",
+        local: false,
+        data: %{
+          "id" => Endpoint.url() <> "/objects/" <> Ecto.UUID.generate(),
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "credentialSubject" => %{
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "type" => "Achievement"
+            }
+          }
+        }
+      })
+
+    rendered = StatusRenderer.render_status(credential)
+
+    assert rendered["content"] =~ "issuer"
+    assert rendered["content"] =~ "awarded a badge"
+    assert rendered["media_attachments"] == []
+  end
+
   test "renders announces as reblogs" do
     {:ok, alice} = Users.create_local_user("alice")
     {:ok, bob} = Users.create_local_user("bob")
@@ -145,6 +251,30 @@ defmodule EgregorosWeb.MastodonAPI.StatusRendererTest do
     assert rendered["content"] == ""
     assert %{"uri" => note_ap_id} = rendered["reblog"]
     assert note_ap_id == note.ap_id
+  end
+
+  test "uses the announce id as conversation_id when announce.object is blank" do
+    {:ok, alice} = Users.create_local_user("announce_conversation_alice")
+    uuid = Ecto.UUID.generate()
+
+    {:ok, announce} =
+      Objects.create_object(%{
+        ap_id: "https://remote.example/activities/announce/blank-object/#{uuid}",
+        type: "Announce",
+        actor: alice.ap_id,
+        object: " ",
+        local: false,
+        data: %{
+          "id" => "https://remote.example/activities/announce/blank-object/#{uuid}",
+          "type" => "Announce",
+          "actor" => alice.ap_id,
+          "object" => " "
+        }
+      })
+
+    rendered = StatusRenderer.render_status(announce, alice)
+
+    assert rendered["pleroma"]["conversation_id"] == announce.id
   end
 
   test "computes visibility from to/cc recipients" do
@@ -396,6 +526,35 @@ defmodule EgregorosWeb.MastodonAPI.StatusRendererTest do
 
     assert url == Endpoint.url() <> "/media/pic.png"
     assert preview == url
+  end
+
+  test "renders media attachments with an unknown type when mime is missing" do
+    {:ok, alice} = Users.create_local_user("attachment_unknown_type_alice")
+    uuid = Ecto.UUID.generate()
+
+    {:ok, note} =
+      Objects.create_object(%{
+        ap_id: "https://remote.example/objects/unknown-type/#{uuid}",
+        type: "Note",
+        actor: alice.ap_id,
+        local: false,
+        data: %{
+          "id" => "https://remote.example/objects/unknown-type/#{uuid}",
+          "type" => "Note",
+          "actor" => alice.ap_id,
+          "attachment" => [
+            %{
+              "name" => "blob",
+              "url" => "/media/blob.bin"
+            }
+          ]
+        }
+      })
+
+    rendered = StatusRenderer.render_status(note)
+
+    assert [%{"type" => "unknown", "url" => url}] = rendered["media_attachments"]
+    assert url == Endpoint.url() <> "/media/blob.bin"
   end
 
   test "uses attachment ap_id as the Mastodon id when the media object is missing" do
@@ -669,6 +828,36 @@ defmodule EgregorosWeb.MastodonAPI.StatusRendererTest do
     rendered = StatusRenderer.render_status(note)
 
     assert [%{"username" => "mallory", "acct" => "mallory@remote.example"}] = rendered["mentions"]
+  end
+
+  test "falls back to a username-only acct when mention href has no host" do
+    {:ok, alice} = Users.create_local_user("mention_acct_fallback_alice")
+    uuid = Ecto.UUID.generate()
+
+    {:ok, note} =
+      Objects.create_object(%{
+        ap_id: "https://remote.example/objects/mention-no-host/#{uuid}",
+        type: "Note",
+        actor: alice.ap_id,
+        local: false,
+        data: %{
+          "id" => "https://remote.example/objects/mention-no-host/#{uuid}",
+          "type" => "Note",
+          "actor" => alice.ap_id,
+          "content" => "hi",
+          "tag" => [
+            %{
+              "type" => "Mention",
+              "href" => "acct:mallory@remote.example",
+              "name" => "@mallory"
+            }
+          ]
+        }
+      })
+
+    rendered = StatusRenderer.render_status(note)
+
+    assert [%{"username" => "mallory", "acct" => "mallory"}] = rendered["mentions"]
   end
 
   test "falls back to href-derived username when mention name is missing" do

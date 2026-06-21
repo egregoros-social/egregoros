@@ -10,6 +10,8 @@ defmodule Egregoros.Federation.ActorTest do
   test "fetch_and_store validates and stores remote actors" do
     actor_url = "https://remote.example/users/alice"
     {public_key, _private_key} = Keys.generate_rsa_keypair()
+    {ed25519_public_key, _ed25519_private_key} = Keys.generate_ed25519_keypair()
+    ed25519_multibase = Keys.ed25519_public_key_multibase(ed25519_public_key)
 
     expect(Egregoros.HTTP.Mock, :get, fn url, headers ->
       assert url == actor_url
@@ -33,7 +35,15 @@ defmodule Egregoros.Federation.ActorTest do
              "id" => actor_url <> "#main-key",
              "owner" => actor_url,
              "publicKeyPem" => public_key
-           }
+           },
+           "assertionMethod" => [
+             %{
+               "id" => actor_url <> "#ed25519-key",
+               "type" => "Multikey",
+               "controller" => actor_url,
+               "publicKeyMultibase" => ed25519_multibase
+             }
+           ]
          },
          headers: []
        }}
@@ -46,6 +56,15 @@ defmodule Egregoros.Federation.ActorTest do
     assert user.local == false
     assert user.private_key == nil
     assert user.public_key == public_key
+    assert is_list(user.assertion_method)
+
+    assert Enum.any?(user.assertion_method, fn method ->
+             method["id"] == actor_url <> "#ed25519-key" and
+               method["type"] == "Multikey" and
+               method["controller"] == actor_url and
+               method["publicKeyMultibase"] == ed25519_multibase
+           end)
+
     assert user.name == "Alice"
     assert user.bio == "bio"
     assert user.avatar_url == "https://remote.example/media/avatar.png"

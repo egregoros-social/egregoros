@@ -3,6 +3,11 @@ defmodule EgregorosWeb.CORSTest do
 
   import Plug.Conn
 
+  alias Egregoros.Objects
+  alias EgregorosWeb.Endpoint
+
+  @as_public "https://www.w3.org/ns/activitystreams#Public"
+
   test "adds CORS headers for API responses", %{conn: conn} do
     conn =
       conn
@@ -76,6 +81,32 @@ defmodule EgregorosWeb.CORSTest do
     assert get_resp_header(conn, "access-control-allow-headers") == ["range"]
   end
 
+  test "adds CORS headers for object responses", %{conn: conn} do
+    uuid = Ecto.UUID.generate()
+    ap_id = Endpoint.url() <> "/objects/" <> uuid
+    _object = insert_public_object(ap_id, "Note")
+
+    conn =
+      conn
+      |> put_req_header("origin", "https://frontend.example")
+      |> get("/objects/" <> uuid)
+
+    assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
+  end
+
+  test "adds CORS headers for activity responses", %{conn: conn} do
+    uuid = Ecto.UUID.generate()
+    ap_id = Endpoint.url() <> "/activities/" <> uuid
+    _object = insert_public_object(ap_id, "Create")
+
+    conn =
+      conn
+      |> put_req_header("origin", "https://frontend.example")
+      |> get("/activities/" <> uuid)
+
+    assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
+  end
+
   test "does not add CORS headers for browser pages", %{conn: conn} do
     conn =
       conn
@@ -83,5 +114,11 @@ defmodule EgregorosWeb.CORSTest do
       |> get("/")
 
     assert get_resp_header(conn, "access-control-allow-origin") == []
+  end
+
+  defp insert_public_object(ap_id, type) when is_binary(ap_id) and is_binary(type) do
+    data = %{"id" => ap_id, "type" => type, "to" => [@as_public]}
+    {:ok, object} = Objects.create_object(%{ap_id: ap_id, type: type, data: data, local: true})
+    object
   end
 end

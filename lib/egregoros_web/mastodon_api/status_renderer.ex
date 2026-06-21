@@ -414,6 +414,46 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
 
   defp sensitive(_), do: false
 
+  defp content(%Object{type: "VerifiableCredential"} = object) do
+    %{issuer_ap_id: issuer_ap_id, recipient_ap_id: recipient_ap_id} =
+      credential_participants(object)
+
+    badge_name = credential_badge_name(object)
+    badge_description = credential_badge_description(object)
+
+    issuer_name = display_name_from_ap_id(issuer_ap_id)
+    recipient_name = display_name_from_ap_id(recipient_ap_id)
+
+    badge_label =
+      case badge_name do
+        name when is_binary(name) and name != "" -> "\"" <> name <> "\" badge"
+        _ -> "a badge"
+      end
+
+    message =
+      case {issuer_name, recipient_name} do
+        {issuer, recipient} when is_binary(issuer) and is_binary(recipient) ->
+          "#{issuer} awarded #{badge_label} to #{recipient}."
+
+        {issuer, _} when is_binary(issuer) ->
+          "#{issuer} awarded #{badge_label}."
+
+        _ ->
+          "A badge was awarded."
+      end
+
+    message =
+      case badge_description do
+        description when is_binary(description) and description != "" ->
+          message <> " " <> description
+
+        _ ->
+          message
+      end
+
+    HTML.to_safe_html(message, format: :text)
+  end
+
   defp content(%Object{} = object) do
     raw = Map.get(object.data, "content", "")
     ap_tags = Map.get(object.data, "tag", [])
@@ -433,6 +473,26 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
   end
 
   defp language(_), do: nil
+
+  defp media_attachments(%Object{type: "VerifiableCredential"} = object) do
+    case credential_badge_image_url(object) do
+      url when is_binary(url) and url != "" ->
+        attachment = %{
+          "id" => url,
+          "url" => url,
+          "mediaType" => badge_media_type(url),
+          "name" => credential_badge_name(object)
+        }
+
+        attachment
+        |> render_media_attachment()
+        |> List.wrap()
+        |> Enum.filter(&is_map/1)
+
+      _ ->
+        []
+    end
+  end
 
   defp media_attachments(%Object{} = object) do
     object.data
@@ -531,6 +591,116 @@ defmodule EgregorosWeb.MastodonAPI.StatusRenderer do
       true -> "unknown"
     end
   end
+
+  defp credential_badge_name(%Object{} = object) do
+    object
+    |> credential_achievement()
+    |> Map.get("name") ||
+      Map.get(object |> credential_achievement(), :name)
+  end
+
+  defp credential_badge_description(%Object{} = object) do
+    object
+    |> credential_achievement()
+    |> Map.get("description") ||
+      Map.get(object |> credential_achievement(), :description)
+  end
+
+  defp credential_badge_image_url(%Object{} = object) do
+    image =
+      object
+      |> credential_achievement()
+      |> case do
+        %{} = achievement -> Map.get(achievement, "image") || Map.get(achievement, :image)
+        _ -> nil
+      end
+
+    url =
+      case image do
+        %{"id" => id} -> id
+        %{"url" => url} -> url
+        %{id: id} -> id
+        %{url: url} -> url
+        id when is_binary(id) -> id
+        _ -> nil
+      end
+
+    if is_binary(url) and url != "" do
+      URL.absolute(url, object.actor)
+    end
+  end
+
+  defp credential_participants(%Object{} = object) do
+    issuer_ap_id =
+      case Map.get(object.data, "issuer") do
+        %{"id" => id} when is_binary(id) -> id
+        id when is_binary(id) -> id
+        _ -> object.actor
+      end
+
+    recipient_ap_id =
+      object
+      |> credential_subject()
+      |> case do
+        %{"id" => id} when is_binary(id) -> id
+        %{id: id} when is_binary(id) -> id
+        id when is_binary(id) -> id
+        _ -> nil
+      end
+
+    %{issuer_ap_id: issuer_ap_id, recipient_ap_id: recipient_ap_id}
+  end
+
+  defp credential_subject(%Object{} = object) do
+    object.data
+    |> Map.get("credentialSubject")
+    |> List.wrap()
+    |> Enum.find(&is_map/1)
+  end
+
+  defp credential_achievement(%Object{} = object) do
+    object
+    |> credential_subject()
+    |> case do
+      %{} = subject -> Map.get(subject, "achievement") || Map.get(subject, :achievement)
+      _ -> %{}
+    end
+  end
+
+  defp display_name_from_ap_id(ap_id) when is_binary(ap_id) do
+    case Users.get_by_ap_id(ap_id) do
+      %User{} = user ->
+        user.name || user.nickname || Fallback.fallback_username(ap_id)
+
+      _ ->
+        Fallback.fallback_username(ap_id)
+    end
+  end
+
+  defp display_name_from_ap_id(_ap_id), do: nil
+
+  defp badge_media_type(url) when is_binary(url) do
+    ext =
+      case URI.parse(url) do
+        %URI{path: path} when is_binary(path) -> Path.extname(path)
+        _ -> ""
+      end
+      |> String.downcase()
+
+    case ext do
+      ".png" -> "image/png"
+      ".jpg" -> "image/jpeg"
+      ".jpeg" -> "image/jpeg"
+      ".gif" -> "image/gif"
+      ".webp" -> "image/webp"
+      ".avif" -> "image/avif"
+      ".heic" -> "image/heic"
+      ".heif" -> "image/heif"
+      _ -> "image/*"
+    end
+  end
+
+  defp badge_media_type(_url), do: "image/*"
 
   defp emoji_reactions(%Object{} = object, ctx) do
     ctx.emoji_counts

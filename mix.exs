@@ -13,6 +13,7 @@ defmodule Egregoros.MixProject do
         summary: [threshold: 85],
         ignore_modules: [
           EgregorosWeb.AdminHTML,
+          Egregoros.Release,
           EgregorosWeb.OAuthHTML,
           EgregorosWeb.RegistrationHTML,
           EgregorosWeb.SessionHTML,
@@ -20,9 +21,13 @@ defmodule Egregoros.MixProject do
           Egregoros.TestCoverageTool,
           Mix.Tasks.Egregoros.Admin,
           Mix.Tasks.Egregoros.Actors.Refetch,
+          Mix.Tasks.Egregoros.Badges.Issue,
           Mix.Tasks.Egregoros.Bench.Seed,
           Mix.Tasks.Egregoros.Bench.Run,
           Mix.Tasks.Egregoros.Bench.Explain,
+          Mix.Tasks.Egregoros.Vc.EnsureProofs,
+          Mix.Tasks.Egregoros.Vc.MigrateDidIssuer,
+          Mix.Tasks.Egregoros.Vc.Reproof,
           Egregoros.Bench.Seed
         ]
       ],

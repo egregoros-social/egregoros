@@ -407,7 +407,7 @@ defmodule EgregorosWeb.RelationshipsLive do
 
   defp notifications_count(%User{} = user) do
     user
-    |> Notifications.list_for_user(limit: 20)
+    |> Notifications.list_for_user(limit: 20, include_offers?: true)
     |> length()
   end
 end

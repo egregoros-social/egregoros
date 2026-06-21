@@ -160,6 +160,194 @@ defmodule EgregorosWeb.ViewModels.StatusTest do
     assert entry.reactions["🤖"].reacted?
   end
 
+  test "decorates verifiable credentials with badge metadata" do
+    uniq = System.unique_integer([:positive])
+    {:ok, issuer} = Users.create_local_user("badge-issuer-#{uniq}")
+    {:ok, recipient} = Users.create_local_user("badge-recipient-#{uniq}")
+    {:ok, viewer} = Users.create_local_user("badge-viewer-#{uniq}")
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    valid_from = DateTime.add(now, -3600, :second)
+    valid_until = DateTime.add(now, 86_400, :second)
+    credential_ap_id = EgregorosWeb.Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, credential} =
+      Objects.create_object(%{
+        ap_id: credential_ap_id,
+        type: "VerifiableCredential",
+        actor: issuer.ap_id,
+        object: nil,
+        local: true,
+        data: %{
+          "id" => credential_ap_id,
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "issuer" => issuer.ap_id,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "validFrom" => DateTime.to_iso8601(valid_from),
+          "validUntil" => DateTime.to_iso8601(valid_until),
+          "credentialSubject" => %{
+            "id" => recipient.ap_id,
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "id" => "https://example.com/badges/donator",
+              "type" => "Achievement",
+              "name" => "Donator",
+              "description" => "Awarded for supporting the instance.",
+              "image" => %{
+                "id" => "https://cdn.example/badges/donator.png",
+                "type" => "Image"
+              }
+            }
+          }
+        }
+      })
+
+    entry = Status.decorate(credential, viewer)
+
+    assert entry.object.ap_id == credential_ap_id
+    assert entry.object.type == "VerifiableCredential"
+    assert entry.badge.title == "Donator"
+    assert entry.badge.description == "Awarded for supporting the instance."
+    assert entry.badge.image_url == "https://cdn.example/badges/donator.png"
+    assert entry.badge.validity == "Valid"
+    assert is_binary(entry.badge.valid_range)
+    assert entry.badge.recipient.handle == "@#{recipient.nickname}"
+  end
+
+  test "badge view model resolves issuer ids from issuer objects and did:web identifiers" do
+    uniq = System.unique_integer([:positive])
+    {:ok, issuer} = Users.create_local_user("badge-issuer-object-#{uniq}")
+    {:ok, recipient} = Users.create_local_user("badge-recipient-object-#{uniq}")
+    {:ok, viewer} = Users.create_local_user("badge-viewer-object-#{uniq}")
+
+    credential_ap_id = EgregorosWeb.Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, credential} =
+      Objects.create_object(%{
+        ap_id: credential_ap_id,
+        type: "VerifiableCredential",
+        actor: issuer.ap_id,
+        object: nil,
+        local: true,
+        data: %{
+          "id" => credential_ap_id,
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "issuer" => %{"id" => issuer.ap_id},
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "credentialSubject" => %{
+            "id" => recipient.ap_id,
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "id" => "https://example.com/badges/donator",
+              "type" => "Achievement",
+              "name" => "Donator",
+              "image" => %{"id" => "/badges/donator.png", "type" => "Image"}
+            }
+          }
+        }
+      })
+
+    entry = Status.decorate(credential, viewer)
+    assert entry.badge.issuer_ap_id == issuer.ap_id
+
+    did_credential_ap_id = EgregorosWeb.Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, did_credential} =
+      Objects.create_object(%{
+        ap_id: did_credential_ap_id,
+        type: "VerifiableCredential",
+        actor: issuer.ap_id,
+        object: nil,
+        local: true,
+        data: %{
+          "id" => did_credential_ap_id,
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "issuer" => "did:web:remote.example",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "credentialSubject" => %{
+            "id" => recipient.ap_id,
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "id" => "https://example.com/badges/donator2",
+              "type" => "Achievement",
+              "name" => "Donator2",
+              "image" => %{"id" => "/badges/donator2.png", "type" => "Image"}
+            }
+          }
+        }
+      })
+
+    did_entry = Status.decorate(did_credential, viewer)
+    assert did_entry.badge.issuer_ap_id == "https://remote.example"
+    assert did_entry.badge.image_url == "https://remote.example/badges/donator2.png"
+  end
+
+  test "decorates announces of verifiable credentials" do
+    uniq = System.unique_integer([:positive])
+    {:ok, issuer} = Users.create_local_user("badge-announce-issuer-#{uniq}")
+    {:ok, recipient} = Users.create_local_user("badge-announce-recipient-#{uniq}")
+    {:ok, reposter} = Users.create_local_user("badge-announce-reposter-#{uniq}")
+
+    credential_ap_id = EgregorosWeb.Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, credential} =
+      Objects.create_object(%{
+        ap_id: credential_ap_id,
+        type: "VerifiableCredential",
+        actor: issuer.ap_id,
+        object: nil,
+        local: true,
+        data: %{
+          "id" => credential_ap_id,
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "issuer" => issuer.ap_id,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "validFrom" =>
+            DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+          "credentialSubject" => %{
+            "id" => recipient.ap_id,
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "id" => "https://example.com/badges/founder",
+              "type" => "Achievement",
+              "name" => "Founder",
+              "description" => "Issued for founding support."
+            }
+          }
+        }
+      })
+
+    announce_ap_id = EgregorosWeb.Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, announce} =
+      Objects.create_object(%{
+        ap_id: announce_ap_id,
+        type: "Announce",
+        actor: reposter.ap_id,
+        object: credential.ap_id,
+        local: true,
+        data: %{
+          "id" => announce_ap_id,
+          "type" => "Announce",
+          "actor" => reposter.ap_id,
+          "object" => credential.ap_id
+        }
+      })
+
+    reposter_ap_id = reposter.ap_id
+
+    assert [
+             %{
+               feed_id: announce_db_id,
+               object: %{ap_id: ^credential_ap_id},
+               reposted_by: %{ap_id: ^reposter_ap_id},
+               badge: %{title: "Founder"}
+             }
+           ] = Status.decorate_many([announce], reposter)
+
+    assert announce_db_id == announce.id
+  end
+
   test "decorates polls with a poll view model" do
     {:ok, author} = Users.create_local_user("status-poll-author")
     {:ok, viewer} = Users.create_local_user("status-poll-viewer")
@@ -426,5 +614,209 @@ defmodule EgregorosWeb.ViewModels.StatusTest do
 
     assert entry.reactions["😀"].count == 1
     assert entry.reactions["😀"].reacted?
+  end
+
+  test "merges emoji reaction counts for the same emoji across urls" do
+    uniq = System.unique_integer([:positive])
+    {:ok, author} = Users.create_local_user("status-emoji-counts-author-#{uniq}")
+    {:ok, note} = Pipeline.ingest(Note.build(author, "Hello world"), local: true)
+    {:ok, reactor1} = Users.create_local_user("status-emoji-reactor1-#{uniq}")
+    {:ok, reactor2} = Users.create_local_user("status-emoji-reactor2-#{uniq}")
+
+    assert {:ok, _reaction} =
+             Relationships.upsert_relationship(%{
+               type: "EmojiReact:😀",
+               actor: reactor1.ap_id,
+               object: note.ap_id,
+               activity_ap_id: "https://local.example/reactions/#{uniq}-1",
+               emoji_url: nil
+             })
+
+    assert {:ok, _reaction} =
+             Relationships.upsert_relationship(%{
+               type: "EmojiReact:😀",
+               actor: reactor2.ap_id,
+               object: note.ap_id,
+               activity_ap_id: "https://local.example/reactions/#{uniq}-2",
+               emoji_url: "https://cdn.example/emoji.png"
+             })
+
+    entry = Status.decorate(note, nil)
+
+    assert entry.reactions["😀"].count == 2
+    refute entry.reactions["😀"].reacted?
+  end
+
+  test "decorate_many supports current_user as an ap_id string for reblogs" do
+    uniq = System.unique_integer([:positive])
+    {:ok, author} = Users.create_local_user("status-string-author-#{uniq}")
+    {:ok, reposter} = Users.create_local_user("status-string-reposter-#{uniq}")
+    {:ok, viewer} = Users.create_local_user("status-string-viewer-#{uniq}")
+    public = "https://www.w3.org/ns/activitystreams#Public"
+
+    note_id = "http://localhost:4000/objects/" <> Ecto.UUID.generate()
+
+    {:ok, note} =
+      Objects.create_object(%{
+        ap_id: note_id,
+        type: "Note",
+        actor: author.ap_id,
+        object: nil,
+        local: true,
+        data: %{
+          "id" => note_id,
+          "type" => "Note",
+          "actor" => author.ap_id,
+          "to" => [public],
+          "cc" => [],
+          "content" => "hi"
+        }
+      })
+
+    announce_id = "http://localhost:4000/objects/" <> Ecto.UUID.generate()
+
+    {:ok, announce} =
+      Objects.create_object(%{
+        ap_id: announce_id,
+        type: "Announce",
+        actor: reposter.ap_id,
+        object: note.ap_id,
+        local: true,
+        data: %{
+          "id" => announce_id,
+          "type" => "Announce",
+          "actor" => reposter.ap_id,
+          "object" => note.ap_id
+        }
+      })
+
+    reposter_ap_id = reposter.ap_id
+
+    assert [
+             %{
+               feed_id: announce_db_id,
+               object: %{ap_id: ^note_id},
+               reposted_by: %{ap_id: ^reposter_ap_id}
+             }
+           ] = Status.decorate_many([announce], viewer.ap_id)
+
+    assert announce_db_id == announce.id
+  end
+
+  test "badge validity labels and ranges reflect not yet valid and expired credentials" do
+    uniq = System.unique_integer([:positive])
+    {:ok, issuer} = Users.create_local_user("badge-validity-issuer-#{uniq}")
+    {:ok, recipient} = Users.create_local_user("badge-validity-recipient-#{uniq}")
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    future = DateTime.add(now, 3600, :second)
+    past = DateTime.add(now, -3600, :second)
+
+    future_ap_id = EgregorosWeb.Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, future_credential} =
+      Objects.create_object(%{
+        ap_id: future_ap_id,
+        type: "VerifiableCredential",
+        actor: issuer.ap_id,
+        object: nil,
+        local: true,
+        data: %{
+          "id" => future_ap_id,
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "issuer" => issuer.ap_id,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "validFrom" => DateTime.to_iso8601(future),
+          "credentialSubject" => %{
+            "id" => recipient.ap_id,
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "id" => "https://example.com/badges/future",
+              "type" => "Achievement",
+              "name" => "Future Badge"
+            }
+          }
+        }
+      })
+
+    future_entry = Status.decorate(future_credential, recipient)
+
+    assert future_entry.badge.validity == "Not yet valid"
+    assert is_binary(future_entry.badge.valid_range)
+    assert String.starts_with?(future_entry.badge.valid_range, "Valid from ")
+
+    expired_ap_id = EgregorosWeb.Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, expired_credential} =
+      Objects.create_object(%{
+        ap_id: expired_ap_id,
+        type: "VerifiableCredential",
+        actor: issuer.ap_id,
+        object: nil,
+        local: true,
+        data: %{
+          "id" => expired_ap_id,
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "issuer" => issuer.ap_id,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "validUntil" => DateTime.to_iso8601(past),
+          "credentialSubject" => %{
+            "id" => recipient.ap_id,
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "id" => "https://example.com/badges/expired",
+              "type" => "Achievement",
+              "name" => "Expired Badge",
+              "image" => %{
+                "url" => "https://cdn.example/badges/expired.jpg",
+                "type" => "Image"
+              }
+            }
+          }
+        }
+      })
+
+    expired_entry = Status.decorate(expired_credential, recipient)
+
+    assert expired_entry.badge.validity == "Expired"
+    assert is_binary(expired_entry.badge.valid_range)
+    assert String.starts_with?(expired_entry.badge.valid_range, "Valid until ")
+    assert expired_entry.badge.image_url == "https://cdn.example/badges/expired.jpg"
+  end
+
+  test "badge view models handle credentials without recipient ids" do
+    uniq = System.unique_integer([:positive])
+    {:ok, issuer} = Users.create_local_user("badge-no-recipient-issuer-#{uniq}")
+
+    credential_ap_id = EgregorosWeb.Endpoint.url() <> "/objects/" <> Ecto.UUID.generate()
+
+    {:ok, credential} =
+      Objects.create_object(%{
+        ap_id: credential_ap_id,
+        type: "VerifiableCredential",
+        actor: issuer.ap_id,
+        object: nil,
+        local: true,
+        data: %{
+          "id" => credential_ap_id,
+          "type" => ["VerifiableCredential", "OpenBadgeCredential"],
+          "issuer" => issuer.ap_id,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "credentialSubject" => %{
+            "type" => "AchievementSubject",
+            "achievement" => %{
+              "id" => "https://example.com/badges/norecipient",
+              "type" => "Achievement",
+              "name" => "No Recipient Badge"
+            }
+          }
+        }
+      })
+
+    entry = Status.decorate(credential, nil)
+
+    assert entry.badge.recipient == nil
+    assert entry.badge.badge_path == nil
+    assert entry.badge.valid_range == nil
   end
 end

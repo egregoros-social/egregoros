@@ -2,6 +2,7 @@ defmodule EgregorosWeb.SearchLive do
   use EgregorosWeb, :live_view
 
   alias Egregoros.Federation
+  alias Egregoros.Badges
   alias Egregoros.Interactions
   alias Egregoros.Media
   alias Egregoros.MediaStorage
@@ -334,7 +335,23 @@ defmodule EgregorosWeb.SearchLive do
 
     with %User{} = user <- socket.assigns.current_user,
          true <- flake_id?(post_id) do
-      _ = Interactions.toggle_repost(user, post_id)
+      result = Interactions.toggle_repost(user, post_id)
+
+      socket =
+        case result do
+          {:ok, _} ->
+            case Badges.badge_share_flash_message(user, post_id) do
+              message when is_binary(message) and message != "" ->
+                put_flash(socket, :info, message)
+
+              _ ->
+                socket
+            end
+
+          _ ->
+            socket
+        end
+
       {:noreply, refresh_post(socket, post_id)}
     else
       _ -> {:noreply, socket}
@@ -729,7 +746,7 @@ defmodule EgregorosWeb.SearchLive do
     current_user = socket.assigns.current_user
 
     case Objects.get(post_id) do
-      %{type: type} = object when type in ["Note", "Question"] ->
+      %{type: type} = object when type in ["Note", "Question", "VerifiableCredential"] ->
         if Objects.visible_to?(object, current_user) do
           entry = StatusVM.decorate(object, current_user)
 
@@ -754,7 +771,8 @@ defmodule EgregorosWeb.SearchLive do
   end
 
   defp flake_id?(id) when is_binary(id) do
-    match?(<<_::128>>, FlakeId.from_string(id))
+    id = String.trim(id)
+    byte_size(id) == 18 and FlakeId.flake_id?(id)
   end
 
   defp flake_id?(_id), do: false
@@ -815,7 +833,7 @@ defmodule EgregorosWeb.SearchLive do
 
   defp notifications_count(%User{} = user) do
     user
-    |> Notifications.list_for_user(limit: 20)
+    |> Notifications.list_for_user(limit: 20, include_offers?: true)
     |> length()
   end
 end

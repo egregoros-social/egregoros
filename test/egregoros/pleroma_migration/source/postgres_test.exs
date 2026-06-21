@@ -224,6 +224,125 @@ defmodule Egregoros.PleromaMigration.Source.PostgresTest do
            end)
   end
 
+  test "list_users/1 maps remote users when nickname has no domain part" do
+    conn = {:conn, System.unique_integer([:positive])}
+    user_id = FlakeId.get()
+
+    inserted_at = DateTime.from_naive!(~N[2026-01-01 00:00:00.123], "Etc/UTC")
+    updated_at = DateTime.from_naive!(~N[2026-01-01 00:00:01.456], "Etc/UTC")
+
+    PostgresClient.Mock
+    |> expect(:start_link, fn opts ->
+      assert opts[:hostname] == "host"
+      assert opts[:username] == "user"
+      assert opts[:password] == "pass"
+      assert opts[:database] == "pleroma_db"
+      assert opts[:timeout] == 60_000
+      assert opts[:pool_size] == 1
+      {:ok, conn}
+    end)
+    |> expect(:query!, fn ^conn, _sql, [], _opts ->
+      %{
+        rows: [
+          [
+            user_id,
+            "alice",
+            "https://remote.example/users/alice",
+            " ",
+            " ",
+            "not-pem",
+            false,
+            false,
+            true,
+            "alice@remote.example",
+            "$pbkdf2-v2$stub",
+            "Alice",
+            "Bio",
+            inserted_at,
+            updated_at
+          ]
+        ]
+      }
+    end)
+    |> expect(:stop, fn ^conn -> :ok end)
+
+    assert {:ok, [user]} =
+             Postgres.list_users(
+               hostname: "host",
+               username: "user",
+               password: "pass",
+               database: "pleroma_db"
+             )
+
+    assert user.nickname == "alice"
+    assert user.domain == "remote.example"
+    assert user.inbox == "https://remote.example/users/alice/inbox"
+    assert user.outbox == "https://remote.example/users/alice/outbox"
+    assert user.locked == true
+    assert is_nil(user.public_key)
+    assert user.inserted_at.microsecond == {123_000, 6}
+    assert user.updated_at.microsecond == {456_000, 6}
+  end
+
+  test "list_users/1 handles non-binary nicknames for remote users" do
+    url = "postgres://user:pass@host:5432/pleroma_db"
+    conn = {:conn, System.unique_integer([:positive])}
+
+    user_id = FlakeId.get()
+
+    PostgresClient.Mock
+    |> expect(:start_link, fn _opts -> {:ok, conn} end)
+    |> expect(:query!, fn ^conn, _sql, [], _opts ->
+      %{
+        rows: [
+          [
+            user_id,
+            nil,
+            "https://remote.example/users/alice",
+            nil,
+            nil,
+            nil,
+            false,
+            false,
+            false,
+            "alice@remote.example",
+            "$pbkdf2-v2$stub",
+            "Alice",
+            "Bio",
+            nil,
+            nil
+          ]
+        ]
+      }
+    end)
+    |> expect(:stop, fn ^conn -> :ok end)
+
+    assert {:ok, [user]} = Postgres.list_users(url: url)
+    assert user.nickname == ""
+    assert user.domain == "remote.example"
+    assert user.inbox == "https://remote.example/users/alice/inbox"
+    assert user.outbox == "https://remote.example/users/alice/outbox"
+  end
+
+  test "list_users/1 returns an error when PostgresClient.start_link/1 fails" do
+    PostgresClient.Mock
+    |> expect(:start_link, fn _opts -> {:error, :boom} end)
+
+    assert {:error, %MatchError{}} = Postgres.list_users(hostname: "host", database: "pleroma_db")
+  end
+
+  test "list_statuses/1 returns an error when PostgresClient.query!/4 raises and still stops conn" do
+    conn = {:conn, System.unique_integer([:positive])}
+
+    PostgresClient.Mock
+    |> expect(:start_link, fn _opts -> {:ok, conn} end)
+    |> expect(:query!, fn ^conn, _sql, [], _opts -> raise "boom" end)
+    |> expect(:stop, fn ^conn -> :ok end)
+
+    assert {:error, %RuntimeError{message: "boom"}} =
+             Postgres.list_statuses(hostname: "host", database: "pleroma_db")
+  end
+
   defp rsa_private_key_pem do
     key = :public_key.generate_key({:rsa, 1024, 65_537})
 

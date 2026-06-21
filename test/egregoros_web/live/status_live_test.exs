@@ -59,6 +59,104 @@ defmodule EgregorosWeb.StatusLiveTest do
     refute render(view) =~ "Secret DM"
   end
 
+  test "vote_on_poll requires login", %{conn: conn, user: user} do
+    {:ok, create} =
+      Publish.post_poll(user, "Poll", %{
+        "options" => ["A", "B"],
+        "expires_in" => 300
+      })
+
+    poll = Objects.get_by_ap_id(create.object)
+    uuid = uuid_from_ap_id(poll.ap_id)
+
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => poll.id, "choices" => ["0"]})
+    assert render(view) =~ "Register to vote on polls."
+  end
+
+  test "vote_on_poll surfaces poll voting errors and success messages", %{conn: conn, user: user} do
+    {:ok, bob} = Users.create_local_user("poll_voter_bob")
+
+    {:ok, create} =
+      Publish.post_poll(user, "Poll", %{
+        "options" => ["A", "B"],
+        "expires_in" => 300
+      })
+
+    poll = Objects.get_by_ap_id(create.object)
+    uuid = uuid_from_ap_id(poll.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: bob.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => poll.id, "choices" => ["0", "1"]})
+    assert render(view) =~ "This poll only allows a single choice."
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => poll.id, "choices" => ["99"]})
+    assert render(view) =~ "Invalid poll option selected."
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => poll.id, "choices" => "0"})
+    assert render(view) =~ "Vote submitted!"
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => poll.id, "choices" => ["1"]})
+    assert render(view) =~ "You have already voted on this poll."
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => poll.id})
+    assert render(view) =~ "Please select at least one option."
+  end
+
+  test "vote_on_poll rejects own polls and expired polls", %{conn: conn, user: user} do
+    {:ok, bob} = Users.create_local_user("poll_voter_bob_expired")
+
+    {:ok, create} =
+      Publish.post_poll(user, "Poll", %{
+        "options" => ["A", "B"],
+        "expires_in" => 300
+      })
+
+    poll = Objects.get_by_ap_id(create.object)
+    expired_at = DateTime.add(DateTime.utc_now(), -3600, :second) |> DateTime.to_iso8601()
+
+    {:ok, expired_poll} =
+      Objects.update_object(poll, %{data: Map.put(poll.data, "closed", expired_at)})
+
+    uuid = uuid_from_ap_id(expired_poll.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: bob.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => expired_poll.id, "choices" => ["0"]})
+    assert render(view) =~ "This poll has ended."
+
+    conn = Plug.Test.init_test_session(build_conn(), %{user_id: user.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => expired_poll.id, "choices" => ["0"]})
+    assert render(view) =~ "You cannot vote on your own poll."
+  end
+
+  test "vote_on_poll handles malformed poll ids without crashing", %{conn: conn, user: user} do
+    {:ok, bob} = Users.create_local_user("poll_voter_invalid_id")
+
+    {:ok, create} =
+      Publish.post_poll(user, "Poll", %{
+        "options" => ["A", "B"],
+        "expires_in" => 300
+      })
+
+    poll = Objects.get_by_ap_id(create.object)
+    uuid = uuid_from_ap_id(poll.ap_id)
+
+    conn = Plug.Test.init_test_session(conn, %{user_id: bob.id})
+    assert {:ok, view, _html} = live(conn, "/@alice/#{uuid}")
+
+    bad_id = "AAAAAAAAAAAAAAAAA-"
+
+    _html = render_hook(view, "vote_on_poll", %{"poll-id" => bad_id, "choices" => ["0"]})
+    assert render(view) =~ "Could not submit vote."
+  end
+
   test "reply composer mention autocomplete suggests users", %{conn: conn, user: user} do
     {:ok, note} = Pipeline.ingest(Note.build(user, "Hello from status"), local: true)
     uuid = uuid_from_ap_id(note.ap_id)

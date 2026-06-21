@@ -4,6 +4,7 @@ defmodule Egregoros.NotificationsPubSubTest do
   alias Egregoros.Notifications
   alias Egregoros.Pipeline
   alias Egregoros.Publish
+  alias Egregoros.TestSupport.Fixtures
   alias Egregoros.Users
 
   test "broadcasts follow notifications to the followed user" do
@@ -54,5 +55,32 @@ defmodule Egregoros.NotificationsPubSubTest do
 
     assert_receive {:notification_created,
                     %{type: "Like", actor: ^bob_ap_id, object: ^object_ap_id}}
+  end
+
+  test "broadcasts offer notifications to the recipient" do
+    {:ok, alice} = Users.create_local_user("alice")
+
+    credential =
+      Fixtures.json!("openbadge_vc.json")
+      |> Map.put("issuer", "https://example.com/users/issuer")
+      |> Map.put("to", [alice.ap_id])
+      |> put_in(["credentialSubject", "id"], alice.ap_id)
+
+    offer = %{
+      "id" => "https://example.com/activities/offer/pubsub",
+      "type" => "Offer",
+      "actor" => "https://example.com/users/issuer",
+      "to" => [alice.ap_id],
+      "object" => credential,
+      "published" => "2026-01-29T00:00:00Z"
+    }
+
+    Notifications.subscribe(alice.ap_id)
+
+    assert {:ok, _offer_object} =
+             Pipeline.ingest(offer, local: false, inbox_user_ap_id: alice.ap_id)
+
+    assert_receive {:notification_created,
+                    %{type: "Offer", actor: "https://example.com/users/issuer"}}
   end
 end

@@ -4,6 +4,7 @@ defmodule FederationBoxTest do
   @moduletag timeout: 240_000
 
   @poll_interval_ms 1_000
+  @as_public "https://www.w3.org/ns/activitystreams#Public"
 
   setup_all do
     scheme = fedtest_scheme()
@@ -13,9 +14,17 @@ defmodule FederationBoxTest do
     egregoros_base_url =
       System.get_env("FEDTEST_EGREGOROS_BASE_URL", "#{scheme}://#{egregoros_domain}")
 
+    issuer_domain = System.get_env("FEDTEST_EGREGOROS_ISSUER_DOMAIN", "egregoros2.test")
+
+    issuer_base_url =
+      System.get_env("FEDTEST_EGREGOROS_ISSUER_BASE_URL", "#{scheme}://#{issuer_domain}")
+
     password = System.get_env("FEDTEST_PASSWORD", "password")
 
     alice_nickname = System.get_env("FEDTEST_ALICE_NICKNAME", "alice")
+    issuer_nickname = System.get_env("FEDTEST_EGREGOROS_ISSUER_NICKNAME", "issuer")
+    issuer_password = System.get_env("FEDTEST_EGREGOROS_ISSUER_PASSWORD", password)
+    badge_type = System.get_env("FEDTEST_BADGE_TYPE", "fedbox-badge")
 
     bob_handle = System.get_env("FEDTEST_PLEROMA_HANDLE", "@bob@pleroma.test")
     dave_handle = System.get_env("FEDTEST_PLEROMA_SECOND_HANDLE", "@dave@pleroma.test")
@@ -28,7 +37,8 @@ defmodule FederationBoxTest do
     pleroma_base_url = "#{scheme}://#{bob_domain}"
     mastodon_base_url = "#{scheme}://#{carol_domain}"
 
-    session = register_user!(egregoros_base_url, egregoros_domain, alice_nickname, password)
+    _ = register_user!(egregoros_base_url, egregoros_domain, alice_nickname, password)
+    session = login_user!(egregoros_base_url, alice_nickname, password)
 
     redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
     scopes = "read write follow"
@@ -42,6 +52,29 @@ defmodule FederationBoxTest do
     access_token =
       exchange_auth_code!(egregoros_base_url, client_id, client_secret, redirect_uri, auth_code)
 
+    issuer_session = login_user!(issuer_base_url, issuer_nickname, issuer_password)
+
+    %{client_id: issuer_client_id, client_secret: issuer_client_secret} =
+      create_oauth_app!(issuer_base_url, scopes)
+
+    issuer_auth_code =
+      authorize_oauth_app!(
+        issuer_base_url,
+        issuer_session,
+        issuer_client_id,
+        redirect_uri,
+        scopes
+      )
+
+    issuer_access_token =
+      exchange_auth_code!(
+        issuer_base_url,
+        issuer_client_id,
+        issuer_client_secret,
+        redirect_uri,
+        issuer_auth_code
+      )
+
     alice_actor_id =
       wait_until!(
         fn -> webfinger_self_href(alice_nickname, egregoros_domain) end,
@@ -50,6 +83,15 @@ defmodule FederationBoxTest do
 
     alice_actor_id_variants = actor_id_variants(alice_actor_id)
     alice_handle = "@#{alice_nickname}@#{egregoros_domain}"
+
+    issuer_actor_id =
+      wait_until!(
+        fn -> webfinger_self_href(issuer_nickname, issuer_domain) end,
+        "webfinger ready #{issuer_nickname}@#{issuer_domain}"
+      )
+
+    issuer_actor_id_variants = actor_id_variants(issuer_actor_id)
+    issuer_handle = "@#{issuer_nickname}@#{issuer_domain}"
 
     bob_actor_id =
       wait_until!(
@@ -124,9 +166,15 @@ defmodule FederationBoxTest do
      %{
        egregoros_base_url: egregoros_base_url,
        access_token: access_token,
+       issuer_base_url: issuer_base_url,
+       issuer_access_token: issuer_access_token,
        alice_handle: alice_handle,
        alice_actor_id: alice_actor_id,
        alice_actor_id_variants: alice_actor_id_variants,
+       issuer_handle: issuer_handle,
+       issuer_actor_id: issuer_actor_id,
+       issuer_actor_id_variants: issuer_actor_id_variants,
+       badge_type: badge_type,
        bob_handle: bob_handle,
        bob_access_token: bob_access_token,
        bob_actor_id: bob_actor_id,
@@ -191,6 +239,48 @@ defmodule FederationBoxTest do
     wait_until!(
       fn -> home_timeline_contains?(ctx.egregoros_base_url, ctx.access_token, carol_text) end,
       "egregoros received mastodon post"
+    )
+  end
+
+  @tag :vc
+  test "badge issuance across egregoros instances can be accepted", ctx do
+    %{"offer_id" => offer_id, "credential_id" => credential_id} =
+      issue_badge!(
+        ctx.issuer_base_url,
+        ctx.issuer_access_token,
+        ctx.badge_type,
+        ctx.alice_actor_id
+      )
+
+    wait_until!(
+      fn -> accept_offer?(ctx.egregoros_base_url, ctx.access_token, offer_id) end,
+      "egregoros accepted badge offer"
+    )
+
+    wait_until!(
+      fn -> credential_public_with_proof?(ctx.issuer_base_url, credential_id) end,
+      "issuer credential proof attached"
+    )
+  end
+
+  @tag :vc
+  test "badge issuance across egregoros instances can be rejected", ctx do
+    %{"offer_id" => offer_id, "credential_id" => credential_id} =
+      issue_badge!(
+        ctx.issuer_base_url,
+        ctx.issuer_access_token,
+        ctx.badge_type,
+        ctx.alice_actor_id
+      )
+
+    wait_until!(
+      fn -> reject_offer?(ctx.egregoros_base_url, ctx.access_token, offer_id) end,
+      "egregoros rejected badge offer"
+    )
+
+    wait_until!(
+      fn -> credential_not_public?(ctx.issuer_base_url, credential_id) end,
+      "issuer credential remains private"
     )
   end
 
@@ -1515,6 +1605,77 @@ defmodule FederationBoxTest do
     ensure_json!(resp.body)
   end
 
+  defp issue_badge!(base_url, access_token, badge_type, recipient_ap_id)
+       when is_binary(base_url) and is_binary(access_token) and is_binary(badge_type) and
+              is_binary(recipient_ap_id) do
+    resp =
+      req_post!(
+        base_url <> "/api/v1/pleroma/badges/issue",
+        headers: [{"authorization", "Bearer " <> access_token}],
+        form: [{"badge_type", badge_type}, {"recipient_ap_id", recipient_ap_id}]
+      )
+
+    if resp.status not in 200..299 do
+      raise("unexpected status when issuing badge: #{resp.status} body=#{inspect(resp.body)}")
+    end
+
+    ensure_json!(resp.body)
+  end
+
+  defp accept_offer?(base_url, access_token, offer_id)
+       when is_binary(base_url) and is_binary(access_token) and is_binary(offer_id) do
+    encoded_id = URI.encode_www_form(offer_id)
+
+    resp =
+      req_post!(
+        base_url <> "/api/v1/pleroma/offers/" <> encoded_id <> "/accept",
+        headers: [{"authorization", "Bearer " <> access_token}]
+      )
+
+    cond do
+      resp.status in 200..299 -> true
+      resp.status in [404, 422] -> false
+      true -> raise("unexpected status when accepting offer: #{resp.status}")
+    end
+  end
+
+  defp reject_offer?(base_url, access_token, offer_id)
+       when is_binary(base_url) and is_binary(access_token) and is_binary(offer_id) do
+    encoded_id = URI.encode_www_form(offer_id)
+
+    resp =
+      req_post!(
+        base_url <> "/api/v1/pleroma/offers/" <> encoded_id <> "/reject",
+        headers: [{"authorization", "Bearer " <> access_token}]
+      )
+
+    cond do
+      resp.status in 200..299 -> true
+      resp.status in [404, 422] -> false
+      true -> raise("unexpected status when rejecting offer: #{resp.status}")
+    end
+  end
+
+  defp credential_public_with_proof?(base_url, credential_id)
+       when is_binary(base_url) and is_binary(credential_id) do
+    case fetch_object_by_ap_id(base_url, credential_id) do
+      {:ok, %{"proof" => %{} = proof} = object} ->
+        proof["cryptosuite"] == "eddsa-jcs-2022" and
+          @as_public in List.wrap(Map.get(object, "to", []))
+
+      _ ->
+        false
+    end
+  end
+
+  defp credential_not_public?(base_url, credential_id)
+       when is_binary(base_url) and is_binary(credential_id) do
+    case fetch_object_by_ap_id(base_url, credential_id) do
+      {:error, status} when status in [404, 410] -> true
+      _ -> false
+    end
+  end
+
   defp create_poll_status!(base_url, access_token, text, poll_options, opts \\ [])
        when is_binary(base_url) and is_binary(access_token) and is_binary(text) and
               is_list(poll_options) and is_list(opts) do
@@ -1626,6 +1787,39 @@ defmodule FederationBoxTest do
       )
 
     ensure_json!(resp.body)
+  end
+
+  defp fetch_object_by_ap_id(base_url, ap_id)
+       when is_binary(base_url) and is_binary(ap_id) do
+    case object_uuid_from_ap_id(ap_id) do
+      uuid when is_binary(uuid) and uuid != "" ->
+        resp =
+          req_get!(
+            base_url <> "/objects/" <> uuid,
+            headers: [{"accept", "application/activity+json"}]
+          )
+
+        if resp.status in 200..299 do
+          {:ok, ensure_json!(resp.body)}
+        else
+          {:error, resp.status}
+        end
+
+      _ ->
+        {:error, :invalid_ap_id}
+    end
+  end
+
+  defp object_uuid_from_ap_id(ap_id) when is_binary(ap_id) do
+    case URI.parse(ap_id) do
+      %URI{path: path} when is_binary(path) ->
+        path
+        |> String.split("/", trim: true)
+        |> List.last()
+
+      _ ->
+        nil
+    end
   end
 
   defp poll_option_votes(status) when is_map(status) do
@@ -1854,18 +2048,74 @@ defmodule FederationBoxTest do
   defp register_user!(base_url, domain, nickname, password)
        when is_binary(base_url) and is_binary(domain) and is_binary(nickname) and
               is_binary(password) do
+    wait_until!(
+      fn ->
+        case register_user_once(base_url, domain, nickname, password) do
+          {:ok, _jar} -> {:ok, :ok}
+          :already_registered -> {:ok, :ok}
+          _ -> false
+        end
+      end,
+      "register ready #{nickname}@#{base_url}"
+    )
+  end
+
+  defp register_user_once(base_url, domain, nickname, password)
+       when is_binary(base_url) and is_binary(domain) and is_binary(nickname) and
+              is_binary(password) do
     {html, jar} = get_html!(base_url, "/register", %{})
-    csrf_token = extract_csrf_token!(html)
 
-    {_, jar} =
-      post_form!(base_url, "/register", jar, csrf_token, [
-        {"registration[nickname]", nickname},
-        {"registration[email]", "#{nickname}@#{domain}"},
-        {"registration[password]", password},
-        {"registration[return_to]", "/"}
-      ])
+    with {:ok, csrf_token} <- extract_csrf_token(html),
+         {resp, jar} <-
+           post_form_response!(base_url, "/register", jar, csrf_token, [
+             {"registration[nickname]", nickname},
+             {"registration[email]", "#{nickname}@#{domain}"},
+             {"registration[password]", password},
+             {"registration[return_to]", "/"}
+           ]) do
+      cond do
+        resp.status in 200..399 -> {:ok, jar}
+        resp.status == 422 -> :already_registered
+        true -> {:error, :registration_failed}
+      end
+    else
+      _ -> {:error, :registration_failed}
+    end
+  rescue
+    _ -> {:error, :registration_failed}
+  end
 
-    %{cookie_jar: jar}
+  defp login_user!(base_url, nickname, password)
+       when is_binary(base_url) and is_binary(nickname) and is_binary(password) do
+    wait_until!(
+      fn ->
+        case login_user_once(base_url, nickname, password) do
+          {:ok, session} -> {:ok, session}
+          _ -> false
+        end
+      end,
+      "login ready #{nickname}@#{base_url}"
+    )
+  end
+
+  defp login_user_once(base_url, nickname, password)
+       when is_binary(base_url) and is_binary(nickname) and is_binary(password) do
+    {html, jar} = get_html!(base_url, "/login", %{})
+
+    with {:ok, csrf_token} <- extract_csrf_token(html),
+         {resp, jar} <-
+           post_form_response!(base_url, "/login", jar, csrf_token, [
+             {"session[nickname]", nickname},
+             {"session[password]", password},
+             {"session[return_to]", "/"}
+           ]),
+         true <- resp.status in 300..399 do
+      {:ok, %{cookie_jar: jar}}
+    else
+      _ -> {:error, :login_failed}
+    end
+  rescue
+    _ -> {:error, :login_failed}
   end
 
   defp create_oauth_app!(base_url, scopes) when is_binary(base_url) and is_binary(scopes) do
@@ -1891,6 +2141,20 @@ defmodule FederationBoxTest do
   defp authorize_oauth_app!(base_url, %{cookie_jar: jar}, client_id, redirect_uri, scopes)
        when is_binary(base_url) and is_binary(client_id) and is_binary(redirect_uri) and
               is_binary(scopes) do
+    wait_until!(
+      fn ->
+        case authorize_oauth_app_once(base_url, jar, client_id, redirect_uri, scopes) do
+          {:ok, code} -> {:ok, code}
+          _ -> false
+        end
+      end,
+      "oauth authorize ready #{base_url}"
+    )
+  end
+
+  defp authorize_oauth_app_once(base_url, jar, client_id, redirect_uri, scopes)
+       when is_binary(base_url) and is_map(jar) and is_binary(client_id) and
+              is_binary(redirect_uri) and is_binary(scopes) do
     query =
       URI.encode_query(%{
         "client_id" => client_id,
@@ -1901,18 +2165,22 @@ defmodule FederationBoxTest do
       })
 
     {html, jar} = get_html!(base_url, "/oauth/authorize?" <> query, jar)
-    csrf_token = extract_csrf_token!(html)
 
-    {authorized_html, _jar} =
-      post_form!(base_url, "/oauth/authorize", jar, csrf_token, [
-        {"oauth[client_id]", client_id},
-        {"oauth[redirect_uri]", redirect_uri},
-        {"oauth[response_type]", "code"},
-        {"oauth[scope]", scopes},
-        {"oauth[state]", ""}
-      ])
-
-    extract_oauth_code!(authorized_html)
+    with {:ok, csrf_token} <- extract_csrf_token(html),
+         {authorized_html, _jar} <-
+           post_form!(base_url, "/oauth/authorize", jar, csrf_token, [
+             {"oauth[client_id]", client_id},
+             {"oauth[redirect_uri]", redirect_uri},
+             {"oauth[response_type]", "code"},
+             {"oauth[scope]", scopes},
+             {"oauth[state]", ""}
+           ]) do
+      {:ok, extract_oauth_code!(authorized_html)}
+    else
+      _ -> {:error, :oauth_failed}
+    end
+  rescue
+    _ -> {:error, :oauth_failed}
   end
 
   defp authorize_rails_oauth_app!(base_url, %{cookie_jar: jar}, client_id, redirect_uri, scopes)
@@ -2335,6 +2603,20 @@ defmodule FederationBoxTest do
     {to_string(resp.body), jar}
   end
 
+  defp post_form_response!(base_url, path, jar, csrf_token, fields)
+       when is_binary(base_url) and is_binary(path) and is_map(jar) and is_binary(csrf_token) and
+              is_list(fields) do
+    resp =
+      req_post!(
+        base_url <> path,
+        headers: cookie_headers(jar),
+        form: [{"_csrf_token", csrf_token} | fields]
+      )
+
+    jar = update_cookie_jar(jar, resp)
+    {resp, jar}
+  end
+
   defp post_rails_form!(base_url, path, jar, csrf_token, fields)
        when is_binary(base_url) and is_binary(path) and is_map(jar) and is_binary(csrf_token) and
               is_list(fields) do
@@ -2382,6 +2664,13 @@ defmodule FederationBoxTest do
     case Regex.run(~r/<meta\s+name=\"csrf-token\"\s+content=\"([^\"]+)\"/i, html) do
       [_, token] -> token
       _ -> raise("csrf token not found")
+    end
+  end
+
+  defp extract_csrf_token(html) when is_binary(html) do
+    case Regex.run(~r/<meta\s+name=\"csrf-token\"\s+content=\"([^\"]+)\"/i, html) do
+      [_, token] -> {:ok, token}
+      _ -> :error
     end
   end
 

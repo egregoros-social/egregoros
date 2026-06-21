@@ -4,6 +4,7 @@ defmodule Egregoros.Activities.Reject do
   import Ecto.Changeset
 
   alias Egregoros.Activities.Helpers
+  alias Egregoros.ActivityPub.TypeNormalizer
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
@@ -57,6 +58,7 @@ defmodule Egregoros.Activities.Reject do
 
   def side_effects(object, opts) do
     _ = apply_follow_reject(object)
+    _ = apply_offer_reject(object)
 
     if Keyword.get(opts, :local, true) do
       deliver_reject(object)
@@ -71,6 +73,16 @@ defmodule Egregoros.Activities.Reject do
       "type" => type(),
       "actor" => actor.ap_id,
       "object" => follow_object.data,
+      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+  end
+
+  def build(%User{} = actor, %Object{type: "Offer"} = offer_object) do
+    %{
+      "id" => Endpoint.url() <> "/activities/reject/" <> Ecto.UUID.generate(),
+      "type" => type(),
+      "actor" => actor.ap_id,
+      "object" => offer_object.data,
       "published" => DateTime.utc_now() |> DateTime.to_iso8601()
     }
   end
@@ -117,6 +129,62 @@ defmodule Egregoros.Activities.Reject do
         :ok
     end
   end
+
+  defp apply_offer_reject(%Object{} = reject_object) do
+    offer_ap_id = offer_ap_id_from_reject(reject_object)
+    recipient_ap_id = normalize_ap_id(reject_object.actor)
+
+    with offer_ap_id when is_binary(offer_ap_id) <- offer_ap_id,
+         recipient_ap_id when is_binary(recipient_ap_id) <- recipient_ap_id do
+      _ = Relationships.delete_by_type_actor_object("OfferPending", recipient_ap_id, offer_ap_id)
+
+      _ =
+        Relationships.upsert_relationship(%{
+          type: "OfferRejected",
+          actor: recipient_ap_id,
+          object: offer_ap_id,
+          activity_ap_id: offer_ap_id
+        })
+
+      :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  defp offer_ap_id_from_reject(%Object{} = reject_object) do
+    embedded_offer =
+      case reject_object.data do
+        %{"object" => %{} = offer} -> offer
+        _ -> nil
+      end
+
+    embedded_offer_id =
+      if is_map(embedded_offer) and TypeNormalizer.primary_type(embedded_offer) == "Offer" do
+        extract_id(embedded_offer)
+      else
+        nil
+      end
+
+    offer_ap_id_from_object(embedded_offer_id) || offer_ap_id_from_object(reject_object.object)
+  end
+
+  defp offer_ap_id_from_reject(_reject_object), do: nil
+
+  defp offer_ap_id_from_object(offer_ap_id) when is_binary(offer_ap_id) do
+    offer_ap_id = String.trim(offer_ap_id)
+
+    if offer_ap_id == "" do
+      nil
+    else
+      case Objects.get_by_ap_id(offer_ap_id) do
+        %Object{type: "Offer"} -> offer_ap_id
+        _ -> nil
+      end
+    end
+  end
+
+  defp offer_ap_id_from_object(_offer_ap_id), do: nil
 
   defp extract_id(%{"id" => id}) when is_binary(id), do: id
   defp extract_id(id) when is_binary(id), do: id
@@ -183,9 +251,9 @@ defmodule Egregoros.Activities.Reject do
 
   defp deliver_reject(%Object{} = reject_object) do
     with %{} = actor <- Users.get_by_ap_id(reject_object.actor),
-         %{} = follower <- rejected_follower(reject_object),
-         false <- follower.local do
-      Delivery.deliver(actor, follower.inbox, reject_object.data)
+         %{} = target <- rejected_target(reject_object),
+         false <- target.local do
+      Delivery.deliver(actor, target.inbox, reject_object.data)
     end
   end
 
@@ -205,6 +273,36 @@ defmodule Egregoros.Activities.Reject do
     end
   end
 
+  defp rejected_target(%Object{} = reject_object) do
+    rejected_follower(reject_object) || rejected_offer_actor(reject_object)
+  end
+
+  defp rejected_offer_actor(%Object{} = reject_object) do
+    case reject_object.data["object"] do
+      %{} = offer ->
+        if TypeNormalizer.primary_type(offer) == "Offer" do
+          offer
+          |> Map.get("actor")
+          |> extract_id()
+          |> Users.get_by_ap_id()
+        else
+          nil
+        end
+
+      offer_ap_id when is_binary(offer_ap_id) ->
+        case Objects.get_by_ap_id(offer_ap_id) do
+          %Object{type: "Offer", actor: actor} when is_binary(actor) ->
+            Users.get_by_ap_id(actor)
+
+          _ ->
+            nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
   defp to_object_attrs(activity, opts) do
     %{
       ap_id: activity["id"],
@@ -215,6 +313,7 @@ defmodule Egregoros.Activities.Reject do
       published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   defp apply_reject(activity, %__MODULE__{} = reject) do

@@ -4,6 +4,7 @@ defmodule Egregoros.Activities.Undo do
   import Ecto.Changeset
 
   alias Egregoros.Activities.Helpers
+  alias Egregoros.Activities.Offer
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
@@ -138,6 +139,9 @@ defmodule Egregoros.Activities.Undo do
         when type in ["Like", "Announce", "EmojiReact"] ->
           InboxTargeting.object_owned_by?(object_ap_id, inbox_user_ap_id)
 
+        %Object{type: "Offer"} = offer ->
+          inbox_user_ap_id in Offer.recipient_ap_ids(offer)
+
         _ ->
           false
       end
@@ -186,6 +190,20 @@ defmodule Egregoros.Activities.Undo do
     end)
   end
 
+  defp do_deliver(actor, %Object{type: "Offer"} = offer, undo_object) do
+    offer
+    |> Offer.recipient_ap_ids()
+    |> Enum.each(fn recipient_ap_id ->
+      case Users.get_by_ap_id(recipient_ap_id) do
+        %User{local: false} = recipient ->
+          Delivery.deliver(actor, recipient.inbox, undo_object.data)
+
+        _ ->
+          :ok
+      end
+    end)
+  end
+
   defp do_deliver(_actor, _activity, _undo_object), do: :ok
 
   defp undo_target(
@@ -210,6 +228,12 @@ defmodule Egregoros.Activities.Undo do
         :ok
     end
 
+    Objects.delete_object(target_activity)
+  end
+
+  defp undo_target(%Object{type: "Offer", ap_id: target_ap_id} = target_activity)
+       when is_binary(target_ap_id) do
+    _ = Relationships.delete_all_for_object(target_ap_id)
     Objects.delete_object(target_activity)
   end
 
@@ -261,7 +285,7 @@ defmodule Egregoros.Activities.Undo do
 
   defp maybe_broadcast_post_update(object_ap_id) when is_binary(object_ap_id) do
     with %Object{} = object <- Objects.get_by_ap_id(object_ap_id),
-         "Note" <- object.type do
+         type when type in ["Note", "VerifiableCredential"] <- object.type do
       Timeline.broadcast_post_updated(object)
     else
       _ -> :ok
@@ -291,6 +315,7 @@ defmodule Egregoros.Activities.Undo do
       published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   defp apply_undo(activity, %__MODULE__{} = undo) do

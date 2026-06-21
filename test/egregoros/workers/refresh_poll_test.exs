@@ -1,8 +1,10 @@
 defmodule Egregoros.Workers.RefreshPollTest do
   use Egregoros.DataCase, async: true
 
+  alias Egregoros.Object
   alias Egregoros.Objects
   alias Egregoros.Pipeline
+  alias Egregoros.Repo
   alias Egregoros.Users
   alias Egregoros.Workers.RefreshPoll
   alias EgregorosWeb.Endpoint
@@ -226,6 +228,102 @@ defmodule Egregoros.Workers.RefreshPollTest do
       end)
 
       assert :ok = RefreshPoll.perform(%Oban.Job{args: %{"ap_id" => ap_id}})
+    end
+
+    test "returns :ok for unsafe poll urls" do
+      ap_id = "http://127.0.0.1/objects/" <> Ecto.UUID.generate()
+
+      _ =
+        %Object{}
+        |> Object.changeset(%{
+          ap_id: ap_id,
+          type: "Question",
+          local: false,
+          data: %{
+            "id" => ap_id,
+            "type" => "Question",
+            "oneOf" => [%{"name" => "A", "replies" => %{"totalItems" => 0}}]
+          }
+        })
+        |> Repo.insert!()
+
+      assert :ok = RefreshPoll.perform(%Oban.Job{args: %{"ap_id" => ap_id}})
+    end
+
+    test "returns an error for server errors" do
+      ap_id = "https://remote.example/objects/" <> Ecto.UUID.generate()
+
+      question = %{
+        "id" => ap_id,
+        "type" => "Question",
+        "attributedTo" => "https://remote.example/users/pollcreator",
+        "context" => "https://remote.example/contexts/" <> Ecto.UUID.generate(),
+        "to" => [@as_public],
+        "oneOf" => [%{"name" => "A", "replies" => %{"totalItems" => 0}}]
+      }
+
+      assert {:ok, _poll} = Pipeline.ingest(question, local: false)
+
+      stub(Egregoros.HTTP.Mock, :get, fn url, headers ->
+        if url == ap_id do
+          {:ok, %{status: 500, body: %{}, headers: []}}
+        else
+          Egregoros.HTTP.Stub.get(url, headers)
+        end
+      end)
+
+      assert {:error, {:http_status, 500}} =
+               RefreshPoll.perform(%Oban.Job{args: %{"ap_id" => ap_id}})
+    end
+
+    test "does not retry when SignedFetch returns a 404 without a body" do
+      ap_id = "https://remote.example/objects/" <> Ecto.UUID.generate()
+
+      question = %{
+        "id" => ap_id,
+        "type" => "Question",
+        "attributedTo" => "https://remote.example/users/pollcreator",
+        "context" => "https://remote.example/contexts/" <> Ecto.UUID.generate(),
+        "to" => [@as_public],
+        "oneOf" => [%{"name" => "A", "replies" => %{"totalItems" => 0}}]
+      }
+
+      assert {:ok, _poll} = Pipeline.ingest(question, local: false)
+
+      stub(Egregoros.HTTP.Mock, :get, fn url, headers ->
+        if url == ap_id do
+          {:ok, %{status: 404}}
+        else
+          Egregoros.HTTP.Stub.get(url, headers)
+        end
+      end)
+
+      assert :ok = RefreshPoll.perform(%Oban.Job{args: %{"ap_id" => ap_id}})
+    end
+
+    test "propagates SignedFetch errors" do
+      ap_id = "https://remote.example/objects/" <> Ecto.UUID.generate()
+
+      question = %{
+        "id" => ap_id,
+        "type" => "Question",
+        "attributedTo" => "https://remote.example/users/pollcreator",
+        "context" => "https://remote.example/contexts/" <> Ecto.UUID.generate(),
+        "to" => [@as_public],
+        "oneOf" => [%{"name" => "A", "replies" => %{"totalItems" => 0}}]
+      }
+
+      assert {:ok, _poll} = Pipeline.ingest(question, local: false)
+
+      stub(Egregoros.HTTP.Mock, :get, fn url, headers ->
+        if url == ap_id do
+          {:error, :timeout}
+        else
+          Egregoros.HTTP.Stub.get(url, headers)
+        end
+      end)
+
+      assert {:error, :timeout} = RefreshPoll.perform(%Oban.Job{args: %{"ap_id" => ap_id}})
     end
 
     test "discards invalid args" do

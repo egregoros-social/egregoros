@@ -140,6 +140,7 @@ defmodule Egregoros.Activities.Delete do
       published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   defp apply_delete(activity, %__MODULE__{} = delete) do

@@ -1,6 +1,7 @@
 defmodule EgregorosWeb.TagLive do
   use EgregorosWeb, :live_view
 
+  alias Egregoros.Badges
   alias Egregoros.Interactions
   alias Egregoros.Media
   alias Egregoros.MediaStorage
@@ -301,6 +302,15 @@ defmodule EgregorosWeb.TagLive do
     with %User{} = user <- socket.assigns.current_user,
          true <- flake_id?(post_id),
          {:ok, _activity} <- Interactions.toggle_repost(user, post_id) do
+      socket =
+        case Badges.badge_share_flash_message(user, post_id) do
+          message when is_binary(message) and message != "" ->
+            put_flash(socket, :info, message)
+
+          _ ->
+            socket
+        end
+
       {:noreply, refresh_posts(socket)}
     else
       nil ->
@@ -524,7 +534,7 @@ defmodule EgregorosWeb.TagLive do
 
   defp notifications_count(%User{} = user) do
     user
-    |> Notifications.list_for_user(limit: @page_size)
+    |> Notifications.list_for_user(limit: @page_size, include_offers?: true)
     |> length()
   end
 
@@ -549,7 +559,8 @@ defmodule EgregorosWeb.TagLive do
   end
 
   defp flake_id?(id) when is_binary(id) do
-    match?(<<_::128>>, FlakeId.from_string(id))
+    id = String.trim(id)
+    byte_size(id) == 18 and FlakeId.flake_id?(id)
   end
 
   defp flake_id?(_id), do: false

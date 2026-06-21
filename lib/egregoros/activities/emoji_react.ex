@@ -206,6 +206,7 @@ defmodule Egregoros.Activities.EmojiReact do
       published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   defp apply_react(activity, %__MODULE__{} = react) do

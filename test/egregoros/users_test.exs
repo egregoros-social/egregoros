@@ -75,6 +75,16 @@ defmodule Egregoros.UsersTest do
     assert user.outbox == user.ap_id <> "/outbox"
     assert String.starts_with?(user.public_key, "-----BEGIN PUBLIC KEY-----")
     assert String.starts_with?(user.private_key, "-----BEGIN PRIVATE KEY-----")
+    assert is_binary(user.ed25519_private_key)
+    assert byte_size(user.ed25519_private_key) == 32
+    assert is_list(user.assertion_method)
+
+    assert Enum.any?(user.assertion_method, fn method ->
+             method["id"] == user.ap_id <> "#ed25519-key" and
+               method["type"] == "Multikey" and
+               method["controller"] == user.ap_id and
+               is_binary(method["publicKeyMultibase"])
+           end)
   end
 
   test "create_local_user does not grant admin based on nickname" do
@@ -112,6 +122,27 @@ defmodule Egregoros.UsersTest do
     assert updated.ap_id == new_ap_id
     assert updated.inbox == new_ap_id <> "/inbox"
     assert updated.outbox == new_ap_id <> "/outbox"
+  end
+
+  test "get_or_create_instance_actor ensures ed25519 keys" do
+    nickname = unique_nickname("instance.actor")
+    ap_id = "https://instance.example"
+    {public_key, private_key} = Egregoros.Keys.generate_rsa_keypair()
+
+    {:ok, _} =
+      Users.create_user(%{
+        nickname: nickname,
+        ap_id: ap_id,
+        inbox: ap_id <> "/inbox",
+        outbox: ap_id <> "/outbox",
+        public_key: public_key,
+        private_key: private_key,
+        local: true
+      })
+
+    assert {:ok, %User{} = updated} = Users.get_or_create_instance_actor(nickname, ap_id)
+    assert is_binary(updated.ed25519_private_key)
+    assert is_list(updated.assertion_method)
   end
 
   test "ap_id is unique" do

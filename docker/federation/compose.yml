@@ -9,6 +9,7 @@ services:
       federation:
         aliases:
           - egregoros.test
+          - egregoros2.test
           - pleroma.test
           - mastodon.test
 
@@ -87,6 +88,73 @@ services:
       SSL_CERT_FILE: /caddy/pki/authorities/local/root.crt
     volumes:
       - egregoros_fed_uploads:/data/uploads
+      - caddy_fed_data:/caddy:ro
+    expose:
+      - "4000"
+    command: >
+      sh -lc 'bin/egregoros eval "Egregoros.Release.migrate()" && exec bin/egregoros start'
+    networks:
+      - federation
+
+  egregoros2_db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: egregoros2_prod
+    volumes:
+      - egregoros2_fed_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - federation
+
+  egregoros2_web:
+    build:
+      context: ../..
+    image: egregoros-fedbox-2
+    restart: unless-stopped
+    depends_on:
+      egregoros2_db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bin/egregoros eval \"System.halt(if Egregoros.Release.healthcheck() == :ok, do: 0, else: 1)\""
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    environment:
+      DATABASE_URL: ecto://postgres:postgres@egregoros2_db:5432/egregoros2_prod
+      # Must be at least 64 bytes for Plug.Session cookie store.
+      SECRET_KEY_BASE: "fedbox_secret_key_base_egregoros2_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      PHX_HOST: egregoros2.test
+      PHX_SCHEME: https
+      PHX_PORT: 443
+      EGREGOROS_ALLOW_PRIVATE_FEDERATION: "true"
+      EGREGOROS_FEDERATION_WEBFINGER_SCHEME: https
+      # Mastodon enforces a 5-minute minimum for scheduled statuses, but we want
+      # fast E2E tests in fedbox.
+      EGREGOROS_SCHEDULED_STATUS_MIN_OFFSET_SECONDS: "0"
+      EGREGOROS_UPLOADS_DIR: /data/uploads
+      EGREGOROS_REQ_CACERTFILE: /caddy/pki/authorities/local/root.crt
+      SSL_CERT_FILE: /caddy/pki/authorities/local/root.crt
+      EGREGOROS_FEDBOX_ADMIN_NICKNAME: "issuer"
+      EGREGOROS_FEDBOX_ADMIN_PASSWORD: "password"
+      EGREGOROS_FEDBOX_ADMIN_EMAIL: "issuer@egregoros2.test"
+      EGREGOROS_FEDBOX_BADGE_TYPE: "fedbox-badge"
+      EGREGOROS_FEDBOX_BADGE_NAME: "Fedbox Badge"
+      EGREGOROS_FEDBOX_BADGE_DESCRIPTION: "Fedbox test badge"
+      EGREGOROS_FEDBOX_BADGE_NARRATIVE: "Issued in fedbox"
+    volumes:
+      - egregoros2_fed_uploads:/data/uploads
       - caddy_fed_data:/caddy:ro
     expose:
       - "4000"
@@ -410,6 +478,8 @@ services:
         condition: service_completed_successfully
       egregoros_web:
         condition: service_healthy
+      egregoros2_web:
+        condition: service_healthy
       egregoros_import_pleroma:
         condition: service_completed_successfully
       pleroma_seed:
@@ -422,6 +492,10 @@ services:
         condition: service_started
     environment:
       FEDTEST_EGREGOROS_DOMAIN: egregoros.test
+      FEDTEST_EGREGOROS_ISSUER_DOMAIN: egregoros2.test
+      FEDTEST_EGREGOROS_ISSUER_NICKNAME: "issuer"
+      FEDTEST_EGREGOROS_ISSUER_PASSWORD: "password"
+      FEDTEST_BADGE_TYPE: "fedbox-badge"
       FEDTEST_PLEROMA_HANDLE: "@bob@pleroma.test"
       FEDTEST_MASTODON_HANDLE: "@carol@mastodon.test"
       FEDTEST_PASSWORD: "password"
@@ -437,6 +511,8 @@ volumes:
   caddy_fed_data:
   egregoros_fed_db:
   egregoros_fed_uploads:
+  egregoros2_fed_db:
+  egregoros2_fed_uploads:
   pleroma_fed_db:
   pleroma_fed_data:
   mastodon_fed_db:

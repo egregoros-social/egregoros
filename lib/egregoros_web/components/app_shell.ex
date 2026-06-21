@@ -14,6 +14,7 @@ defmodule EgregorosWeb.AppShell do
       :explore,
       :search,
       :notifications,
+      :badges,
       :messages,
       :bookmarks,
       :profile,
@@ -140,6 +141,14 @@ defmodule EgregorosWeb.AppShell do
                   </.nav_link>
 
                   <.nav_link
+                    role="nav-badges"
+                    active={@active == :badges}
+                    icon="hero-trophy"
+                    label="Badges"
+                    navigate={badges_href(@current_user)}
+                  />
+
+                  <.nav_link
                     role="nav-messages"
                     active={@active == :messages}
                     icon="hero-chat-bubble-left-right"
@@ -264,6 +273,14 @@ defmodule EgregorosWeb.AppShell do
             />
 
             <.bottom_nav_link
+              role="nav-badges"
+              active={@active == :badges}
+              icon="hero-trophy"
+              label="Badges"
+              navigate={badges_href(@current_user)}
+            />
+
+            <.bottom_nav_link
               role="nav-messages"
               active={@active == :messages}
               icon="hero-chat-bubble-left-right"
@@ -378,6 +395,14 @@ defmodule EgregorosWeb.AppShell do
   end
 
   defp profile_href(_user), do: ~p"/"
+
+  defp badges_href(user) do
+    case profile_href(user) do
+      "/" -> ~p"/"
+      path when is_binary(path) -> path <> "/badges"
+      _ -> ~p"/"
+    end
+  end
 
   defp avatar_src(user) when is_map(user) do
     user

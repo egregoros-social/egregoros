@@ -7,6 +7,7 @@ defmodule Egregoros.Activities.Create do
   alias Egregoros.ActivityPub.ObjectValidators.Types.ObjectID
   alias Egregoros.ActivityPub.ObjectValidators.Types.Recipients
   alias Egregoros.ActivityPub.ObjectValidators.Types.DateTime, as: APDateTime
+  alias Egregoros.ActivityPub.TypeNormalizer
   alias Egregoros.Federation.Delivery
   alias Egregoros.Federation.DeliveryPayload
   alias Egregoros.InboxTargeting
@@ -164,6 +165,7 @@ defmodule Egregoros.Activities.Create do
       published: Helpers.parse_datetime(activity["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   defp apply_create(activity, %__MODULE__{} = create) do
@@ -260,7 +262,8 @@ defmodule Egregoros.Activities.Create do
 
     validate_change(changeset, :object, fn :object, object_value ->
       object_id = get_in(object_value, ["id"]) || get_in(object_value, [:id])
-      object_type = get_in(object_value, ["type"]) || get_in(object_value, [:type])
+      # Accept multi-type objects by validating against the primary type only.
+      object_type = TypeNormalizer.primary_type(object_value)
 
       errors =
         if is_binary(object_id) and object_id != "" and is_binary(object_type) and

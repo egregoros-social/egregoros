@@ -92,6 +92,7 @@ defmodule Egregoros.Activities.Question do
       published: Helpers.parse_datetime(question["published"]),
       local: Keyword.get(opts, :local, true)
     }
+    |> Helpers.attach_type_metadata(opts)
   end
 
   def ingest(question, opts) do
