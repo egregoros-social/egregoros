@@ -91,3 +91,7 @@ Egregoros is under active development. It federates and runs a usable web UI,
 but it has not been through a production hardening pass — treat it as
 pre-release and read [`docs/security.md`](docs/security.md) before exposing an
 instance you care about.
+
+## License
+
+Released into the public domain under [the Unlicense](UNLICENSE).
