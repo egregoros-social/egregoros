@@ -12,7 +12,6 @@ changing the execution model.
 - [ ] [Build one cross-surface visibility/block/mute truth table](issues/visibility-block-mute-truth-table.md)
 - [ ] [Extend the moderation table to streaming, LiveView, and delivery](issues/extend-moderation-table-to-remaining-surfaces.md)
 - [ ] [Check in operational and query baselines](issues/operational-and-query-baselines.md)
-- [ ] [Fix the precommit toolchain gate](issues/fix-precommit-toolchain-gate.md)
 - [ ] [Add architecture guardrails to CI](issues/architecture-guardrails-in-ci.md)
 - [ ] [Start architecture decision records](issues/architecture-decision-records.md)
 

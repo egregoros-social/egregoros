@@ -2,7 +2,13 @@
 
 ## Prerequisites
 
-- Elixir + Erlang/OTP (versions are pinned in `mise.toml`)
+- Elixir + Erlang/OTP — **use the versions pinned in `mise.toml`**
+  (`mise install`). CI uses the same pair, so a mismatched local toolchain is the
+  usual explanation for warnings nobody else sees: a newer Elixir's type checker
+  reports things in files you never touched, which makes
+  `compile --warnings-as-errors` fail locally while CI is green. If `mix` is
+  resolving a different version than `mise current` reports, run it through
+  `mise exec -- mix ...`.
 - PostgreSQL
 
 ## Setup

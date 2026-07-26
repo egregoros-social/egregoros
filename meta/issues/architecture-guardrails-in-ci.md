@@ -28,8 +28,9 @@ on web presentation.
 
 ## Notes
 
-- Blocked by [fix-precommit-toolchain-gate](fix-precommit-toolchain-gate.md):
-  `mix precommit` currently fails at `compile --warnings-as-errors` on `main`,
-  so a new CI rule would land on an already-red gate.
+- Not blocked. An earlier note here claimed `mix precommit` was failing on
+  `main`; that was a local toolchain mismatch, not a repository problem — see
+  [fix-precommit-toolchain-gate](fix-precommit-toolchain-gate.md). CI is green and
+  runs the full precommit, so a new rule has a trustworthy gate to land on.
 - The `Endpoint.url()` dependency is also the first target of the eventual
   boundary repair work.
