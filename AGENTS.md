@@ -4,6 +4,15 @@
   If that genuinely isn't feasible for a change, say so explicitly rather than
   quietly skipping it.
 
+- **Break it before you call it done.** Once a test passes, make the thing it
+  guards fail — delete the check, flip the marker, remove the new step — and
+  confirm the test fails. A green suite proves the code does something, not that
+  it does the right thing.
+
+- **Don't describe a mechanism you haven't traced.** "X backs Y", "this is
+  unreachable", "nothing fetches that": grep the call sites first, or don't write
+  it. A confident wrong comment outlives the commit that introduced it.
+
 - **Get a review before you commit.** Have the change reviewed and address the
   findings first — don't commit and then review.
 
