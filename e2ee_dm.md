@@ -1,5 +1,11 @@
 # End-to-end encrypted (E2EE) direct messages — proposal
 
+> **Status: parked / not implemented.** E2EE DMs were implemented and then
+> removed ahead of the Pleroma-compatibility work (see
+> `pleroma_migration_plan.md`); big experimental features don't fit that
+> migration. This document is kept as the design record in case we revive
+> the feature later. Nothing described below currently exists in the code.
+
 This document proposes a pragmatic E2EE direct-message design for **Egregoros** (PostgreSQL + Elixir/OTP + Phoenix + LiveView), with **encryption/decryption happening in the browser** and **no plaintext keys ever sent to the server**.
 
 It focuses on:

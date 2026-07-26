@@ -6,7 +6,7 @@ defmodule Egregoros.DirectMessages do
   alias Egregoros.User
 
   @as_public "https://www.w3.org/ns/activitystreams#Public"
-  @direct_message_types ~w(Note EncryptedMessage)
+  @direct_message_types ~w(Note)
 
   def list_for_user(user, opts \\ [])
 

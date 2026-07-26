@@ -21,7 +21,6 @@ Non-goals:
 - Lowest-coverage modules worth targeting early (high ROI for coverage gate):
   - `EgregorosWeb.ErrorHTML` (50% — generated code; low ROI unless needed)
   - `Egregoros.Release` (~55%)
-  - `EgregorosWeb.E2EEController` (~66%)
   - `Egregoros.Federation.ActorDiscovery` (~66%)
 - Known test-suite noise:
   - Occasional `Postgrex.Protocol disconnected` log spam during suite/precommit runs (likely a process escaping the SQL sandbox owner lifetime).
@@ -102,7 +101,8 @@ Mark each file after review:
 - [x] test/egregoros/discovery_test.exs (✅ keep; delegates via Mox)
 - [x] test/egregoros/dns/cached_test.exs (✅ keep; cache TTL behavior)
 - [x] test/egregoros/dns/inet_test.exs (✅ keep)
-- [x] test/egregoros/e2ee_test.exs (✅ keep; E2EE key lifecycle)
+- [x] test/egregoros/activities/encrypted_message_removed_test.exs (✅ keep; guards that EncryptedMessage stays an unknown type)
+- [x] test/egregoros/repo/e2ee_tables_dropped_test.exs (✅ keep; guards that the e2ee tables stay dropped)
 - [x] test/egregoros/federation/actor_discovery_test.exs (✅ keep)
 - [x] test/egregoros/federation/actor_test.exs (✅ keep; strong SSRF/signed-fetch edge coverage)
 - [x] test/egregoros/federation/announce_object_fetch_test.exs (✅ keep)
@@ -175,7 +175,7 @@ Mark each file after review:
 - [x] test/egregoros_web/controllers/actor_controller_test.exs (✅ keep)
 - [x] test/egregoros_web/controllers/admin/live_dashboard_test.exs (✅ keep)
 - [x] test/egregoros_web/controllers/admin_controller_test.exs (✅ keep)
-- [x] test/egregoros_web/controllers/e2ee_controller_test.exs (✅ keep)
+- [x] test/egregoros_web/controllers/e2ee_routes_removed_test.exs (✅ keep; guards that the E2EE endpoints stay gone)
 - [x] test/egregoros_web/controllers/error_html_test.exs (✅ keep)
 - [x] test/egregoros_web/controllers/error_json_test.exs (✅ keep)
 - [x] test/egregoros_web/controllers/follow_collection_controller_test.exs (✅ keep)

@@ -3,7 +3,6 @@ defmodule EgregorosWeb.Components.Shared.ContentBody do
   Shared component for rendering post/message content with:
   - Content warning (spoiler) handling
   - Collapsible long content
-  - E2EE message support
   - HTML sanitization and emoji rendering
   """
   use EgregorosWeb, :html
@@ -15,7 +14,6 @@ defmodule EgregorosWeb.Components.Shared.ContentBody do
 
   attr :id, :string, required: true
   attr :object, :map, required: true
-  attr :current_user, :any, default: nil
   attr :collapsible, :boolean, default: true
 
   def content_body(assigns) do
@@ -24,8 +22,6 @@ defmodule EgregorosWeb.Components.Shared.ContentBody do
       |> assign_new(:collapsible_content, fn ->
         assigns.collapsible and long_content?(assigns.object)
       end)
-      |> assign_new(:e2ee_payload, fn -> e2ee_payload_json(assigns.object) end)
-      |> assign_new(:current_user_ap_id, fn -> current_user_ap_id(assigns.current_user) end)
 
     content_id = "post-content-#{assigns.id}"
     fade_id = "#{content_id}-fade"
@@ -45,34 +41,12 @@ defmodule EgregorosWeb.Components.Shared.ContentBody do
     <div
       id={@content_id}
       data-role="post-content"
-      data-e2ee-dm={@e2ee_payload}
-      data-current-user-ap-id={@current_user_ap_id}
-      phx-hook={if is_binary(@e2ee_payload), do: "E2EEDMMessage", else: nil}
       class={[
         "mt-4 break-words text-base leading-relaxed text-[color:var(--text-secondary)] [&_a]:font-medium [&_a]:text-[color:var(--link)] [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-[color:var(--text-primary)]",
-        is_binary(@e2ee_payload) && "whitespace-pre-wrap",
         @collapsible_content && "relative max-h-64 overflow-hidden"
       ]}
     >
-      <%= if is_binary(@e2ee_payload) do %>
-        <div data-role="e2ee-dm-body">{post_content_html(@object)}</div>
-      <% else %>
-        {post_content_html(@object)}
-      <% end %>
-
-      <div
-        :if={is_binary(@e2ee_payload)}
-        data-role="e2ee-dm-actions"
-        class="mt-3 flex items-center gap-2 text-xs font-bold text-[color:var(--text-muted)]"
-      >
-        <button
-          type="button"
-          data-role="e2ee-dm-unlock"
-          class="inline-flex cursor-pointer items-center gap-2 border border-[color:var(--border-default)] bg-[color:var(--bg-base)] px-3 py-1.5 text-xs font-bold uppercase text-[color:var(--text-primary)] transition hover:bg-[color:var(--text-primary)] hover:text-[color:var(--bg-base)] focus-visible:outline-none focus-brutal"
-        >
-          <.icon name="hero-lock-open" class="size-4" /> Unlock
-        </button>
-      </div>
+      {post_content_html(@object)}
 
       <div
         :if={@collapsible_content}
@@ -212,16 +186,4 @@ defmodule EgregorosWeb.Components.Shared.ContentBody do
   end
 
   defp post_content_html(_object), do: ""
-
-  defp e2ee_payload_json(%{data: %{} = data}) do
-    case Map.get(data, "egregoros:e2ee_dm") do
-      %{} = payload when map_size(payload) > 0 -> Jason.encode!(payload)
-      _ -> nil
-    end
-  end
-
-  defp e2ee_payload_json(_object), do: nil
-
-  defp current_user_ap_id(%{ap_id: ap_id}) when is_binary(ap_id), do: ap_id
-  defp current_user_ap_id(_current_user), do: ""
 end

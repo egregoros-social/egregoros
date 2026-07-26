@@ -6,7 +6,6 @@ defmodule Egregoros.Publish.Notes do
   """
 
   alias Egregoros.Activities.Create
-  alias Egregoros.Activities.EncryptedMessage
   alias Egregoros.Activities.Note
   alias Egregoros.HTML
   alias Egregoros.Pipeline
@@ -43,7 +42,6 @@ defmodule Egregoros.Publish.Notes do
     - `:spoiler_text` - Content warning text
     - `:sensitive` - Whether the post contains sensitive content
     - `:language` - Language code for the post
-    - `:e2ee_dm` - E2EE payload for encrypted direct messages
 
   ## Returns
   - `{:ok, create_activity}` on success
@@ -61,7 +59,6 @@ defmodule Egregoros.Publish.Notes do
     spoiler_text = Keyword.get(opts, :spoiler_text)
     sensitive = Keyword.get(opts, :sensitive)
     language = Keyword.get(opts, :language)
-    e2ee_dm = Keyword.get(opts, :e2ee_dm)
 
     cond do
       content == "" and attachments == [] ->
@@ -97,7 +94,6 @@ defmodule Egregoros.Publish.Notes do
           |> PostBuilder.put_summary(spoiler_text)
           |> PostBuilder.put_sensitive(sensitive)
           |> PostBuilder.put_language(language)
-          |> maybe_put_e2ee_dm(e2ee_dm)
 
         create = Create.build(user, note)
 
@@ -123,16 +119,4 @@ defmodule Egregoros.Publish.Notes do
         end
     end
   end
-
-  defp maybe_put_e2ee_dm(note, %{} = payload) when is_map(note) do
-    if map_size(payload) == 0 do
-      note
-    else
-      note
-      |> Map.put("egregoros:e2ee_dm", payload)
-      |> Map.put("type", EncryptedMessage.type())
-    end
-  end
-
-  defp maybe_put_e2ee_dm(note, _payload), do: note
 end

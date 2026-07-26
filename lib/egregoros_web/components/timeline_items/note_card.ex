@@ -175,11 +175,7 @@ defmodule EgregorosWeb.Components.TimelineItems.NoteCard do
 
   defp note_body(assigns) do
     ~H"""
-    <ContentBody.content_body
-      id={@id}
-      object={@entry.object}
-      current_user={@current_user}
-    />
+    <ContentBody.content_body id={@id} object={@entry.object} />
 
     <AttachmentGrid.attachment_grid
       id={@id}

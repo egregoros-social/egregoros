@@ -3,8 +3,6 @@ const DMChatScroller = {
     this.threshold = 80
     this.peer = (this.el?.dataset?.peer || "").trim()
     this.wasNearBottom = true
-    this.seededPeer = null
-    this.seededKeysRaw = null
 
     this.onScroll = () => {
       this.wasNearBottom = this.isNearBottom()
@@ -12,7 +10,6 @@ const DMChatScroller = {
 
     this.el.addEventListener("scroll", this.onScroll, {passive: true})
 
-    this.seedPeerKeys()
     requestAnimationFrame(() => requestAnimationFrame(() => this.scrollToBottom()))
   },
 
@@ -25,12 +22,9 @@ const DMChatScroller = {
 
     if (nextPeer !== this.peer) {
       this.peer = nextPeer
-      this.seedPeerKeys()
       requestAnimationFrame(() => requestAnimationFrame(() => this.scrollToBottom()))
       return
     }
-
-    this.seedPeerKeys()
 
     if (this.wasNearBottom) {
       requestAnimationFrame(() => this.scrollToBottom())
@@ -50,26 +44,6 @@ const DMChatScroller = {
   scrollToBottom() {
     if (!this.el) return
     this.el.scrollTop = this.el.scrollHeight
-  },
-
-  seedPeerKeys() {
-    const peer = (this.el?.dataset?.peer || "").trim()
-    const raw = (this.el?.dataset?.e2eePeerKeys || "").trim()
-    if (!peer || !raw) return
-    if (this.seededPeer === peer && this.seededKeysRaw === raw) return
-
-    let keys
-    try {
-      keys = JSON.parse(raw)
-    } catch (_error) {
-      return
-    }
-
-    if (!Array.isArray(keys)) return
-
-    window.egregorosSeedActorE2EEKeys?.(peer, keys)
-    this.seededPeer = peer
-    this.seededKeysRaw = raw
   },
 }
 

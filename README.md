@@ -280,7 +280,7 @@ See `BENCHMARKS.md` for seeding and running the built-in benchmark harness.
 - `tasks.md` — current backlog and priorities
 - `frontend_checklist.md` — UI parity checklist
 - `BENCHMARKS.md` — benchmark harness
-- `e2ee_dm.md` — notes on end-to-end encrypted DMs (frontend crypto)
+- `e2ee_dm.md` — parked design notes for end-to-end encrypted DMs (removed from the code; see the doc header)
 
 ## Troubleshooting
 

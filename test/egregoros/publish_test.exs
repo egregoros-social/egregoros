@@ -83,18 +83,20 @@ defmodule Egregoros.PublishTest do
     assert note.data["sensitive"] == true
   end
 
-  test "post_note/3 ignores empty E2EE payloads" do
+  test "post_note/3 ignores a legacy :e2ee_dm option" do
     {:ok, alice} = Users.create_local_user("alice")
     {:ok, bob} = Users.create_local_user("bob")
 
     assert {:ok, create} =
              Publish.post_note(alice, "@bob hello",
                visibility: "direct",
-               e2ee_dm: %{}
+               e2ee_dm: %{"ciphertext" => "ciphertext"}
              )
 
     assert %{} = note = Objects.get_by_ap_id(create.object)
     assert bob.ap_id in List.wrap(note.data["to"])
+    assert note.type == "Note"
+    assert note.data["type"] == "Note"
     refute Map.has_key?(note.data, "egregoros:e2ee_dm")
   end
 
@@ -429,37 +431,5 @@ defmodule Egregoros.PublishTest do
              _ ->
                false
            end)
-  end
-
-  test "post_note/3 stores E2EE DM payload when provided" do
-    {:ok, alice} = Users.create_local_user("alice")
-    {:ok, bob} = Users.create_local_user("bob")
-
-    payload = %{
-      "version" => 1,
-      "alg" => "ECDH-P256+HKDF-SHA256+AES-256-GCM",
-      "sender" => %{"ap_id" => alice.ap_id, "kid" => "e2ee-alice"},
-      "recipient" => %{"ap_id" => bob.ap_id, "kid" => "e2ee-bob"},
-      "nonce" => "nonce",
-      "salt" => "salt",
-      "aad" => %{
-        "sender_ap_id" => alice.ap_id,
-        "recipient_ap_id" => bob.ap_id,
-        "sender_kid" => "e2ee-alice",
-        "recipient_kid" => "e2ee-bob"
-      },
-      "ciphertext" => "ciphertext"
-    }
-
-    assert {:ok, create} =
-             Publish.post_note(alice, "@bob Encrypted message",
-               visibility: "direct",
-               e2ee_dm: payload
-             )
-
-    assert %{} = note = Objects.get_by_ap_id(create.object)
-    assert note.type == "EncryptedMessage"
-    assert note.data["type"] == "EncryptedMessage"
-    assert note.data["egregoros:e2ee_dm"] == payload
   end
 end

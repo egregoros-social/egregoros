@@ -4,7 +4,6 @@ defmodule EgregorosWeb.MessagesLiveTest do
   import Phoenix.LiveViewTest
 
   alias Egregoros.DirectMessages
-  alias Egregoros.E2EE
   alias Egregoros.Keys
   alias Egregoros.Publish
   alias Egregoros.Users
@@ -132,7 +131,6 @@ defmodule EgregorosWeb.MessagesLiveTest do
     assert has_element?(view, "[data-role='dm-chat-peer-handle']", "@carol")
     assert has_element?(view, "[data-role='dm-message-body']", "DM from carol")
     refute has_element?(view, "[data-role='dm-message-body']", "DM from bob")
-    refute has_element?(view, "[data-role='dm-e2ee-badge']")
   end
 
   test "selecting a conversation loads that thread", %{
@@ -285,15 +283,6 @@ defmodule EgregorosWeb.MessagesLiveTest do
     assert has_element?(view, "#dm-chat-messages[phx-hook='DMChatScroller']")
   end
 
-  test "dm composer exposes the selected peer ap id", %{conn: conn, alice: alice, bob: bob} do
-    {:ok, _} = Publish.post_note(bob, "@alice hi", visibility: "direct")
-
-    conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
-    {:ok, view, _html} = live(conn, "/messages")
-
-    assert has_element?(view, "#dm-form[data-peer-ap-id='#{bob.ap_id}']")
-  end
-
   test "renders avatar images when available", %{
     conn: conn,
     alice: alice,
@@ -335,51 +324,45 @@ defmodule EgregorosWeb.MessagesLiveTest do
     assert has_element?(view, "img[src='#{expected}']")
   end
 
-  test "sending an encrypted DM stores the payload and renders unlock controls", %{
+  test "the DM composer exposes no encryption controls", %{
     conn: conn,
     alice: alice,
     bob: bob
   } do
+    {:ok, _} = Publish.post_note(bob, "@alice hi", visibility: "direct")
+
     conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
-    {:ok, view, _html} = live(conn, "/messages")
+    {:ok, view, html} = live(conn, "/messages")
 
-    payload = %{
-      "version" => 1,
-      "alg" => "ECDH-P256+HKDF-SHA256+AES-256-GCM",
-      "sender" => %{"ap_id" => alice.ap_id, "kid" => "e2ee-alice"},
-      "recipient" => %{"ap_id" => bob.ap_id, "kid" => "e2ee-bob"},
-      "nonce" => "nonce",
-      "salt" => "salt",
-      "aad" => %{
-        "sender_ap_id" => alice.ap_id,
-        "recipient_ap_id" => bob.ap_id,
-        "sender_kid" => "e2ee-alice",
-        "recipient_kid" => "e2ee-bob"
-      },
-      "ciphertext" => "ciphertext"
-    }
+    assert has_element?(view, "#dm-form")
+    refute has_element?(view, "[data-role='dm-e2ee-payload']")
+    refute has_element?(view, "[data-role='dm-encrypt-enabled']")
+    refute has_element?(view, "[data-role='dm-encrypt-toggle']")
+    refute has_element?(view, "[data-role='dm-composer-lock']")
+    refute has_element?(view, "[data-role='dm-e2ee-feedback']")
+    refute has_element?(view, "#dm-chat-messages[data-e2ee-peer-keys]")
+    refute html =~ "E2EEDMComposer"
+  end
 
-    view
-    |> form("#dm-form",
-      dm: %{
-        recipient: "@#{bob.nickname}",
-        content: "this-should-not-be-stored",
-        e2ee_dm: Jason.encode!(payload)
-      }
-    )
-    |> render_submit()
+  test "notes carrying an e2ee payload render as plain content without unlock controls", %{
+    conn: conn,
+    alice: alice,
+    bob: bob
+  } do
+    _dm = create_note_with_e2ee_payload!(bob, alice, "payload-carrying-note")
 
-    assert has_element?(view, "[data-role='e2ee-dm-body']", "[Encrypted]")
-    assert has_element?(view, "[data-role='e2ee-dm-decrypting']")
-    refute has_element?(view, "[data-role='dm-message-body']", "this-should-not-be-stored")
+    conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
+    {:ok, view, html} = live(conn, "/messages")
 
-    assert has_element?(view, "[data-role='dm-e2ee-badge']")
-    assert has_element?(view, "[data-role='e2ee-dm-unlock']")
+    assert has_element?(view, "[data-role='dm-chat-peer-handle']", "@bob")
+    assert has_element?(view, "[data-role='dm-message-body']", "payload-carrying-note")
 
-    [dm] = DirectMessages.list_conversation(alice, bob.ap_id, limit: 1)
-    assert dm.type == "EncryptedMessage"
-    assert dm.data["egregoros:e2ee_dm"] == payload
-    refute dm.data["source"]["content"] =~ "this-should-not-be-stored"
+    refute has_element?(view, "[data-role='dm-e2ee-badge']")
+    refute has_element?(view, "[data-role='e2ee-dm-body']")
+    refute has_element?(view, "[data-role='e2ee-dm-unlock']")
+    refute has_element?(view, "[data-role='e2ee-dm-decrypting']")
+    refute has_element?(view, "[data-role='dm-conversation-e2ee']")
+    refute html =~ "E2EEDMMessage"
   end
 
   test "conversation list shows preview, timestamp, and unread state", %{
@@ -425,86 +408,38 @@ defmodule EgregorosWeb.MessagesLiveTest do
            )
   end
 
-  test "conversation list E2EE indicator depends on the last message", %{
-    conn: conn,
-    alice: alice,
-    bob: bob,
-    carol: carol
-  } do
-    {:ok, _} =
-      Publish.post_note(bob, "@alice Encrypted message",
-        visibility: "direct",
-        e2ee_dm: e2ee_payload(bob, alice)
-      )
+  # A Note carrying an `egregoros:e2ee_dm` payload — the shape a third-party
+  # implementation could still federate to us. It must render like any other
+  # direct message, with no unlock affordances.
+  #
+  # (Egregoros' own encrypted DMs were stored as `type: "EncryptedMessage"`,
+  # which `DirectMessages` no longer lists at all — see direct_messages_test.)
+  defp create_note_with_e2ee_payload!(sender, recipient, content) do
+    ap_id = "https://example.com/objects/e2ee-payload-#{System.unique_integer([:positive])}"
 
-    {:ok, _} = Publish.post_note(bob, "@alice DM from bob", visibility: "direct")
+    {:ok, object} =
+      Egregoros.Objects.create_object(%{
+        ap_id: ap_id,
+        type: "Note",
+        actor: sender.ap_id,
+        object: nil,
+        local: true,
+        data: %{
+          "id" => ap_id,
+          "type" => "Note",
+          "actor" => sender.ap_id,
+          "to" => [recipient.ap_id],
+          "cc" => [],
+          "content" => content,
+          "egregoros:e2ee_dm" => %{
+            "version" => 1,
+            "alg" => "ECDH-P256+HKDF-SHA256+AES-256-GCM",
+            "ciphertext" => "ciphertext"
+          }
+        }
+      })
 
-    {:ok, _} =
-      Publish.post_note(carol, "@alice Encrypted message",
-        visibility: "direct",
-        e2ee_dm: e2ee_payload(carol, alice)
-      )
-
-    conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
-    {:ok, view, _html} = live(conn, "/messages")
-
-    refute has_element?(
-             view,
-             "[data-role='dm-conversation'][data-peer-handle='@bob'] [data-role='dm-conversation-e2ee']"
-           )
-
-    assert has_element?(
-             view,
-             "[data-role='dm-conversation'][data-peer-handle='@carol'] [data-role='dm-conversation-e2ee']"
-           )
-  end
-
-  defp e2ee_payload(sender, recipient) do
-    %{
-      "version" => 1,
-      "alg" => "ECDH-P256+HKDF-SHA256+AES-256-GCM",
-      "sender" => %{"ap_id" => sender.ap_id, "kid" => "e2ee-#{sender.nickname}"},
-      "recipient" => %{"ap_id" => recipient.ap_id, "kid" => "e2ee-#{recipient.nickname}"},
-      "nonce" => "nonce",
-      "salt" => "salt",
-      "aad" => %{
-        "sender_ap_id" => sender.ap_id,
-        "recipient_ap_id" => recipient.ap_id,
-        "sender_kid" => "e2ee-#{sender.nickname}",
-        "recipient_kid" => "e2ee-#{recipient.nickname}"
-      },
-      "ciphertext" => "ciphertext"
-    }
-  end
-
-  defp enable_e2ee_key!(user) do
-    kid = "e2ee-#{System.unique_integer([:positive])}"
-
-    public_key_jwk = %{
-      "kty" => "EC",
-      "crv" => "P-256",
-      "x" => "pQECAwQFBgcICQoLDA0ODw",
-      "y" => "AQIDBAUGBwgJCgsMDQ4PEA"
-    }
-
-    assert {:ok, _} =
-             E2EE.enable_key_with_wrapper(user, %{
-               kid: kid,
-               public_key_jwk: public_key_jwk,
-               wrapper: %{
-                 type: "recovery_mnemonic_v1",
-                 wrapped_private_key: <<1, 2, 3>>,
-                 params: %{
-                   "hkdf_salt" => Base.url_encode64("hkdf-salt", padding: false),
-                   "iv" => Base.url_encode64("iv", padding: false),
-                   "alg" => "A256GCM",
-                   "kdf" => "HKDF-SHA256",
-                   "info" => "egregoros:e2ee:wrap:mnemonic:v1"
-                 }
-               }
-             })
-
-    kid
+    object
   end
 
   test "recipient suggestions appear in a new chat and selecting one starts the chat", %{
@@ -559,75 +494,6 @@ defmodule EgregorosWeb.MessagesLiveTest do
            )
   end
 
-  test "encrypt controls are hidden when the recipient does not support e2ee", %{
-    conn: conn,
-    alice: alice
-  } do
-    {public_key, _private_key} = Keys.generate_rsa_keypair()
-
-    {:ok, remote} =
-      Users.create_user(%{
-        nickname: "dave",
-        ap_id: "https://remote.example/users/dave",
-        inbox: "https://remote.example/users/dave/inbox",
-        outbox: "https://remote.example/users/dave/outbox",
-        public_key: public_key,
-        local: false
-      })
-
-    {:ok, _} =
-      Publish.post_note(alice, "@dave@remote.example hello", visibility: "direct")
-
-    stub(Egregoros.HTTP.Mock, :get, fn url, _headers ->
-      if url == remote.ap_id do
-        {:ok, %{status: 200, body: %{"id" => remote.ap_id, "type" => "Person"}, headers: []}}
-      else
-        {:ok, %{status: 200, body: %{}, headers: []}}
-      end
-    end)
-
-    conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
-    {:ok, view, _html} = live(conn, "/messages")
-
-    assert has_element?(view, "[data-role='dm-chat-peer-handle']", "@dave@remote.example")
-    assert has_element?(view, "[data-role='dm-encrypt-enabled'][value='false']")
-    refute has_element?(view, "[data-role='dm-encrypt-toggle']")
-  end
-
-  test "the DM encrypt toggle does not rely on backend events", %{
-    conn: conn,
-    alice: alice,
-    bob: bob
-  } do
-    _kid = enable_e2ee_key!(bob)
-
-    {:ok, _} =
-      Publish.post_note(bob, "@alice Encrypted message",
-        visibility: "direct",
-        e2ee_dm: e2ee_payload(bob, alice)
-      )
-
-    conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
-    {:ok, view, _html} = live(conn, "/messages")
-
-    assert has_element?(view, "[data-role='dm-encrypt-enabled'][value='true']")
-    assert has_element?(view, "[data-role='dm-composer-lock']")
-    assert has_element?(view, "[data-role='dm-encrypt-toggle']")
-    refute has_element?(view, "[data-role='dm-encrypt-toggle'][phx-click]")
-
-    refute render(view) =~ "toggle_dm_encrypt"
-  end
-
-  test "chat window preloads the peer's E2EE keys", %{conn: conn, alice: alice, bob: bob} do
-    kid = enable_e2ee_key!(bob)
-    {:ok, _} = Publish.post_note(bob, "@alice hi", visibility: "direct")
-
-    conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
-    {:ok, view, _html} = live(conn, "/messages")
-
-    assert has_element?(view, "#dm-chat-messages[data-e2ee-peer-keys*='#{kid}']")
-  end
-
   test "loads older messages in the current conversation", %{
     conn: conn,
     alice: alice,
@@ -650,70 +516,6 @@ defmodule EgregorosWeb.MessagesLiveTest do
     |> render_click()
 
     assert has_element?(view, "[data-role='dm-message-body']", "dm-001")
-    refute has_element?(view, "[data-role='dm-load-older']")
-  end
-
-  test "loading older messages preserves conversation e2ee state when already enabled", %{
-    conn: conn,
-    alice: alice,
-    bob: bob
-  } do
-    _kid = enable_e2ee_key!(bob)
-
-    for i <- 1..39 do
-      suffix = i |> Integer.to_string() |> String.pad_leading(3, "0")
-      {:ok, _} = Publish.post_note(bob, "@alice plain-#{suffix}", visibility: "direct")
-    end
-
-    {:ok, _} =
-      Publish.post_note(bob, "@alice encrypted-newest",
-        visibility: "direct",
-        e2ee_dm: e2ee_payload(bob, alice)
-      )
-
-    conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
-    {:ok, view, _html} = live(conn, "/messages")
-
-    assert has_element?(view, "[data-role='dm-e2ee-badge']")
-    assert has_element?(view, "[data-role='dm-load-older']")
-
-    view
-    |> element("[data-role='dm-load-older']")
-    |> render_click()
-
-    assert has_element?(view, "[data-role='dm-e2ee-badge']")
-    refute has_element?(view, "[data-role='dm-load-older']")
-  end
-
-  test "loading older messages enables conversation e2ee when older messages are encrypted", %{
-    conn: conn,
-    alice: alice,
-    bob: bob
-  } do
-    _kid = enable_e2ee_key!(bob)
-
-    {:ok, _} =
-      Publish.post_note(bob, "@alice encrypted-oldest",
-        visibility: "direct",
-        e2ee_dm: e2ee_payload(bob, alice)
-      )
-
-    for i <- 1..40 do
-      suffix = i |> Integer.to_string() |> String.pad_leading(3, "0")
-      {:ok, _} = Publish.post_note(bob, "@alice plain-#{suffix}", visibility: "direct")
-    end
-
-    conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
-    {:ok, view, _html} = live(conn, "/messages")
-
-    refute has_element?(view, "[data-role='dm-e2ee-badge']")
-    assert has_element?(view, "[data-role='dm-load-older']")
-
-    view
-    |> element("[data-role='dm-load-older']")
-    |> render_click()
-
-    assert has_element?(view, "[data-role='dm-e2ee-badge']")
     refute has_element?(view, "[data-role='dm-load-older']")
   end
 

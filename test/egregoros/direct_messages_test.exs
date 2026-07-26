@@ -8,7 +8,9 @@ defmodule Egregoros.DirectMessagesTest do
 
   @as_public "https://www.w3.org/ns/activitystreams#Public"
 
-  test "list_for_user includes EncryptedMessage objects" do
+  # Egregoros' own encrypted DMs were stored with type "EncryptedMessage"; after
+  # the E2EE removal those rows are no longer surfaced anywhere.
+  test "list_for_user excludes EncryptedMessage objects" do
     {:ok, alice} = Users.create_local_user("alice")
 
     actor = "https://remote.example/users/bob"
@@ -23,6 +25,32 @@ defmodule Egregoros.DirectMessagesTest do
                data: %{
                  "id" => "https://remote.example/objects/encrypted-dm",
                  "type" => "EncryptedMessage",
+                 "actor" => actor,
+                 "to" => [alice.ap_id],
+                 "cc" => [],
+                 "content" => "Encrypted message"
+               }
+             })
+
+    messages = DirectMessages.list_for_user(alice)
+    refute Enum.any?(messages, &(&1.id == dm.id))
+  end
+
+  test "list_for_user includes notes carrying an egregoros:e2ee_dm payload" do
+    {:ok, alice} = Users.create_local_user("alice")
+
+    actor = "https://remote.example/users/bob"
+
+    assert {:ok, %Object{} = dm} =
+             Objects.create_object(%{
+               ap_id: "https://remote.example/objects/legacy-e2ee-dm",
+               type: "Note",
+               actor: actor,
+               object: nil,
+               local: false,
+               data: %{
+                 "id" => "https://remote.example/objects/legacy-e2ee-dm",
+                 "type" => "Note",
                  "actor" => actor,
                  "to" => [alice.ap_id],
                  "cc" => [],

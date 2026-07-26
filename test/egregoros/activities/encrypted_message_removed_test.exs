@@ -1,10 +1,16 @@
-defmodule Egregoros.Activities.EncryptedMessageIngestTest do
+defmodule Egregoros.Activities.EncryptedMessageRemovedTest do
   use Egregoros.DataCase, async: true
 
+  alias Egregoros.ActivityRegistry
   alias Egregoros.Pipeline
   alias Egregoros.Users
 
-  test "ingests EncryptedMessage objects" do
+  test "EncryptedMessage is not a known activity type" do
+    assert {:ok, Egregoros.Activities.Note} = ActivityRegistry.fetch("Note")
+    assert {:error, :unknown_type} = ActivityRegistry.fetch("EncryptedMessage")
+  end
+
+  test "EncryptedMessage objects are not ingested" do
     {:ok, alice} = Users.create_local_user("alice")
     {:ok, bob} = Users.create_local_user("bob")
 
@@ -18,8 +24,6 @@ defmodule Egregoros.Activities.EncryptedMessageIngestTest do
       "egregoros:e2ee_dm" => %{"version" => 1, "ciphertext" => "abc"}
     }
 
-    assert {:ok, object} = Pipeline.ingest(msg, local: true)
-    assert object.type == "EncryptedMessage"
-    assert get_in(object.data, ["egregoros:e2ee_dm", "ciphertext"]) == "abc"
+    assert {:error, :unknown_type} = Pipeline.ingest(msg, local: true)
   end
 end
