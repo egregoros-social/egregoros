@@ -9,7 +9,6 @@ Make current behavior and failure semantics executable and reviewable, before
 changing the execution model.
 
 - [ ] [Make ingress behavior executable as a parity matrix](issues/ingress-behavior-matrix.md)
-- [ ] [Define an ingestion error taxonomy with explicit Oban outcomes](issues/ingestion-error-taxonomy.md)
 - [ ] [Build one cross-surface visibility/block/mute truth table](issues/visibility-block-mute-truth-table.md)
 - [ ] [Check in operational and query baselines](issues/operational-and-query-baselines.md)
 - [ ] [Fix the precommit toolchain gate](issues/fix-precommit-toolchain-gate.md)

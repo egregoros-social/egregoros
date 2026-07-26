@@ -112,44 +112,58 @@ defmodule Egregoros.Activities.Undo do
         InboxTargeting.follows?(inbox_user_ap_id, actor_ap_id) ->
           :ok
 
-        target_activity_ap_id
-        |> targeted_via_undo_object?(inbox_user_ap_id) ->
-          :ok
-
         true ->
-          {:error, :not_targeted}
+          case undo_target(target_activity_ap_id, inbox_user_ap_id) do
+            :targeted -> :ok
+            :not_targeted -> {:error, :not_targeted}
+            # We may simply not have ingested the target yet: an Undo and the
+            # activity it undoes arrive as separate jobs on a concurrent queue,
+            # so the Undo can be processed first. Distinguish that from "this is
+            # not ours" so the caller can retry instead of discarding — a
+            # discarded Undo leaves the Like or Follow applied forever.
+            :unknown -> {:error, :target_unknown}
+          end
       end
     end)
   end
 
   def authorize_inbox(_activity, _opts), do: :ok
 
-  defp targeted_via_undo_object?(target_activity_ap_id, inbox_user_ap_id)
+  defp undo_target(target_activity_ap_id, inbox_user_ap_id)
        when is_binary(target_activity_ap_id) and is_binary(inbox_user_ap_id) do
     target_activity_ap_id = String.trim(target_activity_ap_id)
     inbox_user_ap_id = String.trim(inbox_user_ap_id)
 
     if target_activity_ap_id == "" or inbox_user_ap_id == "" do
-      false
+      :not_targeted
     else
       case Objects.get_by_ap_id(target_activity_ap_id) do
         %Object{type: "Follow", object: ^inbox_user_ap_id} ->
-          true
+          :targeted
 
         %Object{type: type, object: object_ap_id}
         when type in ["Like", "Announce", "EmojiReact"] ->
-          InboxTargeting.object_owned_by?(object_ap_id, inbox_user_ap_id)
+          if InboxTargeting.object_owned_by?(object_ap_id, inbox_user_ap_id),
+            do: :targeted,
+            else: :not_targeted
 
         %Object{type: "Offer"} = offer ->
-          inbox_user_ap_id in Offer.recipient_ap_ids(offer)
+          if inbox_user_ap_id in Offer.recipient_ap_ids(offer),
+            do: :targeted,
+            else: :not_targeted
 
-        _ ->
-          false
+        # We hold the target but it is some other kind of activity: a decision we
+        # can make now, so it is a rejection rather than a wait.
+        %Object{} ->
+          :not_targeted
+
+        nil ->
+          :unknown
       end
     end
   end
 
-  defp targeted_via_undo_object?(_target_activity_ap_id, _inbox_user_ap_id), do: false
+  defp undo_target(_target_activity_ap_id, _inbox_user_ap_id), do: :not_targeted
 
   defp deliver_undo(%Object{} = undo_object, %Object{} = target_activity) do
     with %{} = actor <- Users.get_by_ap_id(undo_object.actor) do

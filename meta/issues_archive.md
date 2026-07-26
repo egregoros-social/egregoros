@@ -8,3 +8,4 @@ Work completed before this tracker existed is not listed here; see
 
 - [x] [Remove end-to-end encrypted DMs](issues/remove-e2ee-direct-messages.md)
 - [x] [Authorize inbox targeting before enqueueing actor discovery](issues/authorize-inbox-targeting-before-actor-discovery.md)
+- [x] [Define an ingestion error taxonomy with explicit Oban outcomes](issues/ingestion-error-taxonomy.md)

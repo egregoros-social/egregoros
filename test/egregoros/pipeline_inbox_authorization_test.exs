@@ -111,6 +111,9 @@ defmodule Egregoros.PipelineInboxAuthorizationTest do
       refute_enqueued(worker: FetchActor)
     end
 
+    # An Undo whose target we do not hold is rejected as :target_unknown rather
+    # than :not_targeted (it is retryable — see undo_authorization_test), but it
+    # must still short-circuit before discovery either way.
     test "Undo of something unrelated to the inbox owner", %{alice: alice} do
       activity = %{
         "id" => activity_id(),
@@ -120,7 +123,7 @@ defmodule Egregoros.PipelineInboxAuthorizationTest do
         "object" => "#{@remote}/activities/#{Ecto.UUID.generate()}"
       }
 
-      assert {:error, :not_targeted} =
+      assert {:error, :target_unknown} =
                Pipeline.ingest(activity, local: false, inbox_user_ap_id: alice.ap_id)
 
       refute_enqueued(worker: FetchActor)

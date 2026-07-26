@@ -25,6 +25,13 @@ failure discards, retries, or counts as success is currently implicit.
 ## Notes
 
 - Pairs with
-  [authorize-inbox-targeting-before-actor-discovery](authorize-inbox-targeting-before-actor-discovery.md):
-  `:not_targeted` is the clearest example of a permanent rejection that
-  should never retry.
+  [authorize-inbox-targeting-before-actor-discovery](authorize-inbox-targeting-before-actor-discovery.md).
+
+- **Correction, found while implementing.** This issue asserted that
+  `:not_targeted` "is the clearest example of a permanent rejection that should
+  never retry". That is true for `Follow` (a pure comparison) but wrong for
+  `Undo`: its authorization depends on us already holding the activity being
+  undone, and `federation_incoming` runs at concurrency 10, so an Undo can be
+  processed before the Like it undoes. Discarding it left the Like applied
+  forever. `Undo` now returns a distinct `:target_unknown`, classified transient.
+  Same reasoning applies to `:question_not_found`.
