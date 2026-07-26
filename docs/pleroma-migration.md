@@ -269,14 +269,100 @@ Rollback: switch traffic back to the old Pleroma deployment and DB snapshot.
 - Importing large datasets: performance and lock time; design importer to be resumable and idempotent.
 - If we want “seamless-ish” client continuity, ID strategy becomes a major architectural decision (flake/base62 vs int).
 
-## 8) Next concrete steps (recommended)
+## 8) What is left
 
-1) Decide migration mode (A vs B).
-2) Prototype a read-only “Pleroma DB scanner”:
-   - count rows by type for `activities.data->>'type'` and `objects.data->>'type'`
-   - list unknown/unhandled types
-3) Implement Egregoros password compatibility.
-4) Implement `/media` static serving.
-5) Implement `/activities/:uuid` fetch controller.
-6) Implement `mix egregoros.import_pleroma` importer (users → objects → activities → follows).
-7) Test in fedbox-like environment by restoring a small Pleroma DB snapshot into a container and running the importer + federation smoke tests.
+Sections 4 and 5 above record what has already been implemented; this list is
+only the remaining work. Open items are tracked in
+[`../meta/issues.md`](../meta/issues.md) — this section is a summary, not a
+second backlog.
+
+Blocking a cutover:
+
+- **Follow graph import.** The importer covers users and status activities
+  only. Section 3.1 lists the follow graph as a minimum-viable goal, and
+  without it migrated users arrive following nobody.
+  See `meta/issues/pleroma-import-follow-graph.md`.
+- **A rehearsal.** None of this has been run end to end against a real Pleroma
+  dump. See `meta/issues/pleroma-migration-rehearsal.md`.
+
+Conditionally blocking, depending on the source instance:
+
+- **bcrypt/argon2 password verification.** Only pbkdf2 hashes verify today
+  (both Egregoros' own format and Pleroma's `$pbkdf2-`), so users whose hashes
+  are `$2...` or `$argon2...` would be forced through a password reset. Check
+  the hash-prefix distribution in the target instance before deciding whether
+  this matters at all.
+  See `meta/issues/pleroma-password-hash-compatibility.md`.
+
+Decided, for the record:
+
+- **Migration mode.** Mode B in practice: flake IDs are the primary key and
+  `import_statuses/1` preserves Pleroma's status IDs, so client continuity is
+  already the implemented path rather than an open choice.
+
+## Appendix: operator runbook (systemd + host PostgreSQL)
+
+If you have an existing Pleroma deployment managed via `systemd` and PostgreSQL installed on the host (Ubuntu packages),
+you can migrate users + statuses into Egregoros (preserving status IDs) by letting the **Egregoros container connect to
+the host Postgres over TCP**.
+
+1) Start Egregoros (standalone Caddy):
+
+```sh
+cp .env.example .env
+# Set: SECRET_KEY_BASE, POSTGRES_PASSWORD, EGREGOROS_DOMAIN
+docker compose -f docker-compose.yml -f docker-compose.standalone.yml up -d --build
+```
+
+2) Temporarily allow the container network to reach host Postgres:
+
+- Ensure your Pleroma DB user has a password (peer/local auth won’t work from Docker).
+- Edit host Postgres config:
+  - `/etc/postgresql/<ver>/main/postgresql.conf`: set `listen_addresses = '*'` (or include the docker bridge iface)
+  - `/etc/postgresql/<ver>/main/pg_hba.conf`: add an allow rule for your Docker compose subnet
+
+Get the compose subnet:
+
+```sh
+docker network inspect egregoros_default --format '{{(index .IPAM.Config 0).Subnet}}'
+```
+
+Add a rule like:
+
+```conf
+host  pleroma  pleroma  <SUBNET_FROM_ABOVE>  scram-sha-256
+```
+
+Reload:
+
+```sh
+sudo systemctl reload postgresql
+```
+
+3) On Linux, make `host.docker.internal` resolve to the host gateway for the `web` container.
+Create `docker-compose.migrate.yml`:
+
+```yml
+services:
+  web:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+
+4) Run the import from inside the release container:
+
+```sh
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.standalone.yml \
+  -f docker-compose.migrate.yml \
+  run --rm \
+  -e PLEROMA_DATABASE_URL='postgres://pleroma:PASSWORD@host.docker.internal:5432/pleroma' \
+  web sh -lc 'bin/egregoros eval "case Application.ensure_all_started(:egregoros) do {:ok, _} -> :ok; other -> IO.inspect(other, label: :start_error); System.halt(1) end; IO.inspect(Egregoros.PleromaMigration.run(), label: :import)"'
+```
+
+After the import, remove the `pg_hba.conf` rule (and tighten `listen_addresses`) if you don’t want host Postgres reachable
+from Docker anymore.
+
+Note: this importer currently migrates **users + statuses** only. It does not copy Pleroma’s local media uploads or rewrite
+historic attachment URLs.

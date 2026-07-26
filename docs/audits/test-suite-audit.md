@@ -1,5 +1,9 @@
 # Test Suite Audit Plan
 
+> **Historical.** This is a point-in-time review, kept for context. Findings
+> that are still open are tracked in [`meta/issues.md`](../../meta/issues.md) —
+> unchecked boxes below are **not** a second backlog.
+
 This document is a working plan + checklist for reviewing Egregoros’ test suite.
 
 Goals:

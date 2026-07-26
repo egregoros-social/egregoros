@@ -1,5 +1,9 @@
 # Security Notes / TODOs
 
+> Ongoing checklist. Items still open here are also tracked as issues in
+> [`meta/issues.md`](../meta/issues.md); that index is the source of truth for
+> what is being worked on.
+
 This file tracks known security gaps and their remediation status.
 
 ## High priority (impersonation / integrity)

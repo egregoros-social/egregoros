@@ -1,5 +1,9 @@
 # Codebase Audit (2026-01-18)
 
+> **Historical.** This is a point-in-time review, kept for context. Findings
+> that are still open are tracked in [`meta/issues.md`](../../meta/issues.md) —
+> unchecked boxes below are **not** a second backlog.
+
 This is a follow-up audit pass of **Egregoros** focused on: **security/privacy**, **performance**, **maintainability/DRY**, and **test gaps**.
 
 ## New findings (2026-01-18)
@@ -18,7 +22,7 @@ This is a follow-up audit pass of **Egregoros** focused on: **security/privacy**
   - Code/docs: `lib/egregoros_web/plugs/uploads.ex`, `lib/egregoros/media_storage/local.ex`, `README.md` (“followers-only/direct media visibility checks”).
   - Fix direction: either (a) explicitly document “media URLs are bearer links” (common in fedi), or (b) implement gated media (signed URLs / token + controller) and keep `Plug.Static` only for public media.
 
-- [x] ~~**E2EE actor key ingestion should be bounded**~~ — moot: E2EE was removed (see `e2ee_dm.md`).
+- [x] ~~**E2EE actor key ingestion should be bounded**~~ — moot: E2EE was removed (see [`e2ee-direct-messages.md`](../design/e2ee-direct-messages.md)).
 
 - [x] ~~**User-triggered remote fetch endpoints need throttling**~~ (`/settings/e2ee/actor_key`) — moot: the endpoint was removed with E2EE. Revisit if another user-triggered remote-fetch endpoint is added.
 
@@ -44,7 +48,7 @@ This is a follow-up audit pass of **Egregoros** focused on: **security/privacy**
   - Code: `lib/egregoros_web/live/messages_live.ex` (`conversations_page/3`), `lib/egregoros_web/view_models/actor.ex` (`cards_by_ap_id/1` exists).
   - Fix direction: bulk fetch actor cards with `Actor.cards_by_ap_id/1`.
 
-- [x] ~~**E2EE actor key refresh writes are per-row**~~ — moot: E2EE was removed (see `e2ee_dm.md`).
+- [x] ~~**E2EE actor key refresh writes are per-row**~~ — moot: E2EE was removed (see [`e2ee-direct-messages.md`](../design/e2ee-direct-messages.md)).
 
 ### Maintainability / DRY
 
@@ -72,7 +76,7 @@ This is a follow-up audit pass of **Egregoros** focused on: **security/privacy**
 
 This is a follow-up audit of **Egregoros** (Postgres + Elixir/OTP + Phoenix/LiveView), focused on: **security/impersonation**, **privacy leaks**, **consistency**, **performance**, and **architecture follow-ups**.
 
-If you’re looking for the ongoing checklist of known security gaps, see `security.md`.
+If you’re looking for the ongoing checklist of known security gaps, see [`security.md`](../security.md).
 
 ## Status update (2025-12-30)
 
@@ -176,13 +180,13 @@ This is a short follow-up pass focused on **maintainability / DRY**, plus a quic
 
 This is a point-in-time audit of **Egregoros** (Postgres + Elixir/OTP + Phoenix/LiveView), focused on: **security/impersonation**, **privacy leaks**, **consistency**, **performance**, and **architecture follow-ups**.
 
-If you’re looking for the ongoing checklist of known security gaps, see `security.md`.
+If you’re looking for the ongoing checklist of known security gaps, see [`security.md`](../security.md).
 
 ## Security
 
 ### High priority (new)
 
-No new “drop everything” issues found beyond the items already tracked in `security.md`.
+No new “drop everything” issues found beyond the items already tracked in [`security.md`](../security.md).
 
 ### Medium priority (new)
 
