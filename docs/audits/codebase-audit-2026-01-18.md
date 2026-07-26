@@ -1,5 +1,9 @@
 # Codebase Audit (2026-01-18)
 
+> **Historical.** This is a point-in-time review, kept for context. Findings
+> that are still open are tracked in [`meta/issues.md`](../../meta/issues.md) —
+> unchecked boxes below are **not** a second backlog.
+
 This is a follow-up audit pass of **Egregoros** focused on: **security/privacy**, **performance**, **maintainability/DRY**, and **test gaps**.
 
 ## New findings (2026-01-18)

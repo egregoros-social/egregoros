@@ -4,6 +4,12 @@
 - Reference the upstream Pleroma implementation in `../pleroma` for guidance.
 - Prefer test fixtures from `test/fixtures` (vendored from upstream Pleroma) when adding or updating tests.
 - For missing future behavior (auth, federation lookups, etc.), define a behaviour boundary and use Mox in tests to assert the contract is called instead of hard-coding permissive behavior.
+- Issues are tracked in-repo under `meta/`. Before starting work, write or pick
+  an issue in `meta/issues.md`; break large items into sub-issues. Move an entry
+  to `meta/issues_archive.md` only when its acceptance criteria are met.
+- Reference documentation lives under `docs/` (see `docs/README.md`). Audits in
+  `docs/audits/` are historical: do not treat their unchecked boxes as the
+  backlog.
 
 This is a web application written using the Phoenix web framework.
 

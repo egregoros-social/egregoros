@@ -1,5 +1,9 @@
 # Refactor backlog
 
+> **Historical.** This is a point-in-time review, kept for context. Findings
+> that are still open are tracked in [`meta/issues.md`](../../meta/issues.md) —
+> unchecked boxes below are **not** a second backlog.
+
 This file tracks refactors that were identified during a poll/publish architecture review.
 Each item should be tackled as an isolated change (preferably with a small, focused commit),
 keeping behavior unchanged unless explicitly desired.

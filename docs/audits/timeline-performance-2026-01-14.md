@@ -1,5 +1,9 @@
 # Timeline Performance Audit (2026-01-14)
 
+> **Historical.** This is a point-in-time review, kept for context. Findings
+> that are still open are tracked in [`meta/issues.md`](../../meta/issues.md) —
+> unchecked boxes below are **not** a second backlog.
+
 This is a **read-path performance review** of the “timeline-ish” parts of the app: home/public/local/tag/profile feeds, Mastodon API timelines, notifications, and status context (thread ancestors/descendants). It’s based on **static code reading** (not `EXPLAIN ANALYZE`), so treat it as a list of **potential risks** and **candidate improvements** to validate with real data.
 
 ## TL;DR (biggest risks)

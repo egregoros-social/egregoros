@@ -1,5 +1,9 @@
 # Performance Audit Addendum (2026-01-15)
 
+> **Historical.** This is a point-in-time review, kept for context. Findings
+> that are still open are tracked in [`meta/issues.md`](../../meta/issues.md) —
+> unchecked boxes below are **not** a second backlog.
+
 This addendum supplements the main performance audit with additional observations and considerations. The original audit is solid and correctly identifies the key issues. These notes cover adjacent concerns and alternative approaches.
 
 ## General Assessment

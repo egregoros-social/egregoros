@@ -1,0 +1,57 @@
+# Open issues
+
+Grouped by theme; roughly highest-leverage first within each group. Completed
+issues move to [`issues_archive.md`](issues_archive.md).
+
+## Now: characterize and contain
+
+Make current behavior and failure semantics executable and reviewable, before
+changing the execution model.
+
+- [ ] [Authorize inbox targeting before enqueueing actor discovery](issues/authorize-inbox-targeting-before-actor-discovery.md)
+- [ ] [Make ingress behavior executable as a parity matrix](issues/ingress-behavior-matrix.md)
+- [ ] [Define an ingestion error taxonomy with explicit Oban outcomes](issues/ingestion-error-taxonomy.md)
+- [ ] [Build one cross-surface visibility/block/mute truth table](issues/visibility-block-mute-truth-table.md)
+- [ ] [Check in operational and query baselines](issues/operational-and-query-baselines.md)
+- [ ] [Fix the precommit toolchain gate](issues/fix-precommit-toolchain-gate.md)
+- [ ] [Add architecture guardrails to CI](issues/architecture-guardrails-in-ci.md)
+- [ ] [Start architecture decision records](issues/architecture-decision-records.md)
+
+## Next: durable core
+
+Changes execution semantics behind the tests written above. Do not start before
+the behavior matrix exists.
+
+- [ ] [Make ingestion transactional with replay-safe effect intent](issues/transactional-ingestion-and-effect-intent.md)
+
+## Security and privacy
+
+- [ ] [Decide and enforce an upload access-control policy](issues/upload-access-control-policy.md)
+- [ ] [Narrow session cookie scope across subdomains](issues/session-cookie-scope-across-subdomains.md)
+- [ ] [Bound image processing against decompression bombs](issues/image-processing-limits.md)
+- [ ] [Tighten and test HTTP signature strictness](issues/signature-strictness-hardening.md)
+- [ ] [Add a Content-Security-Policy](issues/content-security-policy.md)
+- [ ] [Test the uploads plug host restriction and headers](issues/uploads-plug-host-restriction-tests.md)
+
+## Performance
+
+- [ ] [Follow up on timeline read-path performance](issues/timeline-read-path-performance.md)
+- [ ] [Remove the N+1 actor lookup in the messages view](issues/actor-card-n-plus-1-in-messages.md)
+- [ ] [Fix quadratic HTTP response body accumulation](issues/http-response-body-accumulation.md)
+
+## Maintainability
+
+- [ ] [Keep caching behind behaviour boundaries](issues/cache-behaviour-boundaries.md)
+- [ ] [Deduplicate uploads root and file persistence logic](issues/deduplicate-uploads-storage-logic.md)
+- [ ] [Deduplicate the bundled front-end nginx configs](issues/deduplicate-frontend-nginx-configs.md)
+
+## Web UI
+
+- [ ] [Work through the frontend parity checklist](issues/frontend-parity-checklist.md)
+- [ ] [Polish the composer](issues/composer-polish.md)
+- [ ] [Polish the thread and status view](issues/thread-view-polish.md)
+- [ ] [Finish messages UI parity](issues/messages-ui-parity.md)
+
+## Decisions pending
+
+- [ ] [Decide whether E2EE DMs come back](issues/e2ee-revival-decision.md)
