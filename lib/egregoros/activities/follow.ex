@@ -61,7 +61,7 @@ defmodule Egregoros.Activities.Follow do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts) do
+    with :ok <- authorize_inbox(activity, opts) do
       activity
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -138,8 +138,9 @@ defmodule Egregoros.Activities.Follow do
     end
   end
 
-  defp validate_inbox_target(%{"object" => object}, opts)
-       when is_binary(object) and is_list(opts) do
+  @doc false
+  def authorize_inbox(%{"object" => object}, opts)
+      when is_binary(object) and is_list(opts) do
     if Keyword.get(opts, :local, true) do
       :ok
     else
@@ -153,7 +154,7 @@ defmodule Egregoros.Activities.Follow do
     end
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp to_object_attrs(activity, opts) do
     %{

@@ -75,7 +75,7 @@ defmodule Egregoros.Activities.Offer do
   end
 
   def ingest(%{"object" => %{} = embedded_object} = activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts),
+    with :ok <- authorize_inbox(activity, opts),
          # Offers can include objects that aren't addressed directly to the inbox user,
          # so we bypass inbox targeting for the embedded object itself.
          {:ok, object} <-
@@ -87,7 +87,7 @@ defmodule Egregoros.Activities.Offer do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts) do
+    with :ok <- authorize_inbox(activity, opts) do
       activity
       |> to_object_attrs(extract_object_id(activity["object"]), opts)
       |> Objects.upsert_object()
@@ -146,7 +146,8 @@ defmodule Egregoros.Activities.Offer do
     |> add_inbox_recipient(opts)
   end
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     if Keyword.get(opts, :skip_inbox_target, false) do
       :ok
     else
@@ -159,7 +160,7 @@ defmodule Egregoros.Activities.Offer do
     end
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp to_object_attrs(activity, object_id, opts) do
     %{

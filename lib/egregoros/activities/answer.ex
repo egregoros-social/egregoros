@@ -65,6 +65,11 @@ defmodule Egregoros.Activities.Answer do
       |> Validations.validate_fields_match([:actor, :attributedTo])
       |> Validations.validate_host_match([:id, :actor, :attributedTo])
 
+    # Answer deliberately has no `authorize_inbox/2`: its authorization
+    # equivalent is `validate_question_exists_and_permits_voter/2` below, and it
+    # runs here in `cast_and_validate/2`, which the pipeline already calls before
+    # actor discovery. An Answer for a Question we don't hold, or from a voter
+    # outside that Question's audience, is rejected having enqueued no fetches.
     with {:ok, %__MODULE__{} = validated} <- apply_action(changeset, :insert),
          :ok <- validate_question_exists_and_permits_voter(answer, opts) do
       {:ok, apply_answer(answer, validated)}

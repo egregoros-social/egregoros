@@ -74,7 +74,7 @@ defmodule Egregoros.Activities.Delete do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts) do
+    with :ok <- authorize_inbox(activity, opts) do
       activity
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -92,11 +92,12 @@ defmodule Egregoros.Activities.Delete do
     :ok
   end
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate_addressed_or_followed(opts, activity, Map.get(activity, "actor"))
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp delete_target(%Object{actor: actor} = _delete_object, %Object{actor: actor} = target) do
     _ = Objects.delete_object(target)

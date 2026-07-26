@@ -74,7 +74,7 @@ defmodule Egregoros.Activities.Create do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts),
+    with :ok <- authorize_inbox(activity, opts),
          {:ok, object} <- Pipeline.ingest(activity["object"], opts) do
       activity
       |> to_object_attrs(object, opts)
@@ -102,7 +102,8 @@ defmodule Egregoros.Activities.Create do
     end
   end
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate_addressed_or_followed_or_addressed_to_object(
       opts,
       activity,
@@ -111,7 +112,7 @@ defmodule Egregoros.Activities.Create do
     )
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp inboxes_for_delivery(%{data: %{} = data} = create_object, %User{} = actor) do
     follower_inboxes =

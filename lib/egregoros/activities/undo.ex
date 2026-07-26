@@ -78,7 +78,7 @@ defmodule Egregoros.Activities.Undo do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts) do
+    with :ok <- authorize_inbox(activity, opts) do
       activity
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -99,7 +99,8 @@ defmodule Egregoros.Activities.Undo do
     :ok
   end
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate(opts, fn inbox_user_ap_id ->
       actor_ap_id = Map.get(activity, "actor")
       target_activity_ap_id = Map.get(activity, "object")
@@ -121,7 +122,7 @@ defmodule Egregoros.Activities.Undo do
     end)
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp targeted_via_undo_object?(target_activity_ap_id, inbox_user_ap_id)
        when is_binary(target_activity_ap_id) and is_binary(inbox_user_ap_id) do

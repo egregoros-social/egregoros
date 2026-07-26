@@ -96,7 +96,7 @@ defmodule Egregoros.Activities.Question do
   end
 
   def ingest(question, opts) do
-    with :ok <- validate_inbox_target(question, opts) do
+    with :ok <- authorize_inbox(question, opts) do
       conflict = Keyword.get(opts, :conflict, :nothing)
 
       question
@@ -207,9 +207,10 @@ defmodule Egregoros.Activities.Question do
 
   # Inbox targeting
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate_addressed_or_followed(opts, activity, Map.get(activity, "actor"))
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 end

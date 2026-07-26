@@ -21,6 +21,7 @@ defmodule Egregoros.Pipeline do
   def ingest_with(module, activity, opts \\ [])
       when is_atom(module) and is_map(activity) and is_list(opts) do
     with {:ok, validated} <- cast_and_validate(module, activity, opts),
+         :ok <- authorize_inbox(module, validated, opts),
          :ok <- discover_actors(validated, opts),
          {:ok, object} <- module.ingest(validated, opts),
          :ok <- module.side_effects(object, opts) do
@@ -28,6 +29,27 @@ defmodule Egregoros.Pipeline do
     else
       {:error, _} = error -> error
       _ -> {:error, :invalid}
+    end
+  end
+
+  # Authorization must precede discovery: an activity we are going to reject as
+  # untargeted must not get us to fetch actors, recipients, or mentions that the
+  # sender chose.
+  #
+  # `Code.ensure_loaded?/1` is not redundant. `function_exported?/3` answers
+  # false for a module that simply hasn't been loaded yet, which would skip this
+  # check silently — so probe explicitly rather than relying on some earlier step
+  # having loaded the module first.
+  #
+  # Activity modules still re-check inside `ingest/2`, so a module that does not
+  # export this callback is no less safe than before; it just does the work
+  # later, after discovery has already been enqueued.
+  defp authorize_inbox(module, activity, opts)
+       when is_atom(module) and is_map(activity) and is_list(opts) do
+    if Code.ensure_loaded?(module) and function_exported?(module, :authorize_inbox, 2) do
+      module.authorize_inbox(activity, opts)
+    else
+      :ok
     end
   end
 

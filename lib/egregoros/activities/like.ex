@@ -85,7 +85,7 @@ defmodule Egregoros.Activities.Like do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts) do
+    with :ok <- authorize_inbox(activity, opts) do
       activity
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -113,7 +113,8 @@ defmodule Egregoros.Activities.Like do
     :ok
   end
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate_addressed_or_followed_or_object_owned(
       opts,
       activity,
@@ -122,7 +123,7 @@ defmodule Egregoros.Activities.Like do
     )
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp maybe_fetch_liked_object(%Object{object: liked_ap_id} = _like, opts)
        when is_binary(liked_ap_id) and is_list(opts) do

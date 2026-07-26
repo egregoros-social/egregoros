@@ -49,7 +49,7 @@ defmodule Egregoros.Activities.Move do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts) do
+    with :ok <- authorize_inbox(activity, opts) do
       activity
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -191,7 +191,8 @@ defmodule Egregoros.Activities.Move do
       end
   end
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate(opts, fn inbox_user_ap_id ->
       actor_ap_id = Map.get(activity, "actor")
 
@@ -208,7 +209,7 @@ defmodule Egregoros.Activities.Move do
     end)
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp validate_object_matches_actor(changeset) do
     actor = get_field(changeset, :actor)

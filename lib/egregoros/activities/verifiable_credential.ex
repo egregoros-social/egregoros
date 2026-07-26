@@ -53,7 +53,7 @@ defmodule Egregoros.Activities.VerifiableCredential do
   end
 
   def ingest(object, opts) do
-    with :ok <- validate_inbox_target(object, opts) do
+    with :ok <- authorize_inbox(object, opts) do
       object
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -62,7 +62,8 @@ defmodule Egregoros.Activities.VerifiableCredential do
 
   def side_effects(_object, _opts), do: :ok
 
-  defp validate_inbox_target(%{} = object, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = object, opts) when is_list(opts) do
     if Keyword.get(opts, :skip_inbox_target, false) do
       :ok
     else
@@ -74,7 +75,7 @@ defmodule Egregoros.Activities.VerifiableCredential do
     end
   end
 
-  defp validate_inbox_target(_object, _opts), do: :ok
+  def authorize_inbox(_object, _opts), do: :ok
 
   defp to_object_attrs(object, opts) do
     actor_id = actor_ap_id(object, opts)

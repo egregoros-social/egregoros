@@ -79,7 +79,7 @@ defmodule Egregoros.Activities.Update do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts),
+    with :ok <- authorize_inbox(activity, opts),
          :ok <- validate_object_namespace(activity, opts),
          :ok <- validate_credential_update(activity, opts) do
       activity
@@ -423,11 +423,12 @@ defmodule Egregoros.Activities.Update do
 
   defp followers_addressed?(_data, _actor_ap_id), do: false
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate_addressed_or_followed(opts, activity, Map.get(activity, "actor"))
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp validate_object_namespace(%{"object" => object}, opts)
        when is_list(opts) and is_map(object) do

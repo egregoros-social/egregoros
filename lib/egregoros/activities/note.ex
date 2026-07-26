@@ -119,7 +119,7 @@ defmodule Egregoros.Activities.Note do
   end
 
   def ingest(note, opts) do
-    with :ok <- validate_inbox_target(note, opts) do
+    with :ok <- authorize_inbox(note, opts) do
       note
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -150,11 +150,12 @@ defmodule Egregoros.Activities.Note do
 
   defp maybe_broadcast_mentions(_object), do: :ok
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate_addressed_or_followed(opts, activity, Map.get(activity, "actor"))
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp apply_note(note, %__MODULE__{} = validated_note) do
     note

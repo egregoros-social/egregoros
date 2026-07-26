@@ -82,7 +82,7 @@ defmodule Egregoros.Activities.Announce do
   end
 
   def ingest(%{"object" => %{} = embedded_object} = activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts),
+    with :ok <- authorize_inbox(activity, opts),
          {:ok, _} <- Pipeline.ingest(embedded_object, Keyword.delete(opts, :inbox_user_ap_id)) do
       activity
       |> to_object_attrs(opts)
@@ -91,7 +91,7 @@ defmodule Egregoros.Activities.Announce do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts) do
+    with :ok <- authorize_inbox(activity, opts) do
       activity
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -136,7 +136,8 @@ defmodule Egregoros.Activities.Announce do
     end
   end
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate_addressed_or_followed_or_object_owned(
       opts,
       activity,
@@ -145,7 +146,7 @@ defmodule Egregoros.Activities.Announce do
     )
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp maybe_fetch_announced_object(%Object{object: announced_ap_id, data: %{}}, opts)
        when is_binary(announced_ap_id) and is_list(opts) do

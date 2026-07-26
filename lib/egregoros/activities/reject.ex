@@ -49,7 +49,7 @@ defmodule Egregoros.Activities.Reject do
   end
 
   def ingest(activity, opts) do
-    with :ok <- validate_inbox_target(activity, opts) do
+    with :ok <- authorize_inbox(activity, opts) do
       activity
       |> to_object_attrs(opts)
       |> Objects.upsert_object()
@@ -206,7 +206,8 @@ defmodule Egregoros.Activities.Reject do
     end
   end
 
-  defp validate_inbox_target(%{} = activity, opts) when is_list(opts) do
+  @doc false
+  def authorize_inbox(%{} = activity, opts) when is_list(opts) do
     InboxTargeting.validate(opts, fn inbox_user_ap_id ->
       cond do
         InboxTargeting.addressed_to?(activity, inbox_user_ap_id) ->
@@ -221,7 +222,7 @@ defmodule Egregoros.Activities.Reject do
     end)
   end
 
-  defp validate_inbox_target(_activity, _opts), do: :ok
+  def authorize_inbox(_activity, _opts), do: :ok
 
   defp rejected_follower_ap_id(%{"object" => %{} = follow}) do
     follow
