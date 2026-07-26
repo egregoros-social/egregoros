@@ -7,3 +7,4 @@ Work completed before this tracker existed is not listed here; see
 `docs/audits/` for the point-in-time reviews and `git log` for the history.
 
 - [x] [Remove end-to-end encrypted DMs](issues/remove-e2ee-direct-messages.md)
+- [x] [Authorize inbox targeting before enqueueing actor discovery](issues/authorize-inbox-targeting-before-actor-discovery.md)

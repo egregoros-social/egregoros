@@ -8,7 +8,6 @@ issues move to [`issues_archive.md`](issues_archive.md).
 Make current behavior and failure semantics executable and reviewable, before
 changing the execution model.
 
-- [ ] [Authorize inbox targeting before enqueueing actor discovery](issues/authorize-inbox-targeting-before-actor-discovery.md)
 - [ ] [Make ingress behavior executable as a parity matrix](issues/ingress-behavior-matrix.md)
 - [ ] [Define an ingestion error taxonomy with explicit Oban outcomes](issues/ingestion-error-taxonomy.md)
 - [ ] [Build one cross-surface visibility/block/mute truth table](issues/visibility-block-mute-truth-table.md)
@@ -26,6 +25,7 @@ the behavior matrix exists.
 
 ## Security and privacy
 
+- [ ] [Bound actor discovery fan-out per activity](issues/bound-actor-discovery-fanout.md)
 - [ ] [Decide and enforce an upload access-control policy](issues/upload-access-control-policy.md)
 - [ ] [Narrow session cookie scope across subdomains](issues/session-cookie-scope-across-subdomains.md)
 - [ ] [Bound image processing against decompression bombs](issues/image-processing-limits.md)

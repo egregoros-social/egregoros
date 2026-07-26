@@ -9,9 +9,12 @@ rejection lives inside `ingest/2` — `validate_inbox_target/2` in
 `move.ex`. So an activity that will be rejected as untargeted has already
 enqueued actor, recipient and mention fetches by the time it is rejected.
 
-That makes an unauthenticated inbox POST a remote-fetch amplifier: the
-attacker chooses the actor URIs we go fetch, and the rejection does not
-undo the queued work.
+That makes a rejected inbox POST a remote-fetch amplifier: the sender chooses
+the actor URIs we go fetch, and the rejection does not undo the queued work.
+Inbox POSTs are signature-verified (`EgregorosWeb.Plugs.VerifySignature` halts
+with 401 and requires the signer to match the activity's `actor`), so this needs
+a signing remote actor rather than an anonymous request — but any federated peer
+qualifies.
 
 ## Requirements
 
