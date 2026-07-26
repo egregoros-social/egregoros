@@ -2,9 +2,10 @@ defmodule Egregoros.Repo.Migrations.DropE2eeTables do
   use Ecto.Migration
 
   # End-to-end encrypted DMs were removed ahead of the Pleroma-compatibility
-  # migration (see `e2ee_dm.md`). This drops the key material for good: the
-  # wrapped private keys lived in `e2ee_key_wrappers`, so any ciphertext that
-  # remains anywhere becomes permanently undecryptable once this runs.
+  # migration (see `docs/design/e2ee-direct-messages.md`). This drops the key
+  # material for good: the wrapped private keys lived in `e2ee_key_wrappers`, so
+  # any ciphertext that remains anywhere becomes permanently undecryptable once
+  # this runs.
   #
   # Not dropped here: rows in `objects` with `type = 'EncryptedMessage'` (or a
   # leftover `data->'egregoros:e2ee_dm'` payload). They are unreachable — the

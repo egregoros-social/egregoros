@@ -214,7 +214,7 @@ LiveView uploads are handled with `allow_upload/3` and then persisted via the st
   - parsed from ActivityPub `tag` entries (`type: "Emoji"`)
   - rendered as `<img class="emoji">` only for http/https URLs (and still scrubbed)
 
-See also `security.md` for known security considerations and fixes.
+See also [`security.md`](security.md) for known security considerations and fixes.
 
 ## Background jobs (Oban)
 
