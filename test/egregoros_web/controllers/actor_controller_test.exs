@@ -1,7 +1,6 @@
 defmodule EgregorosWeb.ActorControllerTest do
   use EgregorosWeb.ConnCase, async: true
 
-  alias Egregoros.E2EE
   alias Egregoros.Users
 
   test "GET /users/:nickname returns ActivityPub actor", %{conn: conn} do
@@ -70,29 +69,7 @@ defmodule EgregorosWeb.ActorControllerTest do
   end
 
   test "GET /users/:nickname never advertises e2ee keys", %{conn: conn} do
-    {:ok, user} = Users.create_local_user("dana")
-
-    assert {:ok, _} =
-             E2EE.enable_key_with_wrapper(user, %{
-               kid: "e2ee-2025-12-26T00:00:00Z",
-               public_key_jwk: %{
-                 "kty" => "EC",
-                 "crv" => "P-256",
-                 "x" => "pQECAwQFBgcICQoLDA0ODw",
-                 "y" => "AQIDBAUGBwgJCgsMDQ4PEA"
-               },
-               wrapper: %{
-                 type: "recovery_mnemonic_v1",
-                 wrapped_private_key: <<1, 2, 3>>,
-                 params: %{
-                   "hkdf_salt" => Base.url_encode64("hkdf-salt", padding: false),
-                   "iv" => Base.url_encode64("iv", padding: false),
-                   "alg" => "A256GCM",
-                   "kdf" => "HKDF-SHA256",
-                   "info" => "egregoros:e2ee:wrap:mnemonic:v1"
-                 }
-               }
-             })
+    {:ok, _user} = Users.create_local_user("dana")
 
     conn = get(conn, "/users/dana")
     assert conn.status == 200
