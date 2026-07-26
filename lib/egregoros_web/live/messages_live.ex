@@ -3,7 +3,6 @@ defmodule EgregorosWeb.MessagesLive do
 
   alias Egregoros.CustomEmojis
   alias Egregoros.DirectMessages
-  alias Egregoros.E2EE.ActorKeys
   alias Egregoros.HTML
   alias Egregoros.Markers
   alias Egregoros.Notifications
@@ -68,22 +67,6 @@ defmodule EgregorosWeb.MessagesLive do
           []
       end
 
-    conversation_e2ee? = Enum.any?(messages, &encrypted_message?/1)
-
-    dm_peer_e2ee_keys =
-      case selected_peer_ap_id do
-        ap_id when is_binary(ap_id) and ap_id != "" ->
-          case ActorKeys.list_actor_keys(ap_id) do
-            {:ok, keys} when is_list(keys) -> keys
-            _ -> []
-          end
-
-        _ ->
-          []
-      end
-
-    dm_peer_supports_e2ee? = dm_peer_e2ee_keys != []
-
     chat_messages_oldest_id =
       case List.first(messages) do
         %{id: id} when is_binary(id) -> id
@@ -110,17 +93,13 @@ defmodule EgregorosWeb.MessagesLive do
       end
 
     dm_form =
-      Phoenix.Component.to_form(%{"recipient" => recipient, "content" => "", "e2ee_dm" => ""},
-        as: :dm
-      )
+      Phoenix.Component.to_form(%{"recipient" => recipient, "content" => ""}, as: :dm)
 
     {:ok,
      socket
      |> assign(
        current_user: current_user,
        dm_markers: dm_markers,
-       dm_peer_e2ee_keys: dm_peer_e2ee_keys,
-       dm_peer_supports_e2ee?: dm_peer_supports_e2ee?,
        chat_messages_has_more?: chat_messages_has_more?,
        chat_messages_oldest_id: chat_messages_oldest_id,
        conversations_has_more?: conversations_has_more?,
@@ -130,7 +109,6 @@ defmodule EgregorosWeb.MessagesLive do
        recipient_suggestions: [],
        selected_peer_ap_id: selected_peer_ap_id,
        selected_peer: selected_peer,
-       conversation_e2ee?: conversation_e2ee?,
        dm_form: dm_form
      )
      |> stream(:conversations, conversations, dom_id: &conversation_dom_id/1)
@@ -167,11 +145,6 @@ defmodule EgregorosWeb.MessagesLive do
               socket
               |> assign(:dm_markers, dm_markers)
               |> stream_insert(:chat_messages, post, at: -1)
-              |> then(fn socket ->
-                if encrypted_message?(post),
-                  do: assign(socket, :conversation_e2ee?, true),
-                  else: socket
-              end)
             else
               socket
             end
@@ -197,16 +170,12 @@ defmodule EgregorosWeb.MessagesLive do
         recipient = selected_peer.handle
 
         dm_form =
-          Phoenix.Component.to_form(%{"recipient" => recipient, "content" => "", "e2ee_dm" => ""},
-            as: :dm
-          )
+          Phoenix.Component.to_form(%{"recipient" => recipient, "content" => ""}, as: :dm)
 
         messages =
           user
           |> DirectMessages.list_conversation(peer_ap_id, limit: @messages_page_size)
           |> Enum.reverse()
-
-        conversation_e2ee? = Enum.any?(messages, &encrypted_message?/1)
 
         chat_messages_oldest_id =
           case List.first(messages) do
@@ -216,14 +185,6 @@ defmodule EgregorosWeb.MessagesLive do
 
         chat_messages_has_more? =
           length(messages) == @messages_page_size and is_binary(chat_messages_oldest_id)
-
-        dm_peer_e2ee_keys =
-          case ActorKeys.list_actor_keys(peer_ap_id) do
-            {:ok, keys} when is_list(keys) -> keys
-            _ -> []
-          end
-
-        dm_peer_supports_e2ee? = dm_peer_e2ee_keys != []
 
         dm_markers =
           case List.last(messages) do
@@ -239,9 +200,6 @@ defmodule EgregorosWeb.MessagesLive do
          |> assign(
            selected_peer_ap_id: peer_ap_id,
            selected_peer: selected_peer,
-           conversation_e2ee?: conversation_e2ee?,
-           dm_peer_e2ee_keys: dm_peer_e2ee_keys,
-           dm_peer_supports_e2ee?: dm_peer_supports_e2ee?,
            chat_messages_has_more?: chat_messages_has_more?,
            chat_messages_oldest_id: chat_messages_oldest_id,
            dm_markers: dm_markers,
@@ -274,18 +232,13 @@ defmodule EgregorosWeb.MessagesLive do
     case socket.assigns.current_user do
       %User{} ->
         dm_form =
-          Phoenix.Component.to_form(%{"recipient" => "", "content" => "", "e2ee_dm" => ""},
-            as: :dm
-          )
+          Phoenix.Component.to_form(%{"recipient" => "", "content" => ""}, as: :dm)
 
         {:noreply,
          socket
          |> assign(
            selected_peer_ap_id: nil,
            selected_peer: nil,
-           conversation_e2ee?: false,
-           dm_peer_e2ee_keys: [],
-           dm_peer_supports_e2ee?: false,
            chat_messages_has_more?: false,
            chat_messages_oldest_id: nil,
            recipient_suggestions: [],
@@ -338,8 +291,6 @@ defmodule EgregorosWeb.MessagesLive do
           |> DirectMessages.list_conversation(ap_id, limit: @messages_page_size)
           |> Enum.reverse()
 
-        conversation_e2ee? = Enum.any?(messages, &encrypted_message?/1)
-
         chat_messages_oldest_id =
           case List.first(messages) do
             %{id: id} when is_binary(id) -> id
@@ -349,18 +300,8 @@ defmodule EgregorosWeb.MessagesLive do
         chat_messages_has_more? =
           length(messages) == @messages_page_size and is_binary(chat_messages_oldest_id)
 
-        dm_peer_e2ee_keys =
-          case ActorKeys.list_actor_keys(ap_id) do
-            {:ok, keys} when is_list(keys) -> keys
-            _ -> []
-          end
-
-        dm_peer_supports_e2ee? = dm_peer_e2ee_keys != []
-
         dm_form =
-          Phoenix.Component.to_form(%{"recipient" => handle, "content" => "", "e2ee_dm" => ""},
-            as: :dm
-          )
+          Phoenix.Component.to_form(%{"recipient" => handle, "content" => ""}, as: :dm)
 
         dm_markers =
           case List.last(messages) do
@@ -376,9 +317,6 @@ defmodule EgregorosWeb.MessagesLive do
          |> assign(
            selected_peer_ap_id: ap_id,
            selected_peer: selected_peer,
-           conversation_e2ee?: conversation_e2ee?,
-           dm_peer_e2ee_keys: dm_peer_e2ee_keys,
-           dm_peer_supports_e2ee?: dm_peer_supports_e2ee?,
            chat_messages_has_more?: chat_messages_has_more?,
            chat_messages_oldest_id: chat_messages_oldest_id,
            dm_markers: dm_markers,
@@ -419,15 +357,6 @@ defmodule EgregorosWeb.MessagesLive do
 
         chat_messages_has_more? =
           length(older_messages) == @messages_page_size and is_binary(chat_messages_oldest_id)
-
-        socket =
-          if socket.assigns.conversation_e2ee? do
-            socket
-          else
-            if Enum.any?(older_messages, &encrypted_message?/1),
-              do: assign(socket, :conversation_e2ee?, true),
-              else: socket
-          end
 
         {:noreply,
          socket
@@ -472,7 +401,6 @@ defmodule EgregorosWeb.MessagesLive do
   def handle_event("send_dm", %{"dm" => %{} = params}, socket) do
     recipient = params |> Map.get("recipient", "") |> to_string() |> String.trim()
     body = params |> Map.get("content", "") |> to_string() |> String.trim()
-    e2ee_dm = params |> Map.get("e2ee_dm", "") |> to_string() |> String.trim()
 
     cond do
       not match?(%User{}, socket.assigns.current_user) ->
@@ -485,7 +413,7 @@ defmodule EgregorosWeb.MessagesLive do
         {:noreply, put_flash(socket, :error, "Message can't be empty.")}
 
       true ->
-        {content, opts} = prepare_dm(recipient, body, e2ee_dm)
+        {content, opts} = prepare_dm(recipient, body)
 
         case Publish.post_note(socket.assigns.current_user, content, opts) do
           {:ok, create} ->
@@ -516,30 +444,13 @@ defmodule EgregorosWeb.MessagesLive do
               end
 
             dm_form =
-              Phoenix.Component.to_form(
-                %{"recipient" => recipient, "content" => "", "e2ee_dm" => ""},
-                as: :dm
-              )
+              Phoenix.Component.to_form(%{"recipient" => recipient, "content" => ""}, as: :dm)
 
             {conversations, conversations_seen_peers, conversations_max_id,
              conversations_has_more?} =
               conversations_page(socket.assigns.current_user, MapSet.new())
 
             dm_markers = dm_markers_for_conversations(socket.assigns.current_user, conversations)
-
-            dm_peer_e2ee_keys =
-              case peer_ap_id do
-                ap_id when is_binary(ap_id) and ap_id != "" ->
-                  case ActorKeys.list_actor_keys(ap_id) do
-                    {:ok, keys} when is_list(keys) -> keys
-                    _ -> []
-                  end
-
-                _ ->
-                  []
-              end
-
-            dm_peer_supports_e2ee? = dm_peer_e2ee_keys != []
 
             socket =
               socket
@@ -550,8 +461,6 @@ defmodule EgregorosWeb.MessagesLive do
                 dm_markers: dm_markers,
                 selected_peer_ap_id: peer_ap_id,
                 selected_peer: selected_peer,
-                dm_peer_e2ee_keys: dm_peer_e2ee_keys,
-                dm_peer_supports_e2ee?: dm_peer_supports_e2ee?,
                 recipient_suggestions: [],
                 dm_form: dm_form
               )
@@ -588,19 +497,15 @@ defmodule EgregorosWeb.MessagesLive do
                   end
 
                 socket
-                |> assign(:conversation_e2ee?, Enum.any?(messages, &encrypted_message?/1))
                 |> assign(:dm_markers, dm_markers)
-                |> assign(:dm_peer_e2ee_keys, dm_peer_e2ee_keys)
                 |> assign(:chat_messages_has_more?, chat_messages_has_more?)
                 |> assign(:chat_messages_oldest_id, chat_messages_oldest_id)
                 |> assign(:recipient_suggestions, [])
                 |> stream(:chat_messages, messages, reset: true)
               else
                 socket
-                |> assign(:conversation_e2ee?, false)
                 |> assign(:chat_messages_has_more?, false)
                 |> assign(:chat_messages_oldest_id, nil)
-                |> assign(:dm_peer_e2ee_keys, [])
               end
 
             {:noreply, socket}
@@ -683,14 +588,6 @@ defmodule EgregorosWeb.MessagesLive do
                         </span>
                         <span class="flex shrink-0 items-center gap-2">
                           <span
-                            :if={encrypted_message?(conversation.last_message)}
-                            data-role="dm-conversation-e2ee"
-                            class="inline-flex items-center text-[color:var(--success)]"
-                            title="Last message is encrypted"
-                          >
-                            <.icon name="hero-lock-closed" class="size-4" />
-                          </span>
-                          <span
                             :if={conversation_unread?(conversation, @dm_markers, @current_user)}
                             data-role="dm-conversation-unread"
                             class="inline-flex h-2 w-2 rounded-full bg-[color:var(--accent)]"
@@ -754,29 +651,13 @@ defmodule EgregorosWeb.MessagesLive do
                         </p>
                       </div>
                     </div>
-
-                    <span
-                      :if={@conversation_e2ee?}
-                      data-role="dm-e2ee-badge"
-                      class="inline-flex items-center gap-2 border border-[color:var(--success)] bg-[color:var(--success-subtle)] px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-[color:var(--success)]"
-                    >
-                      <.icon name="hero-lock-closed" class="size-4" /> E2EE
-                    </span>
                   <% else %>
                     <div class="min-w-0">
-                      <p class="font-bold text-[color:var(--text-primary)]">New encrypted chat</p>
+                      <p class="font-bold text-[color:var(--text-primary)]">New chat</p>
                       <p class="font-mono text-xs text-[color:var(--text-muted)]">
                         Pick a recipient to start.
                       </p>
                     </div>
-
-                    <span
-                      :if={@conversation_e2ee?}
-                      data-role="dm-e2ee-badge"
-                      class="inline-flex items-center gap-2 border border-[color:var(--success)] bg-[color:var(--success-subtle)] px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-[color:var(--success)]"
-                    >
-                      <.icon name="hero-shield-check" class="size-4" /> E2EE
-                    </span>
                   <% end %>
                 </header>
 
@@ -797,7 +678,6 @@ defmodule EgregorosWeb.MessagesLive do
                   phx-hook="DMChatScroller"
                   phx-update="stream"
                   data-peer={@selected_peer_ap_id || ""}
-                  data-e2ee-peer-keys={Jason.encode!(@dm_peer_e2ee_keys)}
                   class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[color:var(--bg-subtle)] p-5"
                 >
                   <div
@@ -809,7 +689,7 @@ defmodule EgregorosWeb.MessagesLive do
                     </span>
                     <p class="font-bold text-[color:var(--text-primary)]">No messages yet</p>
                     <p class="text-sm text-[color:var(--text-muted)]">
-                      Start a conversation by sending an encrypted message below.
+                      Start a conversation by sending a message below.
                     </p>
                   </div>
 
@@ -858,15 +738,10 @@ defmodule EgregorosWeb.MessagesLive do
                         message.actor != @current_user.ap_id &&
                           "bg-[color:var(--bg-base)] text-[color:var(--text-primary)] shadow-[3px_3px_0_var(--border-default)] [&_a]:!text-[#0000ee] dark:[&_a]:!text-[#88aaff] [&_a:hover]:!text-[#0000aa] dark:[&_a:hover]:!text-[#aaccff]"
                       ]}>
-                        <.dm_message_body message={message} current_user={@current_user} />
+                        <.dm_message_body message={message} />
                       </div>
 
                       <div class="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-widest text-[color:var(--text-muted)]">
-                        <.icon
-                          :if={encrypted_message?(message)}
-                          name="hero-lock-closed"
-                          class="size-3"
-                        />
                         <span>{message_timestamp(message)}</span>
                       </div>
                     </div>
@@ -879,35 +754,9 @@ defmodule EgregorosWeb.MessagesLive do
                     id="dm-form"
                     phx-change="dm_change"
                     phx-submit="send_dm"
-                    phx-hook="E2EEDMComposer"
                     data-role="dm-composer"
-                    data-user-ap-id={@current_user.ap_id}
-                    data-peer-ap-id={@selected_peer_ap_id || ""}
                     class="space-y-3"
                   >
-                    <input
-                      type="text"
-                      name="dm[e2ee_dm]"
-                      value={@dm_form.params["e2ee_dm"] || ""}
-                      data-role="dm-e2ee-payload"
-                      class="hidden"
-                      aria-hidden="true"
-                      tabindex="-1"
-                    />
-
-                    <input
-                      type="hidden"
-                      name="dm[encrypt]"
-                      value={if @dm_peer_supports_e2ee?, do: "true", else: "false"}
-                      data-role="dm-encrypt-enabled"
-                    />
-
-                    <p
-                      data-role="dm-e2ee-feedback"
-                      class="hidden border border-[color:var(--border-default)] bg-[color:var(--bg-subtle)] px-3 py-2 text-sm text-[color:var(--text-secondary)]"
-                    >
-                    </p>
-
                     <%= if @selected_peer do %>
                       <input
                         type="hidden"
@@ -984,37 +833,9 @@ defmodule EgregorosWeb.MessagesLive do
                           name="dm[content]"
                           rows="1"
                           placeholder="Type a message..."
-                          class="absolute inset-0 resize-none border-2 border-[color:var(--border-default)] bg-[color:var(--bg-base)] px-3 py-2 pr-10 text-sm text-[color:var(--text-primary)] focus:outline-none focus-brutal placeholder:text-[color:var(--text-muted)]"
+                          class="absolute inset-0 resize-none border-2 border-[color:var(--border-default)] bg-[color:var(--bg-base)] px-3 py-2 text-sm text-[color:var(--text-primary)] focus:outline-none focus-brutal placeholder:text-[color:var(--text-muted)]"
                         ><%= @dm_form.params["content"] || "" %></textarea>
-                        <span
-                          data-role="dm-composer-lock"
-                          class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden text-[color:var(--success)]"
-                        >
-                          <.icon name="hero-lock-closed" class="size-4" />
-                        </span>
                       </div>
-
-                      <button
-                        :if={@dm_peer_supports_e2ee?}
-                        type="button"
-                        data-role="dm-encrypt-toggle"
-                        data-state="encrypted"
-                        class={[
-                          "inline-flex h-[44px] shrink-0 cursor-pointer items-center gap-2 border-2 border-[color:var(--border-default)] px-3 text-xs font-bold uppercase tracking-widest transition focus-visible:outline-none focus-brutal",
-                          "data-[state=encrypted]:bg-[color:var(--success-subtle)] data-[state=encrypted]:text-[color:var(--success)] data-[state=encrypted]:hover:shadow-[3px_3px_0_var(--success)]",
-                          "data-[state=plain]:bg-[color:var(--bg-subtle)] data-[state=plain]:text-[color:var(--text-muted)] data-[state=plain]:hover:shadow-[3px_3px_0_var(--border-default)]"
-                        ]}
-                      >
-                        <span data-role="dm-encrypt-icon-encrypted">
-                          <.icon name="hero-lock-closed" class="size-4" />
-                        </span>
-                        <span data-role="dm-encrypt-icon-plain" class="hidden">
-                          <.icon name="hero-lock-open" class="size-4" />
-                        </span>
-
-                        <span data-role="dm-encrypt-label-encrypted">Encrypt</span>
-                        <span data-role="dm-encrypt-label-plain" class="hidden">Plain</span>
-                      </button>
 
                       <button
                         type="submit"
@@ -1049,55 +870,14 @@ defmodule EgregorosWeb.MessagesLive do
   end
 
   attr :message, :map, required: true
-  attr :current_user, :any, default: nil
 
   defp dm_message_body(assigns) do
-    is_own = assigns.message.actor == current_user_ap_id(assigns.current_user)
-    assigns = assign(assigns, :is_own, is_own)
-
     ~H"""
-    <% e2ee_payload = e2ee_payload_json(@message) %>
-    <% current_user_ap_id = current_user_ap_id(@current_user) %>
-
     <div
       id={if is_binary(@message.id), do: "dm-message-body-#{@message.id}", else: Ecto.UUID.generate()}
       data-role="dm-message-body"
-      data-e2ee-dm={e2ee_payload}
-      data-current-user-ap-id={current_user_ap_id}
-      phx-hook={if is_binary(e2ee_payload), do: "E2EEDMMessage", else: nil}
     >
-      <%= if is_binary(e2ee_payload) do %>
-        <span data-role="e2ee-dm-body">
-          <span data-role="e2ee-dm-placeholder" class="italic opacity-60">[Encrypted]</span>
-          <span
-            data-role="e2ee-dm-decrypting"
-            class="hidden ml-2 inline-flex items-center gap-1 italic opacity-60"
-          >
-            <span class="inline-flex animate-spin">
-              <.icon name="hero-arrow-path" class="size-3" />
-            </span>
-            Decrypting…
-          </span>
-        </span>
-
-        <span data-role="e2ee-dm-actions" class="ml-2">
-          <button
-            type="button"
-            data-role="e2ee-dm-unlock"
-            class={[
-              "inline-flex cursor-pointer items-center gap-1 border px-2 py-0.5 align-middle font-mono text-[10px] font-bold uppercase tracking-wide transition focus-visible:outline-none",
-              @is_own &&
-                "border-[color:var(--bg-base)] text-[color:var(--bg-base)] hover:bg-[color:var(--bg-base)] hover:text-[color:var(--text-primary)]",
-              !@is_own &&
-                "border-[color:var(--border-default)] text-[color:var(--text-primary)] hover:bg-[color:var(--text-primary)] hover:text-[color:var(--bg-base)]"
-            ]}
-          >
-            <.icon name="hero-lock-open" class="size-3" /> Unlock
-          </button>
-        </span>
-      <% else %>
-        {dm_content_html(@message)}
-      <% end %>
+      {dm_content_html(@message)}
     </div>
     """
   end
@@ -1314,27 +1094,6 @@ defmodule EgregorosWeb.MessagesLive do
 
   defp dm_last_message_at(_message), do: nil
 
-  defp e2ee_payload_json(%{data: %{} = data}) do
-    case Map.get(data, "egregoros:e2ee_dm") do
-      %{} = payload when map_size(payload) > 0 -> Jason.encode!(payload)
-      _ -> nil
-    end
-  end
-
-  defp e2ee_payload_json(_message), do: nil
-
-  defp encrypted_message?(%{data: %{} = data}) do
-    case Map.get(data, "egregoros:e2ee_dm") do
-      %{} = payload -> map_size(payload) > 0
-      _ -> false
-    end
-  end
-
-  defp encrypted_message?(_message), do: false
-
-  defp current_user_ap_id(%{ap_id: ap_id}) when is_binary(ap_id), do: ap_id
-  defp current_user_ap_id(_current_user), do: ""
-
   defp dm_content_html(%{data: %{} = data} = object) do
     raw = Map.get(data, "content", "")
     emojis = CustomEmojis.from_object(object)
@@ -1347,31 +1106,24 @@ defmodule EgregorosWeb.MessagesLive do
 
   defp dm_content_html(_message), do: ""
 
-  defp dm_preview_text(%{data: %{} = data} = message, %User{} = current_user) do
-    if encrypted_message?(message) do
-      "Encrypted message"
-    else
-      raw = data |> Map.get("content", "") |> to_string()
-
-      text =
-        raw
-        |> FastSanitize.strip_tags()
-        |> case do
-          {:ok, text} -> text
-          _ -> ""
-        end
-        |> String.replace(~r/\s+/, " ")
-        |> String.trim()
-        |> strip_leading_self_mention(current_user)
-
-      text =
-        if String.starts_with?(text, "Encrypted message"), do: "Encrypted message", else: text
-
-      cond do
-        text == "" -> "—"
-        String.length(text) <= 80 -> text
-        true -> String.slice(text, 0, 77) <> "..."
+  defp dm_preview_text(%{data: %{} = data}, %User{} = current_user) do
+    text =
+      data
+      |> Map.get("content", "")
+      |> to_string()
+      |> FastSanitize.strip_tags()
+      |> case do
+        {:ok, text} -> text
+        _ -> ""
       end
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+      |> strip_leading_self_mention(current_user)
+
+    cond do
+      text == "" -> "—"
+      String.length(text) <= 80 -> text
+      true -> String.slice(text, 0, 77) <> "..."
     end
   end
 
@@ -1409,18 +1161,8 @@ defmodule EgregorosWeb.MessagesLive do
     end
   end
 
-  defp prepare_dm(recipient, body, e2ee_dm) when is_binary(recipient) and is_binary(body) do
-    e2ee_dm = if is_binary(e2ee_dm), do: String.trim(e2ee_dm), else: ""
-
-    with true <- e2ee_dm != "",
-         {:ok, %{} = payload} <- Jason.decode(e2ee_dm) do
-      content = normalize_dm_content(recipient, "Encrypted message")
-      {content, visibility: "direct", e2ee_dm: payload}
-    else
-      _ ->
-        content = normalize_dm_content(recipient, body)
-        {content, visibility: "direct"}
-    end
+  defp prepare_dm(recipient, body) when is_binary(recipient) and is_binary(body) do
+    {normalize_dm_content(recipient, body), visibility: "direct"}
   end
 
   defp avatar_src(avatar_url, base) when is_binary(avatar_url) and is_binary(base) do

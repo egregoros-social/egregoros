@@ -5,11 +5,10 @@ defmodule EgregorosWeb.Components.Shared.ContentBodyTest do
 
   alias EgregorosWeb.Components.Shared.ContentBody
 
-  test "renders E2EE payload metadata and unlock UI when egregoros:e2ee_dm is present" do
+  test "renders legacy egregoros:e2ee_dm payloads as plain content without unlock UI" do
     html =
       render_component(&ContentBody.content_body/1, %{
         id: "post-1",
-        current_user: %{ap_id: "http://localhost:4000/users/alice"},
         object: %{
           local: true,
           data: %{
@@ -19,11 +18,12 @@ defmodule EgregorosWeb.Components.Shared.ContentBodyTest do
         }
       })
 
-    assert html =~ ~s(phx-hook="E2EEDMMessage")
-    assert html =~ ~s(data-role="e2ee-dm-body")
-    assert html =~ ~s(data-role="e2ee-dm-unlock")
-    assert html =~ ~s(data-current-user-ap-id="http://localhost:4000/users/alice")
-    assert html =~ ~s(data-e2ee-dm=)
+    assert html =~ "Secret"
+    refute html =~ "E2EEDMMessage"
+    refute html =~ "e2ee-dm-body"
+    refute html =~ "e2ee-dm-unlock"
+    refute html =~ "data-e2ee-dm"
+    refute html =~ "data-current-user-ap-id"
   end
 
   test "collapses long remote HTML content behind a show-more toggle" do
@@ -32,7 +32,6 @@ defmodule EgregorosWeb.Components.Shared.ContentBodyTest do
     html =
       render_component(&ContentBody.content_body/1, %{
         id: "post-1",
-        current_user: nil,
         object: %{
           local: false,
           data: %{

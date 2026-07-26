@@ -55,11 +55,7 @@ defmodule EgregorosWeb.Components.TimelineItems.PollCard do
         </div>
       </div>
 
-      <ContentBody.content_body
-        id={@id}
-        object={@entry.object}
-        current_user={@current_user}
-      />
+      <ContentBody.content_body id={@id} object={@entry.object} />
 
       <.poll_section
         id={@id}
