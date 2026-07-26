@@ -72,41 +72,28 @@ Notes:
 - [x] Signature strictness tightening (keep **off by default**; enable via `config :egregoros, :signature_strict, true`).
 - [ ] Continuous audit for privacy leaks (public timelines, streaming, media access, DM visibility).
 
-## Messaging / E2EE (Encrypted DMs)
+## Messaging / E2EE (Encrypted DMs) — removed
 
-See also: `e2ee_dm.md` (design notes + threat model).
+E2EE DMs were implemented and then **removed** ahead of the Pleroma-compatibility
+work (see `pleroma_migration_plan.md`): the browser crypto, the recovery-phrase
+settings flow, the `EncryptedMessage` object type, the `egregoros:e2ee` actor
+advertisement, the `/settings/e2ee*` endpoints and the `e2ee_*` tables are all
+gone. Direct messages are plaintext DMs again.
 
-- [ ] **E2EE DMs: 24-word recovery phrase (mnemonic)**
-  - [x] Add mnemonic enable endpoint (`POST /settings/e2ee/mnemonic`) and store encrypted key material.
-  - [x] Add `recovery_mnemonic_v1` wrapper type allowlist (and store params like `hkdf_salt`, `iv`, `info`, `alg`).
-  - [x] Add settings UI + JS to generate a 24-word mnemonic (BIP39-style), confirm, and upload the wrapper.
-  - [x] Add unlock flow that prompts for the 24 words and unlocks `E2EE_PRIV` using the mnemonic wrapper.
-  - [ ] Add server-side support to add/rotate wrappers for an existing active key (so we can introduce new unlock mechanisms later without regenerating keys).
+The design record is kept in `e2ee_dm.md` in case we revive the feature. If we
+do, treat it as a fresh feature (new schemas + migrations); do not try to restore
+the deleted implementation.
 
-- [x] **E2EE DMs: cross-server key discovery (browser CORS-safe)**
-  - [x] Add an authenticated endpoint to resolve `@user@domain` → actor AP id (WebFinger) and fetch `egregoros:e2ee` keys server-side (signed fetch when needed), returning `{actor_ap_id, keys}`.
-  - [x] Update `E2EEDMComposer` to encrypt for remote recipients using the endpoint (remove the “local-only” guard) and show clear UX when the recipient has no published E2EE keys.
-  - [x] Update `E2EEDMMessage` decryption to fetch sender keys via the same endpoint (avoid cross-origin actor fetches), with a useful “can’t decrypt yet” state.
-
-- [ ] **TOFU pinning + key-change warnings**
-  - [ ] Add `e2ee_pins` table + schema for `{owner_user_id, remote_actor_ap_id, kid, fingerprint, first_seen_at, last_seen_at}` (plus optional `public_key_jwk`), and keep access behind a behaviour (Mox in tests).
-  - [ ] Add an endpoint + UI flow to “trust new key” when a remote actor’s key fingerprint changes.
-  - [ ] Block silent encryption to changed keys unless the user re-trusts.
-
-- [ ] **ActivityPub: dedicated `EncryptedMessage` object type**
-  - [x] Introduce `Egregoros.Activities.EncryptedMessage` and validate it as a direct-only object carrying `egregoros:e2ee_dm`.
-  - [x] Emit `EncryptedMessage` instead of `Note` for encrypted DMs (currently unconditional) and ensure inbox targeting + delivery still works.
-  - [x] Update DM listing/query paths (`DirectMessages`, `MessagesLive`, etc.) to include `EncryptedMessage`.
-  - [ ] Add fixtures + tests covering ingest, rendering placeholder vs decrypted content, and “unknown type” handling on non-supporting instances.
+- [ ] Decide whether E2EE DMs come back after the Pleroma cutover, and if so on
+      what protocol basis (the old design was Egregoros-specific).
 
 ## UX / UI (LiveView)
 
 - [ ] Work through `frontend_checklist.md` (prioritized UX parity with Mastodon/Pleroma clients).
 - [ ] Composer polish: unify controls, fix edge cases, add missing attachments flows, improve keyboard UX.
 - [ ] Thread/status view polish (navigation, scroll restoration, reply modal UX).
-- [ ] **Messages UI: E2EE chat frontend parity**
+- [ ] **Messages UI: chat frontend parity**
   - [x] “New” button should start a new chat (no selected peer; recipient input visible).
-  - [x] Conversation list should show preview + timestamp + unread state (and show an E2EE indicator only when the last message is encrypted).
+  - [x] Conversation list should show preview + timestamp + unread state.
   - [x] New-chat recipient suggestions/autocomplete (handles + remote).
-  - [x] Make plaintext DMs possible even when E2EE is enabled (toggle per message/conversation).
   - [x] Add pagination (“load more”) for conversations + thread messages.

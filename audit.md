@@ -18,14 +18,9 @@ This is a follow-up audit pass of **Egregoros** focused on: **security/privacy**
   - Code/docs: `lib/egregoros_web/plugs/uploads.ex`, `lib/egregoros/media_storage/local.ex`, `README.md` (“followers-only/direct media visibility checks”).
   - Fix direction: either (a) explicitly document “media URLs are bearer links” (common in fedi), or (b) implement gated media (signed URLs / token + controller) and keep `Plug.Static` only for public media.
 
-- [ ] **E2EE actor key ingestion should be bounded**: remote actor JSON can advertise an arbitrarily large `egregoros:e2ee.keys` list; we currently ingest and upsert all keys.
-  - Risk: DB growth + expensive refresh transactions per actor (even with the 1MB HTTP response cap).
-  - Code: `lib/egregoros/e2ee/actor_keys.ex` (`extract_actor_keys/1`, `refresh_actor_keys/1`), `lib/egregoros/http/req.ex` (response cap).
-  - Fix direction: cap keys per actor (e.g. `Enum.take(keys, 5)`), validate key field sizes, and prune `present: false` rows after a retention window.
+- [x] ~~**E2EE actor key ingestion should be bounded**~~ — moot: E2EE was removed (see `e2ee_dm.md`).
 
-- [ ] **User-triggered remote fetch endpoints need throttling**: endpoints like `/settings/e2ee/actor_key` can trigger WebFinger + remote actor fetch + DB writes.
-  - Code: `lib/egregoros_web/controllers/e2ee_controller.ex`, `lib/egregoros/e2ee/actor_keys.ex`.
-  - Fix direction: rate-limit per user/IP and/or enqueue refresh work (serve cached result immediately; refresh async when stale).
+- [x] ~~**User-triggered remote fetch endpoints need throttling**~~ (`/settings/e2ee/actor_key`) — moot: the endpoint was removed with E2EE. Revisit if another user-triggered remote-fetch endpoint is added.
 
 - [ ] **Image processing hardening**: thumbnail/blurhash generation uses `Image.open/1` + `Image.thumbnail/2` without explicit pixel-dimension limits.
   - Risk: decompression bombs (small file, huge dimensions) causing CPU/memory spikes.
@@ -49,9 +44,7 @@ This is a follow-up audit pass of **Egregoros** focused on: **security/privacy**
   - Code: `lib/egregoros_web/live/messages_live.ex` (`conversations_page/3`), `lib/egregoros_web/view_models/actor.ex` (`cards_by_ap_id/1` exists).
   - Fix direction: bulk fetch actor cards with `Actor.cards_by_ap_id/1`.
 
-- [ ] **E2EE actor key refresh writes are per-row**: refresh currently `Repo.insert`’s each key inside a transaction.
-  - Code: `lib/egregoros/e2ee/actor_keys.ex`.
-  - Fix direction: use `Repo.insert_all` (with conflict handling) and prune old rows to keep the table bounded.
+- [x] ~~**E2EE actor key refresh writes are per-row**~~ — moot: E2EE was removed (see `e2ee_dm.md`).
 
 ### Maintainability / DRY
 
