@@ -2,9 +2,19 @@ defmodule Egregoros.Repo.Migrations.DropE2eeTables do
   use Ecto.Migration
 
   # End-to-end encrypted DMs were removed ahead of the Pleroma-compatibility
-  # migration. `down/0` recreates the tables in their last known shape (flake
-  # id primary keys) so the rollback path stays usable, but the key material
-  # itself is gone for good.
+  # migration (see `e2ee_dm.md`). This drops the key material for good: the
+  # wrapped private keys lived in `e2ee_key_wrappers`, so any ciphertext that
+  # remains anywhere becomes permanently undecryptable once this runs.
+  #
+  # Not dropped here: rows in `objects` with `type = 'EncryptedMessage'` (or a
+  # leftover `data->'egregoros:e2ee_dm'` payload). They are unreachable — the
+  # DM queries only look at Note now, and status queries never included the
+  # type — but they still occupy space. Operators who want them gone can run:
+  #
+  #   DELETE FROM objects WHERE type = 'EncryptedMessage';
+  #
+  # That is deliberately left as an operator decision rather than an automatic
+  # data deletion.
 
   def up do
     drop_if_exists table(:e2ee_key_wrappers)
@@ -12,55 +22,15 @@ defmodule Egregoros.Repo.Migrations.DropE2eeTables do
     drop_if_exists table(:e2ee_actor_keys)
   end
 
+  # Deliberately irreversible. Recreating the tables would not restore the key
+  # material, and the tables' real pre-drop shape included a vestigial
+  # `legacy_id` column left behind by the flake-id migration, so a hand-written
+  # `create table` here would quietly diverge from it. Reviving E2EE means
+  # writing a fresh migration, not rolling this one back — and rolling back past
+  # `20260126102530_switch_primary_keys_to_flake_ids` already raises anyway.
   def down do
-    create table(:e2ee_keys, primary_key: false) do
-      add :id, :uuid, primary_key: true
-      add :user_id, references(:users, type: :uuid, on_delete: :delete_all), null: false
-      add :kid, :string, null: false
-      add :public_key_jwk, :map, null: false
-      add :fingerprint, :string, null: false
-      add :active, :boolean, null: false, default: false
-
-      timestamps(type: :utc_datetime_usec)
-    end
-
-    create index(:e2ee_keys, [:user_id])
-    create unique_index(:e2ee_keys, [:user_id, :kid])
-
-    create unique_index(:e2ee_keys, [:user_id],
-             where: "active",
-             name: :e2ee_keys_one_active_per_user
-           )
-
-    create table(:e2ee_key_wrappers, primary_key: false) do
-      add :id, :uuid, primary_key: true
-      add :user_id, references(:users, type: :uuid, on_delete: :delete_all), null: false
-      add :kid, :string, null: false
-      add :type, :string, null: false
-      add :wrapped_private_key, :binary, null: false
-      add :params, :map, null: false
-
-      timestamps(type: :utc_datetime_usec)
-    end
-
-    create index(:e2ee_key_wrappers, [:user_id])
-    create index(:e2ee_key_wrappers, [:user_id, :kid])
-    create unique_index(:e2ee_key_wrappers, [:user_id, :kid, :type])
-
-    create table(:e2ee_actor_keys, primary_key: false) do
-      add :id, :uuid, primary_key: true
-      add :actor_ap_id, :string, null: false
-      add :kid, :string, null: false
-      add :jwk, :map, null: false
-      add :fingerprint, :string
-      add :position, :integer, null: false
-      add :present, :boolean, null: false, default: true
-      add :fetched_at, :utc_datetime_usec, null: false
-
-      timestamps(type: :utc_datetime_usec)
-    end
-
-    create unique_index(:e2ee_actor_keys, [:actor_ap_id, :kid])
-    create index(:e2ee_actor_keys, [:actor_ap_id, :present, :position])
+    raise Ecto.MigrationError,
+          "drop_e2ee_tables is irreversible: the E2EE key material is gone. " <>
+            "If E2EE DMs are revived, add a new migration that creates the tables."
   end
 end

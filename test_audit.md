@@ -101,6 +101,8 @@ Mark each file after review:
 - [x] test/egregoros/discovery_test.exs (✅ keep; delegates via Mox)
 - [x] test/egregoros/dns/cached_test.exs (✅ keep; cache TTL behavior)
 - [x] test/egregoros/dns/inet_test.exs (✅ keep)
+- [x] test/egregoros/activities/encrypted_message_removed_test.exs (✅ keep; guards that EncryptedMessage stays an unknown type)
+- [x] test/egregoros/repo/e2ee_tables_dropped_test.exs (✅ keep; guards that the e2ee tables stay dropped)
 - [x] test/egregoros/federation/actor_discovery_test.exs (✅ keep)
 - [x] test/egregoros/federation/actor_test.exs (✅ keep; strong SSRF/signed-fetch edge coverage)
 - [x] test/egregoros/federation/announce_object_fetch_test.exs (✅ keep)

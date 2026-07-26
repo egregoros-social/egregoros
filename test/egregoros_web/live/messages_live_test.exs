@@ -344,18 +344,18 @@ defmodule EgregorosWeb.MessagesLiveTest do
     refute html =~ "E2EEDMComposer"
   end
 
-  test "legacy encrypted DMs render as plain content without unlock controls", %{
+  test "notes carrying an e2ee payload render as plain content without unlock controls", %{
     conn: conn,
     alice: alice,
     bob: bob
   } do
-    _dm = create_legacy_encrypted_dm!(bob, alice, "legacy-ciphertext-placeholder")
+    _dm = create_note_with_e2ee_payload!(bob, alice, "payload-carrying-note")
 
     conn = Plug.Test.init_test_session(conn, %{user_id: alice.id})
     {:ok, view, html} = live(conn, "/messages")
 
     assert has_element?(view, "[data-role='dm-chat-peer-handle']", "@bob")
-    assert has_element?(view, "[data-role='dm-message-body']", "legacy-ciphertext-placeholder")
+    assert has_element?(view, "[data-role='dm-message-body']", "payload-carrying-note")
 
     refute has_element?(view, "[data-role='dm-e2ee-badge']")
     refute has_element?(view, "[data-role='e2ee-dm-body']")
@@ -408,10 +408,14 @@ defmodule EgregorosWeb.MessagesLiveTest do
            )
   end
 
-  # Objects ingested before E2EE was removed can still carry an `egregoros:e2ee_dm`
-  # payload; they must render like any other direct message.
-  defp create_legacy_encrypted_dm!(sender, recipient, content) do
-    ap_id = "https://example.com/objects/legacy-e2ee-#{System.unique_integer([:positive])}"
+  # A Note carrying an `egregoros:e2ee_dm` payload — the shape a third-party
+  # implementation could still federate to us. It must render like any other
+  # direct message, with no unlock affordances.
+  #
+  # (Egregoros' own encrypted DMs were stored as `type: "EncryptedMessage"`,
+  # which `DirectMessages` no longer lists at all — see direct_messages_test.)
+  defp create_note_with_e2ee_payload!(sender, recipient, content) do
+    ap_id = "https://example.com/objects/e2ee-payload-#{System.unique_integer([:positive])}"
 
     {:ok, object} =
       Egregoros.Objects.create_object(%{

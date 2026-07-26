@@ -8,6 +8,8 @@ defmodule Egregoros.DirectMessagesTest do
 
   @as_public "https://www.w3.org/ns/activitystreams#Public"
 
+  # Egregoros' own encrypted DMs were stored with type "EncryptedMessage"; after
+  # the E2EE removal those rows are no longer surfaced anywhere.
   test "list_for_user excludes EncryptedMessage objects" do
     {:ok, alice} = Users.create_local_user("alice")
 
@@ -34,7 +36,7 @@ defmodule Egregoros.DirectMessagesTest do
     refute Enum.any?(messages, &(&1.id == dm.id))
   end
 
-  test "list_for_user includes notes carrying a legacy egregoros:e2ee_dm payload" do
+  test "list_for_user includes notes carrying an egregoros:e2ee_dm payload" do
     {:ok, alice} = Users.create_local_user("alice")
 
     actor = "https://remote.example/users/bob"

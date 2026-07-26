@@ -84,6 +84,16 @@ The design record is kept in `e2ee_dm.md` in case we revive the feature. If we
 do, treat it as a fresh feature (new schemas + migrations); do not try to restore
 the deleted implementation.
 
+Two known consequences of the removal:
+
+- Objects previously stored with `type = "EncryptedMessage"` stay in `objects`
+  but are unreachable (the DM queries only look at `Note`, and status queries
+  never included the type). Their ciphertext is permanently undecryptable now
+  that `e2ee_key_wrappers` is gone. Purging them is left to the operator:
+  `DELETE FROM objects WHERE type = 'EncryptedMessage';`
+- Peers still running an E2EE-capable Egregoros will have their encrypted DMs
+  dropped on ingest as an unknown type (the inbox still 202s; the job discards).
+
 - [ ] Decide whether E2EE DMs come back after the Pleroma cutover, and if so on
       what protocol basis (the old design was Egregoros-specific).
 
