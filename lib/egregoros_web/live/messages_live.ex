@@ -970,8 +970,7 @@ defmodule EgregorosWeb.MessagesLive do
   defp extract_recipient_id(id) when is_binary(id), do: id
   defp extract_recipient_id(_recipient), do: nil
 
-  defp include_dm?(%{type: type} = note, %User{} = current_user)
-       when type in ["Note", "EncryptedMessage"] do
+  defp include_dm?(%{type: "Note"} = note, %User{} = current_user) do
     DirectMessages.direct?(note) and Objects.visible_to?(note, current_user)
   end
 
