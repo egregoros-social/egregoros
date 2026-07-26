@@ -57,10 +57,18 @@ benchmark harness.
 
 ## Conventions
 
-`AGENTS.md` at the repository root is the working agreement: TDD first, one
-module per ActivityPub type, behaviour boundaries with Mox for missing
-behavior, and the Phoenix/LiveView/Ecto house style. Read it before adding
-code.
+`AGENTS.md` at the repository root is the short working agreement: TDD first,
+review before committing, small topical commits, upstream Pleroma as the
+protocol reference, and the rule that `Egregoros.Object.data` stays canonical
+external ActivityPub JSON. Read it before adding code.
+
+Beyond that, match the surrounding code. The structural conventions worth
+knowing are documented rather than listed as rules:
+
+- one module per ActivityPub type in `lib/egregoros/activities/*`
+- swappable concerns (HTTP, caching, signatures, media storage, authz, rate
+  limiting) sit behind behaviours, with Mox in tests
+- `lib/egregoros/html.ex` is the single HTML safety boundary
 
 Further reading:
 
