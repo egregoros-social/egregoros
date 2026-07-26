@@ -52,6 +52,17 @@ the behavior matrix exists.
 - [ ] [Polish the thread and status view](issues/thread-view-polish.md)
 - [ ] [Finish messages UI parity](issues/messages-ui-parity.md)
 
+## Compatibility (later)
+
+Not current-milestone work. These gate a Pleroma cutover, not the architecture
+milestone above, and the posture is to keep compatibility work narrow and
+evidence-driven until the reliability work lands. See
+[`../docs/pleroma-migration.md`](../docs/pleroma-migration.md).
+
+- [ ] [Import the follow graph from Pleroma](issues/pleroma-import-follow-graph.md)
+- [ ] [Rehearse the Pleroma migration end to end](issues/pleroma-migration-rehearsal.md)
+- [ ] [Verify Pleroma bcrypt and argon2 password hashes](issues/pleroma-password-hash-compatibility.md)
+
 ## Decisions pending
 
 - [ ] [Decide whether E2EE DMs come back](issues/e2ee-revival-decision.md)

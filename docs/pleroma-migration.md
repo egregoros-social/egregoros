@@ -269,17 +269,36 @@ Rollback: switch traffic back to the old Pleroma deployment and DB snapshot.
 - Importing large datasets: performance and lock time; design importer to be resumable and idempotent.
 - If we want “seamless-ish” client continuity, ID strategy becomes a major architectural decision (flake/base62 vs int).
 
-## 8) Next concrete steps (recommended)
+## 8) What is left
 
-1) Decide migration mode (A vs B).
-2) Prototype a read-only “Pleroma DB scanner”:
-   - count rows by type for `activities.data->>'type'` and `objects.data->>'type'`
-   - list unknown/unhandled types
-3) Implement Egregoros password compatibility.
-4) Implement `/media` static serving.
-5) Implement `/activities/:uuid` fetch controller.
-6) Implement `mix egregoros.import_pleroma` importer (users → objects → activities → follows).
-7) Test in fedbox-like environment by restoring a small Pleroma DB snapshot into a container and running the importer + federation smoke tests.
+Sections 4 and 5 above record what has already been implemented; this list is
+only the remaining work. Open items are tracked in
+[`../meta/issues.md`](../meta/issues.md) — this section is a summary, not a
+second backlog.
+
+Blocking a cutover:
+
+- **Follow graph import.** The importer covers users and status activities
+  only. Section 3.1 lists the follow graph as a minimum-viable goal, and
+  without it migrated users arrive following nobody.
+  See `meta/issues/pleroma-import-follow-graph.md`.
+- **A rehearsal.** None of this has been run end to end against a real Pleroma
+  dump. See `meta/issues/pleroma-migration-rehearsal.md`.
+
+Conditionally blocking, depending on the source instance:
+
+- **bcrypt/argon2 password verification.** Only pbkdf2 hashes verify today
+  (both Egregoros' own format and Pleroma's `$pbkdf2-`), so users whose hashes
+  are `$2...` or `$argon2...` would be forced through a password reset. Check
+  the hash-prefix distribution in the target instance before deciding whether
+  this matters at all.
+  See `meta/issues/pleroma-password-hash-compatibility.md`.
+
+Decided, for the record:
+
+- **Migration mode.** Mode B in practice: flake IDs are the primary key and
+  `import_statuses/1` preserves Pleroma's status IDs, so client continuity is
+  already the implemented path rather than an open choice.
 
 ## Appendix: operator runbook (systemd + host PostgreSQL)
 
