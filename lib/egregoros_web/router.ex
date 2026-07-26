@@ -129,9 +129,6 @@ defmodule EgregorosWeb.Router do
   scope "/", EgregorosWeb do
     pipe_through :browser_api
 
-    get "/settings/e2ee", E2EEController, :show
-    post "/settings/e2ee/mnemonic", E2EEController, :enable_mnemonic
-    post "/settings/e2ee/actor_key", E2EEController, :actor_key
     post "/passkeys/registration/options", PasskeysController, :registration_options
     post "/passkeys/registration/finish", PasskeysController, :registration_finish
     post "/passkeys/authentication/options", PasskeysController, :authentication_options

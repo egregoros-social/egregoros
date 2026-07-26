@@ -1,7 +1,6 @@
 defmodule EgregorosWeb.SettingsController do
   use EgregorosWeb, :controller
 
-  alias Egregoros.E2EE
   alias Egregoros.AvatarStorage
   alias Egregoros.BannerStorage
   alias Egregoros.Notifications
@@ -39,7 +38,6 @@ defmodule EgregorosWeb.SettingsController do
               as: :account
             ),
           password_form: password_form,
-          e2ee_key: E2EE.get_active_key(user),
           notifications_count: notifications_count(user),
           error: nil
         )

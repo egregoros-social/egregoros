@@ -25,7 +25,6 @@ defmodule EgregorosWeb.SettingsControllerTest do
     html = html_response(conn, 200)
     assert html =~ "Settings"
     assert html =~ "alice@example.com"
-    assert html =~ "Encrypted DMs"
     assert html =~ "Privacy"
     assert html =~ "/settings/privacy"
     assert html =~ ~s(data-role="app-shell")
