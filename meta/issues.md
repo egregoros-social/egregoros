@@ -10,6 +10,7 @@ changing the execution model.
 
 - [ ] [Make ingress behavior executable as a parity matrix](issues/ingress-behavior-matrix.md)
 - [ ] [Build one cross-surface visibility/block/mute truth table](issues/visibility-block-mute-truth-table.md)
+- [ ] [Extend the moderation table to streaming, LiveView, and delivery](issues/extend-moderation-table-to-remaining-surfaces.md)
 - [ ] [Check in operational and query baselines](issues/operational-and-query-baselines.md)
 - [ ] [Fix the precommit toolchain gate](issues/fix-precommit-toolchain-gate.md)
 - [ ] [Add architecture guardrails to CI](issues/architecture-guardrails-in-ci.md)
@@ -25,6 +26,7 @@ the behavior matrix exists.
 ## Security and privacy
 
 - [ ] [Bound actor discovery fan-out per activity](issues/bound-actor-discovery-fanout.md)
+- [ ] [Enforce blocks and mutes across every surface](issues/enforce-blocks-and-mutes-across-surfaces.md)
 - [ ] [Decide and enforce an upload access-control policy](issues/upload-access-control-policy.md)
 - [ ] [Narrow session cookie scope across subdomains](issues/session-cookie-scope-across-subdomains.md)
 - [ ] [Bound image processing against decompression bombs](issues/image-processing-limits.md)

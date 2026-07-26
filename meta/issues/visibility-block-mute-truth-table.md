@@ -31,3 +31,22 @@ privacy leaks appear.
   timelines, streaming, media access, DM visibility)", which was too vague to
   act on.
 - Precursor to the explicit access/subscription policy layers.
+
+## Progress
+
+The table exists as `Egregoros.ModerationCases`, driven by
+`test/egregoros/moderation_conformance_test.exs`. It covers four of the seven
+surfaces this issue listed: object visibility (`visible_to?/2`), public timeline,
+home timeline, and notifications. `ModerationCases.uncovered_surfaces/0` names
+the rest in code, not just prose.
+
+Remaining before this can close:
+
+- streaming, LiveView refresh, and delivery — see
+  [extend-moderation-table-to-remaining-surfaces](extend-moderation-table-to-remaining-surfaces.md)
+
+What the table already surfaced is filed as
+[enforce-blocks-and-mutes-across-surfaces](enforce-blocks-and-mutes-across-surfaces.md):
+blocks and mutes are enforced in only three home-ish queries, direct fetch and
+notifications ignore them entirely, and the incoming direction of a block is
+ignored everywhere.
