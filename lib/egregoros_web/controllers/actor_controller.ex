@@ -1,7 +1,6 @@
 defmodule EgregorosWeb.ActorController do
   use EgregorosWeb, :controller
 
-  alias Egregoros.E2EE
   alias Egregoros.Users
   alias Egregoros.VerifiableCredentials.DidWeb
   alias EgregorosWeb.URL
@@ -44,7 +43,6 @@ defmodule EgregorosWeb.ActorController do
     |> maybe_put_also_known_as(user)
     |> maybe_put_icon(user)
     |> maybe_put_assertion_method(user)
-    |> maybe_put_e2ee(user)
   end
 
   defp maybe_put_icon(actor, %{avatar_url: avatar_url})
@@ -76,18 +74,4 @@ defmodule EgregorosWeb.ActorController do
   end
 
   defp maybe_put_also_known_as(actor, _user), do: actor
-
-  defp maybe_put_e2ee(actor, user) do
-    keys = E2EE.public_keys_for_actor(user)
-
-    if keys == [] do
-      actor
-    else
-      actor
-      |> Map.update!("@context", fn ctx ->
-        ctx ++ [%{"egregoros" => URL.absolute("/schemas/egregoros#")}]
-      end)
-      |> Map.put("egregoros:e2ee", %{"version" => 1, "keys" => keys})
-    end
-  end
 end

@@ -69,22 +69,18 @@ defmodule EgregorosWeb.ActorControllerTest do
              EgregorosWeb.Endpoint.url() <> "/uploads/avatars/#{user.id}/avatar.png"
   end
 
-  test "GET /users/:nickname exposes e2ee public keys when configured", %{conn: conn} do
+  test "GET /users/:nickname never advertises e2ee keys", %{conn: conn} do
     {:ok, user} = Users.create_local_user("dana")
-
-    kid = "e2ee-2025-12-26T00:00:00Z"
-
-    public_key_jwk = %{
-      "kty" => "EC",
-      "crv" => "P-256",
-      "x" => "pQECAwQFBgcICQoLDA0ODw",
-      "y" => "AQIDBAUGBwgJCgsMDQ4PEA"
-    }
 
     assert {:ok, _} =
              E2EE.enable_key_with_wrapper(user, %{
-               kid: kid,
-               public_key_jwk: public_key_jwk,
+               kid: "e2ee-2025-12-26T00:00:00Z",
+               public_key_jwk: %{
+                 "kty" => "EC",
+                 "crv" => "P-256",
+                 "x" => "pQECAwQFBgcICQoLDA0ODw",
+                 "y" => "AQIDBAUGBwgJCgsMDQ4PEA"
+               },
                wrapper: %{
                  type: "recovery_mnemonic_v1",
                  wrapped_private_key: <<1, 2, 3>>,
@@ -103,12 +99,10 @@ defmodule EgregorosWeb.ActorControllerTest do
 
     decoded = Jason.decode!(conn.resp_body)
 
-    assert %{"version" => 1, "keys" => [rendered_key]} = decoded["egregoros:e2ee"]
-    assert rendered_key["kid"] == kid
-    assert rendered_key["kty"] == "EC"
-    assert rendered_key["crv"] == "P-256"
-    assert rendered_key["x"] == public_key_jwk["x"]
-    assert rendered_key["y"] == public_key_jwk["y"]
-    assert String.starts_with?(rendered_key["fingerprint"], "sha256:")
+    refute Map.has_key?(decoded, "egregoros:e2ee")
+
+    refute Enum.any?(decoded["@context"], fn entry ->
+             is_map(entry) and Map.has_key?(entry, "egregoros")
+           end)
   end
 end
